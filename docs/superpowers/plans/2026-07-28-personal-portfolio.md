@@ -14,11 +14,21 @@
 
 ## Prerequisites (do this first — nothing else works without it)
 
-**Node.js is not installed on this machine.** This was confirmed during design (`node` and `npm` are both absent from PATH). Every task below requires it.
+- [x] **Node.js installed** — v24.18.0 with npm 11.16.0, at `C:\Program Files\nodejs`. Verified 2026-07-28.
 
-- [ ] Install Node.js 20 LTS or newer from https://nodejs.org (Windows installer).
-- [ ] Open a **new** terminal (the installer updates PATH; existing shells won't see it).
-- [ ] Verify: `node --version` prints `v20.x` or higher, and `npm --version` prints a version.
+**PATH caveat for agents and long-running shells:** Node was installed *after* this session's shells started, so a shell that inherited the older environment will fail with `node: command not found` even though Node is present. Prepend the right fix for your shell before any `npm`/`npx` command:
+
+```bash
+export PATH="$PATH:/c/Program Files/nodejs"
+```
+
+In PowerShell:
+
+```powershell
+$env:PATH = [System.Environment]::GetEnvironmentVariable("PATH","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("PATH","User")
+```
+
+A genuinely new terminal opened after the install needs neither. Verify with `node --version` before starting Task 1.
 
 Accounts needed before Task 2 and Task 7 respectively:
 - A Neon Postgres database (free tier) — gives you a `DATABASE_URL`.
