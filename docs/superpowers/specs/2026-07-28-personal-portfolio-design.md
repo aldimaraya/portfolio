@@ -29,7 +29,9 @@ reference. The name "Alex Morgan" in that file is a placeholder only.
 ## Non-goals (v1)
 
 - Multi-user accounts or roles (single admin only).
-- Adaptive-bitrate video transcoding/streaming pipeline.
+- Server-side video transcoding or adaptive-bitrate streaming. Videos are
+  compressed to a web-delivery encode manually before upload (see Media
+  pipeline).
 - A rich-text/WYSIWYG blog editor (Markdown is sufficient given low post
   volume).
 - A visitor-facing layout/palette switcher (one final layout and palette
@@ -183,7 +185,9 @@ Protected by the single-admin password login described above.
   automatic.
 - **Video form:** upload a file, poster image, title, camera/format/fps/
   ISO, which roll it belongs to, manual sort order within that roll,
-  tags.
+  tags. Uploads are expected to be the compressed web encode, not a 4K
+  master (see Media pipeline); the form shows the expected size range and
+  warns on unusually large files rather than silently accepting them.
 - **Blog form:** a Markdown textarea with a live preview pane
   side-by-side. No WYSIWYG library.
 - **Delete** actions for all content types.
@@ -192,16 +196,40 @@ Protected by the single-admin password login described above.
 
 ## Media pipeline
 
-- **Upload flow:** the browser uploads the file directly to R2 via a
-  pre-signed URL (large video files never pass through the Next.js
-  server); the resulting R2 key/URL is saved to the database.
+- **Upload flow:** the browser uploads the file directly to R2 via
+  pre-signed URLs (large video files never pass through the Next.js
+  server); the resulting R2 key/URL is saved to the database. Uploads use
+  **multipart** rather than a single PUT — a 1 GB upload that fails at
+  90% would otherwise restart from zero, and multipart also allows retry
+  of individual failed parts.
 - **Photos:** served through Next.js's `<Image>` component pointed at the
   R2/CDN URL, getting automatic resizing and lazy-loading.
 - **Videos:** a custom lightweight `<video>` wrapper — native HTML5
   video with custom-styled controls matching the theme, a poster frame,
-  and the film-frame visual chrome from the mockup. No adaptive-bitrate/
-  transcoding pipeline in v1 — the original file is served directly,
-  which is sufficient at "dozens of items" scale and R2's egress is free.
+  and the film-frame visual chrome from the mockup.
+- **Video encoding is a manual pre-upload step, not a pipeline stage.**
+  Source footage is 4K and can run ~1 GB per clip, which is far too heavy
+  to serve directly to visitors (slow first frame, no quality adaptation,
+  punishing on mobile data). Before uploading, each video is encoded
+  locally to a web-delivery version — 1080p H.264, roughly 5–8 Mbps,
+  which brings a ~1 GB master down to roughly 100–200 MB with quality
+  that reads well at portfolio frame size. 4K masters stay offline; only
+  the web encode is uploaded. No server-side transcoding or
+  adaptive-bitrate pipeline in v1.
+- **Poster-first loading on the Motion page:** because the film strip
+  stacks several videos on one page, each frame renders only its poster
+  image until the visitor actually plays it. Video sources are attached
+  on play (or on entering the viewport), never eagerly for every frame.
+  This is essential to the "fast and responsive" goal — several
+  simultaneously-loading video elements would otherwise stall the page.
+
+### Storage cost reference
+
+R2 storage is $0.015/GB-month with the first 10 GB free, and egress is
+free on all storage classes (so visitor traffic adds no bandwidth cost).
+At the compressed sizes above this is negligible — even 100 videos at
+200 MB each is ~20 GB, or roughly $0.15/month. Figures current as of
+2026-07-28; re-check Cloudflare's pricing page before relying on them.
 
 ## Error handling
 
