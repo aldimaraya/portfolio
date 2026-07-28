@@ -47,7 +47,8 @@ Accounts needed before Task 2 and Task 7 respectively:
 - **Photos have no manual sort order.** Wall order is fully derived from color. Videos keep a manual `sortOrder` within their roll.
 - **Filter combination logic:** OR within a single filter type, AND across different filter types.
 - **`prefers-reduced-motion: reduce` disables sprite animation entirely** and shows static posters. Not optional.
-- **All media is served from R2/CDN**, never proxied through the Next.js server.
+- **Video is served directly from R2/CDN**, never proxied through the Next.js server. Photos go through `next/image` optimization (worth the server hop for automatic resizing, modern formats, and lazy loading; well within Vercel Hobby's image quota at this scale).
+- **DRY is binding.** Shared logic lives in one module and is imported: tag upserts in `src/lib/tags.ts`, search-param parsing in `src/lib/filters/parse.ts`, shared form input classes in `src/components/admin/fields.ts`. Never paste an identical block into two files.
 
 ---
 
@@ -1058,6 +1059,36 @@ describe('serializeFilters', () => {
     expect(parseFilters(serializeFilters(original))).toEqual(original);
   });
 });
+
+describe('filtersFromSearchParams', () => {
+  it('returns empty filters for an empty object', () => {
+    expect(filtersFromSearchParams({})).toEqual({ cameras: [], locations: [], tags: [] });
+  });
+
+  it('reads string values', () => {
+    expect(filtersFromSearchParams({ camera: 'Leica,Contax' }).cameras).toEqual([
+      'Leica',
+      'Contax',
+    ]);
+  });
+
+  it('joins repeated array values', () => {
+    expect(filtersFromSearchParams({ tag: ['street', 'night'] }).tags).toEqual([
+      'street',
+      'night',
+    ]);
+  });
+
+  it('ignores undefined values', () => {
+    expect(filtersFromSearchParams({ camera: undefined }).cameras).toEqual([]);
+  });
+});
+```
+
+Update the import line at the top of this test file to include the new function:
+
+```ts
+import { parseFilters, serializeFilters, filtersFromSearchParams } from '@/lib/filters/parse';
 ```
 
 - [ ] **Step 2: Run to confirm failure**
@@ -1109,12 +1140,28 @@ export function hasActiveFilters(filters: MediaFilters): boolean {
     filters.cameras.length > 0 || filters.locations.length > 0 || filters.tags.length > 0
   );
 }
+
+/**
+ * Next.js hands page components a plain object whose values may be string,
+ * string[], or undefined. Both the Stills and Motion pages need the same
+ * normalisation, so it lives here rather than being pasted into each page.
+ */
+export function filtersFromSearchParams(
+  source: Record<string, string | string[] | undefined>,
+): MediaFilters {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(source)) {
+    if (typeof value === 'string') params.set(key, value);
+    else if (Array.isArray(value) && value.length > 0) params.set(key, value.join(','));
+  }
+  return parseFilters(params);
+}
 ```
 
 - [ ] **Step 4: Run to confirm pass**
 
 Run: `npm test -- filters/parse`
-Expected: PASS (7 tests).
+Expected: PASS (11 tests).
 
 - [ ] **Step 5: Write the failing where-builder tests**
 
@@ -2220,7 +2267,7 @@ git commit -m "feat: add admin shell and dashboard"
 
 **Interfaces:**
 - Consumes: `analyzePixels` (Task 3), `uploadFile` (Task 8), `db` (Task 2)
-- Produces: `analyzeImageFile(file: File): Promise<ImageAnalysis>`, `parseTagNames(input: string): string[]`, `connectTags(names: string[])` server helper, `savePhoto`/`deletePhoto` server actions
+- Produces: `analyzeImageFile(file: File): Promise<ImageAnalysis>`, `parseTagNames(input: string): string[]`, `tagConnections(tagsRaw: string): Promise<{ tagId: string }[]>`, `FIELD` class constant, `savePhoto`/`deletePhoto` server actions
 
 - [ ] **Step 1: Write the failing tag-parsing tests**
 
@@ -2261,15 +2308,31 @@ Expected: FAIL — cannot resolve `@/lib/tags`.
 
 - [ ] **Step 3: Implement tag parsing**
 
-Create `src/lib/tags.ts`:
+Create `src/lib/tags.ts`. Both the photo and video actions need to turn a
+comma-separated string into tag rows, so the upsert helper lives here too —
+never copy it into an actions file.
 
 ```ts
+import { db } from '@/lib/db';
+
 export function parseTagNames(input: string): string[] {
   const names = input
     .split(',')
     .map((name) => name.trim().toLowerCase())
     .filter((name) => name.length > 0);
   return [...new Set(names)];
+}
+
+/**
+ * Upserts each named tag and returns join-table rows ready to `create`.
+ * Shared by the photo and video actions.
+ */
+export async function tagConnections(tagsRaw: string): Promise<{ tagId: string }[]> {
+  const names = parseTagNames(tagsRaw);
+  const tags = await Promise.all(
+    names.map((name) => db.tag.upsert({ where: { name }, create: { name }, update: {} })),
+  );
+  return tags.map((tag) => ({ tagId: tag.id }));
 }
 ```
 
@@ -2434,7 +2497,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { db } from '@/lib/db';
 import { isAuthenticated } from '@/lib/auth/guard';
-import { parseTagNames } from '@/lib/tags';
+import { tagConnections } from '@/lib/tags';
 
 const photoSchema = z.object({
   id: z.string().optional(),
@@ -2451,16 +2514,6 @@ const photoSchema = z.object({
 });
 
 export type PhotoInput = z.infer<typeof photoSchema>;
-
-async function tagConnections(tagsRaw: string) {
-  const names = parseTagNames(tagsRaw);
-  const tags = await Promise.all(
-    names.map((name) =>
-      db.tag.upsert({ where: { name }, create: { name }, update: {} }),
-    ),
-  );
-  return tags.map((tag) => ({ tagId: tag.id }));
-}
 
 export async function savePhoto(input: PhotoInput): Promise<{ error?: string }> {
   if (!(await isAuthenticated())) return { error: 'Unauthorized' };
@@ -2499,7 +2552,15 @@ export async function deletePhoto(id: string): Promise<{ error?: string }> {
 
 - [ ] **Step 9: Build the photo form**
 
-Create `src/components/admin/PhotoForm.tsx`:
+First create the shared field styling, `src/components/admin/fields.ts` — every
+admin form input uses this, so it is defined once:
+
+```ts
+export const FIELD =
+  'rounded border border-hairline bg-frame px-3 py-2 text-bone outline-none focus:border-gold';
+```
+
+Then create `src/components/admin/PhotoForm.tsx`:
 
 ```tsx
 'use client';
@@ -2508,11 +2569,9 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { UploadField } from './UploadField';
 import { TagInput } from './TagInput';
+import { FIELD } from './fields';
 import { analyzeImageFile } from '@/lib/color/analyze-image';
 import { savePhoto, type PhotoInput } from '@/app/admin/photos/actions';
-
-const FIELD =
-  'rounded border border-hairline bg-frame px-3 py-2 text-bone outline-none focus:border-gold';
 
 export function PhotoForm({ initial }: { initial?: Partial<PhotoInput> & { id?: string } }) {
   const router = useRouter();
@@ -2789,7 +2848,7 @@ git commit -m "feat: add photo admin with client-side color analysis"
 - Create: `src/components/admin/VideoForm.tsx`
 
 **Interfaces:**
-- Consumes: `computeFrameTimestamps` (Task 5), `uploadFile` (Task 8), `parseTagNames` (Task 11), `UploadField`/`TagInput`/`DeleteButton` (Task 11)
+- Consumes: `computeFrameTimestamps` (Task 5), `uploadFile` (Task 8), `tagConnections`/`FIELD` (Task 11), `UploadField`/`TagInput`/`DeleteButton` (Task 11)
 - Produces: `generateSpriteSheet(file: File, frameCount?: number, frameWidth?: number): Promise<SpriteResult>`, `saveVideo`/`deleteVideo` server actions
 
 - [ ] **Step 1: Implement sprite generation**
@@ -2929,7 +2988,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { db } from '@/lib/db';
 import { isAuthenticated } from '@/lib/auth/guard';
-import { parseTagNames } from '@/lib/tags';
+import { tagConnections } from '@/lib/tags';
 
 const videoSchema = z.object({
   id: z.string().optional(),
@@ -2948,14 +3007,6 @@ const videoSchema = z.object({
 });
 
 export type VideoInput = z.infer<typeof videoSchema>;
-
-async function tagConnections(tagsRaw: string) {
-  const names = parseTagNames(tagsRaw);
-  const tags = await Promise.all(
-    names.map((name) => db.tag.upsert({ where: { name }, create: { name }, update: {} })),
-  );
-  return tags.map((tag) => ({ tagId: tag.id }));
-}
 
 export async function saveVideo(input: VideoInput): Promise<{ error?: string }> {
   if (!(await isAuthenticated())) return { error: 'Unauthorized' };
@@ -2998,12 +3049,10 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { UploadField } from './UploadField';
 import { TagInput } from './TagInput';
+import { FIELD } from './fields';
 import { generateSpriteSheet } from '@/lib/video/sprite';
 import { uploadFile } from '@/lib/storage/upload-client';
 import { saveVideo, type VideoInput } from '@/app/admin/videos/actions';
-
-const FIELD =
-  'rounded border border-hairline bg-frame px-3 py-2 text-bone outline-none focus:border-gold';
 
 /** Compressed web encodes should land well under this; a 4K master will not. */
 const LARGE_FILE_WARNING_BYTES = 400 * 1024 * 1024;
@@ -3955,7 +4004,7 @@ Create `src/app/(site)/stills/page.tsx`:
 ```tsx
 import { db } from '@/lib/db';
 import { sortPhotosForWall } from '@/lib/color/sort';
-import { parseFilters } from '@/lib/filters/parse';
+import { filtersFromSearchParams } from '@/lib/filters/parse';
 import { buildPhotoWhere } from '@/lib/filters/where';
 import { getPhotoFilterOptions } from '@/lib/filters/options';
 import { FilterBar } from '@/components/site/FilterBar';
@@ -3968,13 +4017,7 @@ export default async function StillsPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const resolved = await searchParams;
-  const params = new URLSearchParams();
-  for (const [key, value] of Object.entries(resolved)) {
-    if (typeof value === 'string') params.set(key, value);
-  }
-
-  const filters = parseFilters(params);
+  const filters = filtersFromSearchParams(await searchParams);
 
   const [photos, options] = await Promise.all([
     db.photo.findMany({ where: buildPhotoWhere(filters) }),
@@ -4390,7 +4433,7 @@ Create `src/app/(site)/motion/page.tsx`:
 
 ```tsx
 import { db } from '@/lib/db';
-import { parseFilters } from '@/lib/filters/parse';
+import { filtersFromSearchParams } from '@/lib/filters/parse';
 import { buildVideoWhere } from '@/lib/filters/where';
 import { getVideoFilterOptions } from '@/lib/filters/options';
 import { FilterBar } from '@/components/site/FilterBar';
@@ -4403,13 +4446,7 @@ export default async function MotionPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const resolved = await searchParams;
-  const params = new URLSearchParams();
-  for (const [key, value] of Object.entries(resolved)) {
-    if (typeof value === 'string') params.set(key, value);
-  }
-
-  const filters = parseFilters(params);
+  const filters = filtersFromSearchParams(await searchParams);
 
   const [videos, options] = await Promise.all([
     db.video.findMany({
