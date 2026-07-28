@@ -6,7 +6,7 @@
 
 **Architecture:** A single Next.js App Router application. Public pages are server-rendered and read from Postgres via Prisma. Media lives in Cloudflare R2 and is uploaded directly from the browser via presigned multipart URLs, never through the app server. All expensive derived data (photo average color, video preview sprite sheets) is computed **client-side at upload time** and stored, so public page rendering is a cheap database read.
 
-**Tech Stack:** Next.js (App Router) + TypeScript, Tailwind CSS, Prisma + Postgres (Neon), Cloudflare R2 (`@aws-sdk/client-s3`), `jose` (session JWT), `bcryptjs` (password hash), `zod` (validation), Vitest (unit), Playwright (E2E).
+**Tech Stack:** Next.js (App Router) + TypeScript, Tailwind CSS, Prisma 7 + Postgres (Neon) via the `@prisma/adapter-neon` driver adapter, Cloudflare R2 (`@aws-sdk/client-s3`), `jose` (session JWT), `bcryptjs` (password hash), `zod` (validation), Vitest (unit), Playwright (E2E).
 
 **Source spec:** `docs/superpowers/specs/2026-07-28-personal-portfolio-design.md`
 
@@ -45,6 +45,9 @@ Accounts needed before Task 2 and Task 7 respectively:
   - `next dev` uses Turbopack by default regardless of scaffold flags.
   - `next/image` `remotePatterns` is unchanged and is what this project uses; the v16 image changes affect only local images with query strings and the `minimumCacheTTL` default.
   - Next 16 bundles its own docs at `node_modules/next/dist/docs/` — consult those over recalled Next 15 conventions when something looks off.
+- **Prisma 7.9.1** also breaks from v6 in two ways that bind this project:
+  - `url` is **not** allowed in the `datasource` block of `schema.prisma`. The connection URL for Migrate lives in `prisma.config.ts` instead.
+  - `new PrismaClient()` does **not** connect on its own. It requires a driver adapter: this project passes `new PrismaNeon({ connectionString })` from `@prisma/adapter-neon`.
 - **Single admin user.** No roles, no multi-user accounts, no third-party auth provider.
 - **No server-side video transcoding or adaptive-bitrate streaming.** Videos are compressed to a 1080p H.264 web encode (~5–8 Mbps) manually before upload.
 - **No WYSIWYG blog editor.** Markdown textarea with live preview only.
@@ -194,7 +197,7 @@ Answer "yes" to proceeding in a non-empty directory. This overwrites nothing und
 - [ ] **Step 2: Install remaining dependencies**
 
 ```bash
-npm install @prisma/client @aws-sdk/client-s3 @aws-sdk/s3-request-presigner jose bcryptjs zod react-markdown remark-gfm
+npm install @prisma/client @prisma/adapter-neon @neondatabase/serverless @aws-sdk/client-s3 @aws-sdk/s3-request-presigner jose bcryptjs zod react-markdown remark-gfm
 npm install -D prisma vitest @vitejs/plugin-react jsdom @types/bcryptjs @playwright/test
 ```
 
@@ -478,7 +481,6 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 model Photo {
@@ -558,16 +560,41 @@ model VideoTag {
 
 - [ ] **Step 6: Create the Prisma client singleton**
 
-Create `src/lib/db.ts`:
+Create `src/lib/db.ts`. Prisma 7 requires a driver adapter — a bare
+`new PrismaClient()` will not connect:
 
 ```ts
 import { PrismaClient } from '@prisma/client';
+import { PrismaNeon } from '@prisma/adapter-neon';
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
-export const db = globalForPrisma.prisma ?? new PrismaClient();
+function createClient(): PrismaClient {
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) {
+    throw new Error('DATABASE_URL is not set');
+  }
+  return new PrismaClient({ adapter: new PrismaNeon({ connectionString }) });
+}
+
+export const db = globalForPrisma.prisma ?? createClient();
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = db;
+```
+
+Also create `prisma.config.ts` at the repo root, which is where Prisma 7
+reads the Migrate connection URL from:
+
+```ts
+import 'dotenv/config';
+import { defineConfig, env } from 'prisma/config';
+
+export default defineConfig({
+  schema: 'prisma/schema.prisma',
+  datasource: {
+    url: env('DATABASE_URL'),
+  },
+});
 ```
 
 - [ ] **Step 7: Push the schema to the database**
