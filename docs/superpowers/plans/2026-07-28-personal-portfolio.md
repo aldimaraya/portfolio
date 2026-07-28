@@ -38,7 +38,13 @@ Accounts needed before Task 2 and Task 7 respectively:
 
 ## Global Constraints
 
-- **Node.js 20 LTS or newer.** Required by current Next.js.
+- **Node.js 20.9+.** Installed: v24.18.0.
+- **Next.js 16.2.12 / React 19.2.4 / Tailwind v4 / Vitest 4** are the installed versions. Next 16 has breaking changes from 15 that bind this project:
+  - The auth gate file is `src/proxy.ts` exporting `proxy`, **not** `middleware.ts`/`middleware` (deprecated). Its runtime is Node and is not configurable.
+  - Async Request APIs are strictly enforced — `cookies()`, `headers()`, and a page's `params`/`searchParams` **must** be awaited. Synchronous access was removed.
+  - `next dev` uses Turbopack by default regardless of scaffold flags.
+  - `next/image` `remotePatterns` is unchanged and is what this project uses; the v16 image changes affect only local images with query strings and the `minimumCacheTTL` default.
+  - Next 16 bundles its own docs at `node_modules/next/dist/docs/` — consult those over recalled Next 15 conventions when something looks off.
 - **Single admin user.** No roles, no multi-user accounts, no third-party auth provider.
 - **No server-side video transcoding or adaptive-bitrate streaming.** Videos are compressed to a 1080p H.264 web encode (~5–8 Mbps) manually before upload.
 - **No WYSIWYG blog editor.** Markdown textarea with live preview only.
@@ -59,7 +65,7 @@ prisma/
   schema.prisma                     Photo, Video, BlogPost, Tag, join tables
 
 src/
-  middleware.ts                     Edge auth gate for /admin/*
+  proxy.ts                          Auth gate for /admin/* (Next 16 proxy convention)
 
   lib/
     db.ts                           Prisma client singleton
@@ -1815,7 +1821,7 @@ git commit -m "feat: add browser multipart uploader"
 ## Task 9: Authentication
 
 **Files:**
-- Create: `src/lib/auth/password.ts`, `src/lib/auth/session.ts`, `src/lib/auth/guard.ts`, `src/middleware.ts`
+- Create: `src/lib/auth/password.ts`, `src/lib/auth/session.ts`, `src/lib/auth/guard.ts`, `src/proxy.ts`
 - Create: `src/app/api/auth/login/route.ts`, `src/app/api/auth/logout/route.ts`, `src/app/login/page.tsx`
 - Create: `scripts/hash-password.mjs`
 - Test: `tests/unit/auth/session.test.ts`
@@ -1824,7 +1830,9 @@ git commit -m "feat: add browser multipart uploader"
 - Consumes: `env()` from Task 2
 - Produces: `createSessionToken(): Promise<string>`, `verifySessionToken(token: string): Promise<boolean>`, `SESSION_COOKIE = 'portfolio_session'`, `requireSession(): Promise<NextResponse | null>`
 
-**Runtime note for the implementer:** `bcryptjs` cannot run in Next.js middleware (Edge runtime, no Node crypto). Password verification therefore lives only in the login route, which is pinned to `runtime = 'nodejs'`. Session verification uses `jose`, which is Web Crypto based and runs in both.
+**Next.js 16 convention:** the `middleware.ts` filename and its `middleware` export are deprecated, replaced by `proxy.ts` exporting a function named `proxy`. This project uses `proxy.ts`. Its runtime is Node and is not configurable.
+
+**Runtime note for the implementer:** password verification with `bcryptjs` lives only in the login route (pinned to `runtime = 'nodejs'`), never in `proxy.ts`. Session verification uses `jose`, which is Web Crypto based — keep it there rather than reaching for `bcryptjs`, so the gate stays fast on every `/admin` request and portable if the route ever moves.
 
 - [ ] **Step 1: Write the failing session tests**
 
@@ -1945,15 +1953,16 @@ export async function isAuthenticated(): Promise<boolean> {
 }
 ```
 
-- [ ] **Step 6: Add the middleware gate**
+- [ ] **Step 6: Add the proxy gate**
 
-Create `src/middleware.ts`:
+Create `src/proxy.ts` (Next.js 16's replacement for `middleware.ts` — the file
+must be named `proxy.ts` and the export must be named `proxy`):
 
 ```ts
 import { NextResponse, type NextRequest } from 'next/server';
 import { SESSION_COOKIE, verifySessionToken } from '@/lib/auth/session';
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const token = request.cookies.get(SESSION_COOKIE)?.value ?? '';
   if (await verifySessionToken(token)) return NextResponse.next();
 
@@ -2129,7 +2138,7 @@ git commit -m "feat: add single-admin password auth with edge-safe session gate"
 - Create: `src/components/admin/AdminNav.tsx`
 
 **Interfaces:**
-- Consumes: `db` (Task 2), auth middleware (Task 9)
+- Consumes: `db` (Task 2), the `proxy.ts` auth gate (Task 9)
 - Produces: admin chrome at `/admin` listing counts and links to the three content sections
 
 - [ ] **Step 1: Build the admin navigation**
