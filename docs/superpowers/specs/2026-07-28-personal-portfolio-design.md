@@ -77,6 +77,7 @@ Video
   id
   videoUrl        // R2 key/URL
   posterImageUrl
+  spriteUrl       // R2 key/URL of the 10-frame preview sprite sheet
   title
   camera
   format          // e.g. "35MM", "4K PRORES"
@@ -143,6 +144,9 @@ the existing header (name + tagline, gold underline on the active tab).
 - Each frame's video is played via a custom `<video>` wrapper component
   (see Media pipeline) instead of a YouTube `<iframe>` — same visual
   frame and chrome, no third-party branding.
+- The frame currently centered in the strip shows an animated preview
+  that cycles through stills of the video, so it reads as playing without
+  loading any video (see Animated frame previews).
 - Same filter bar pattern as Stills (camera, tags), narrowing which
   videos/frames appear while preserving roll order.
 
@@ -218,10 +222,39 @@ Protected by the single-admin password login described above.
   adaptive-bitrate pipeline in v1.
 - **Poster-first loading on the Motion page:** because the film strip
   stacks several videos on one page, each frame renders only its poster
-  image until the visitor actually plays it. Video sources are attached
-  on play (or on entering the viewport), never eagerly for every frame.
-  This is essential to the "fast and responsive" goal — several
+  image (or animated preview, below) until the visitor actually plays it.
+  Video sources are attached on play, never eagerly for every frame. This
+  is essential to the "fast and responsive" goal — several
   simultaneously-loading video elements would otherwise stall the page.
+
+## Animated frame previews (Motion page)
+
+Film frames appear to be playing without any video element loading. Each
+video gets a **sprite sheet** — 10 evenly-spaced frames extracted from
+the video, tiled into one wide image — animated by stepping a
+`transform: translateX()` across the strip with a CSS `steps(10)`
+animation over 2 seconds, looping. One image request (~40 KB), a
+compositor-driven transform, and no main-thread work per tick. This is
+the same technique used for hover previews on major streaming sites.
+
+- **Sprite generation happens client-side at upload.** The browser
+  already holds the video file for upload, so it seeks to 10 evenly
+  spaced timestamps, draws each to a `<canvas>`, composites them into one
+  strip, and uploads the result to R2 alongside the video. This keeps the
+  "no server-side transcoding" constraint intact — no ffmpeg on the
+  server. The first sprite frame doubles as the poster image if none is
+  supplied separately.
+- **Only the active frame animates.** The frame currently centered in the
+  film strip runs its animation; all others hold on a static first frame.
+  This matches the film-projector metaphor of the mockup and keeps cost
+  near zero regardless of how many frames are in the roll. Implemented by
+  toggling `animation-play-state` as the scroll position changes.
+- **Reduced motion is respected.** Under `prefers-reduced-motion: reduce`
+  the animation never starts and every frame shows a static poster. A
+  page of looping previews is precisely what that setting exists to
+  suppress, so this is not optional.
+- **Click loads the real video**, swapping the sprite for the `<video>`
+  element on demand.
 
 ### Storage cost reference
 
@@ -244,8 +277,9 @@ At the compressed sizes above this is negligible — even 100 videos at
 ## Testing
 
 Kept proportional to a personal-scale project:
-- Unit tests for the color-sort/justified-row packing logic and the
-  film-strip scroll math (the trickiest pure logic in the app).
+- Unit tests for the color-sort/justified-row packing logic, the
+  film-strip scroll math, and sprite frame-timestamp calculation (the
+  trickiest pure logic in the app).
 - A couple of end-to-end smoke tests (e.g. Playwright) covering admin
   login and the create-photo flow, since that's the highest-value flow
   to protect from regressions.
