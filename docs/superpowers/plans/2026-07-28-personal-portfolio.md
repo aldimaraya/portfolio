@@ -246,8 +246,8 @@ Expected: FAIL — cannot resolve `@/lib/site`.
 Create `src/lib/site.ts`:
 
 ```ts
-export const SITE_NAME = 'Your Name';
-export const SITE_TAGLINE = 'Visual archive & film lab';
+export const SITE_NAME = 'Aldi';
+export const SITE_TAGLINE = 'Motion and Stills';
 
 export const NAV_TABS = [
   { href: '/stills', label: 'Stills' },
@@ -256,7 +256,7 @@ export const NAV_TABS = [
 ] as const;
 ```
 
-> The mockup used the placeholder "Alex Morgan". Replace `SITE_NAME` with your real name here — it is the single source of truth for the header.
+> The mockup used the placeholder "Alex Morgan"; these are the confirmed real values. `src/lib/site.ts` is the single source of truth for header branding — never hardcode the name or tagline anywhere else.
 
 - [ ] **Step 7: Run the test to confirm it passes**
 
