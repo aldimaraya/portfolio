@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Alex Morgan — Visual Archive</title>
+  <style>
+    /* ==========================================================================
+       RESET & GLOBAL VARIABLES
+       ========================================================================== */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --bg-color: #0b0b0d;        
+      --text-light: #f4f4f5;      
+      --text-muted: #8e8e93;      
+      --border-subtle: rgba(255, 255, 255, 0.1);
+      
+      /* Gold Accent Token */
+      --accent-gold: #d4af37;
+
+      /* Active Theme Dynamic Tokens (Defaulted to Cinematic Gold) */
+      --polaroid-bg: #1c1c20;
+      --polaroid-text: #f4f4f5;
+      --polaroid-meta: #d4af37;
+      --polaroid-border: rgba(212, 175, 55, 0.2);
+      
+      --accent-highlight: #d4af37;
+      --film-stock: #141416;
+      --sprocket-color: #0b0b0d;
+    }
+
+    /* THEME PRESETS */
+    [data-theme="cinematic-gold"] {
+      --polaroid-bg: #1c1c20;
+      --polaroid-text: #f4f4f5;
+      --polaroid-meta: #d4af37;
+      --polaroid-border: rgba(212, 175, 55, 0.2);
+      --accent-highlight: #d4af37;
+    }
+
+    [data-theme="stark-white"] {
+      --polaroid-bg: #f9f9fb;
+      --polaroid-text: #1a1a1e;
+      --polaroid-meta: #62626c;
+      --polaroid-border: transparent;
+      --accent-highlight: #f9f9fb;
+    }
+
+    [data-theme="warm-ivory"] {
+      --polaroid-bg: #e8e4d9;
+      --polaroid-text: #1a1a1e;
+      --polaroid-meta: #5c5c66;
+      --polaroid-border: transparent;
+      --accent-highlight: #e8e4d9;
+    }
+
+    [data-theme="aged-linen"] {
+      --polaroid-bg: #d8cfc0;
+      --polaroid-text: #1a1a1e;
+      --polaroid-meta: #524d45;
+      --polaroid-border: transparent;
+      --accent-highlight: #d8cfc0;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-light);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      min-height: 100vh;
+      padding: 2.5rem 1.5rem;
+    }
+
+    /* UNIFIED CONTAINER BOUNDS */
+    .container {
+      max-width: 1300px;
+      margin: 0 auto;
+    }
+
+    /* ==========================================================================
+       HEADER & NAVIGATION
+       ========================================================================== */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      margin-bottom: 2rem;
+      border-bottom: 1px solid var(--border-subtle);
+      padding-bottom: 1.25rem;
+    }
+
+    .brand-title {
+      font-size: 1.6rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      margin-top: 0.2rem;
+    }
+
+    nav {
+      display: flex;
+      gap: 1.5rem;
+    }
+
+    .nav-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      font-weight: 500;
+      cursor: pointer;
+      padding: 0.5rem 0;
+      position: relative;
+      transition: color 0.2s ease;
+      letter-spacing: 0.05em;
+    }
+
+    .nav-btn:hover, .nav-btn.active { color: var(--accent-highlight); }
+
+    .nav-btn.active::after {
+      content: '';
+      position: absolute;
+      bottom: -1.25rem;
+      left: 0;
+      width: 100%;
+      height: 2px;
+      background-color: var(--accent-highlight);
+    }
+
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* ==========================================================================
+       CONTROLLER TOOLBAR
+       ========================================================================== */
+    .controls-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.5rem;
+      background: rgba(20, 20, 24, 0.8);
+      border: 1px solid var(--border-subtle);
+      padding: 12px 18px;
+      border-radius: 6px;
+      margin-bottom: 2rem;
+    }
+
+    .control-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .control-title {
+      font-family: "SF Mono", monospace;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      white-space: nowrap;
+    }
+
+    .control-options {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+    }
+
+    .chip-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: var(--text-light);
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+
+    .chip-btn:hover {
+      border-color: rgba(255, 255, 255, 0.4);
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .chip-btn.active {
+      border-color: var(--accent-highlight);
+      color: var(--accent-highlight);
+      background: rgba(212, 175, 55, 0.1);
+      font-weight: 600;
+    }
+
+    .swatch {
+      width: 12px;
+      height: 12px;
+      border-radius: 2px;
+      display: inline-block;
+    }
+    .swatch-gold { background-color: #d4af37; }
+    .swatch-stark { background-color: #f9f9fb; }
+    .swatch-ivory { background-color: #e8e4d9; }
+    .swatch-linen { background-color: #d8cfc0; }
+
+    /* ==========================================================================
+       TAB 1: STILLS CARD STYLES
+       ========================================================================== */
+    .polaroid {
+      background-color: var(--polaroid-bg);
+      color: var(--polaroid-text);
+      border: 1px solid var(--polaroid-border);
+      padding: 10px 10px 14px 10px;
+      border-radius: 2px;
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+      transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.3s ease;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .polaroid:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.7);
+      z-index: 10;
+    }
+
+    .media-frame {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #000;
+    }
+
+    .media-frame img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .polaroid-details {
+      margin-top: 10px;
+      padding: 0 2px;
+    }
+
+    .location {
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .exif-data {
+      font-family: "SF Mono", monospace;
+      font-size: 0.65rem;
+      color: var(--polaroid-meta);
+      margin-top: 3px;
+      line-height: 1.3;
+      letter-spacing: 0.05em;
+    }
+
+    /* Layout Option 1: Justified Rows */
+    .layout-justified { display: flex; flex-wrap: wrap; gap: 1.25rem; }
+    .layout-justified .polaroid {
+      height: 380px; flex-grow: var(--ratio); flex-shrink: 1; flex-basis: calc(300px * var(--ratio));
+    }
+
+    /* Layout Option 2: Masonry Columns */
+    .layout-masonry { column-count: 4; column-gap: 1.5rem; }
+    .layout-masonry .polaroid { break-inside: avoid; margin-bottom: 1.5rem; }
+
+    /* Layout Option 3: Balanced Grid */
+    .layout-balanced-grid { display: grid; grid-template-columns: repeat(6, 1fr); grid-auto-flow: dense; gap: 1.5rem; }
+    .layout-balanced-grid .polaroid.portrait { grid-column: span 2; grid-row: span 3; }
+    .layout-balanced-grid .polaroid.landscape { grid-column: span 3; grid-row: span 2; }
+
+    /* ==========================================================================
+       TAB 2: MOTION
+       ========================================================================== */
+    .motion-scroll-track {
+      height: 600vh;
+      position: relative;
+    }
+
+    .motion-layout-wrapper {
+      position: sticky;
+      top: 20px;
+      width: 100%;
+      height: 85vh;
+      display: flex;
+      gap: 24px;
+    }
+
+    .film-projector {
+      flex: 1;
+      height: 100%;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .spool-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+      color: var(--accent-highlight);
+      font-family: "SF Mono", monospace;
+      font-size: 0.75rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      transition: color 0.3s ease;
+    }
+
+    .spool-wheel {
+      width: 24px;
+      height: 24px;
+      border: 2px solid var(--accent-highlight);
+      border-radius: 50%;
+      position: relative;
+      transition: border-color 0.3s ease;
+    }
+    .spool-wheel::before { content: ''; position: absolute; top: 50%; left: 0; width: 100%; height: 2px; background: var(--accent-highlight); transform: translateY(-50%); }
+    .spool-wheel::after { content: ''; position: absolute; left: 50%; top: 0; height: 100%; width: 2px; background: var(--accent-highlight); transform: translateX(-50%); }
+
+    .film-strip {
+      width: 100%;
+      height: 100%;
+      background-color: var(--film-stock);
+      position: relative;
+      border-radius: 4px;
+      border: 1px solid var(--border-subtle);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.9);
+      background-image: 
+        radial-gradient(circle, var(--sprocket-color) 40%, transparent 45%),
+        radial-gradient(circle, var(--sprocket-color) 40%, transparent 45%);
+      background-position: 18px 0px, calc(100% - 18px) 0px;
+      background-size: 20px 32px;
+      background-repeat: repeat-y;
+      overflow: hidden;
+    }
+
+    .film-strip::before, .film-strip::after {
+      content: ''; position: absolute; top: 0; bottom: 0; width: 2px; background-color: var(--border-subtle); z-index: 5;
+    }
+    .film-strip::before { left: 55px; }
+    .film-strip::after { right: 55px; }
+
+    .frames-track {
+      position: absolute; top: 0; left: 0; right: 0; will-change: transform; padding-top: 40px;
+    }
+
+    .film-frame {
+      width: calc(100% - 140px);
+      margin: 0 auto 5rem auto;
+      background-color: var(--polaroid-bg);
+      color: var(--polaroid-text);
+      border: 1px solid var(--polaroid-border);
+      padding: 12px 12px 16px 12px;
+      border-radius: 2px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+      transition: background-color 0.3s ease;
+    }
+
+    .frame-header {
+      display: flex;
+      justify-content: space-between;
+      font-family: "SF Mono", monospace;
+      font-size: 0.7rem;
+      color: var(--polaroid-meta);
+      letter-spacing: 0.08em;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+
+    .video-container {
+      position: relative; padding-bottom: 56.25%; height: 0; background-color: #000; border-radius: 2px; overflow: hidden;
+    }
+    .video-container iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0; }
+
+    .frame-footer { margin-top: 10px; display: flex; justify-content: space-between; align-items: flex-start; }
+    .video-title { font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+    .video-meta { font-family: "SF Mono", monospace; font-size: 0.65rem; color: var(--polaroid-meta); text-align: right; line-height: 1.3; letter-spacing: 0.05em; }
+
+    .film-vertical-nav {
+      width: 240px;
+      display: flex;
+      flex-direction: column;
+      background: rgba(20, 20, 24, 0.8);
+      border: 1px solid var(--border-subtle);
+      border-radius: 6px;
+      padding: 1.25rem;
+    }
+
+    .sidebar-title { 
+      font-family: "SF Mono", monospace; 
+      font-size: 0.7rem; 
+      color: var(--text-muted); 
+      letter-spacing: 0.1em; 
+      margin-bottom: 12px; 
+      padding-bottom: 8px; 
+      border-bottom: 1px solid var(--border-subtle); 
+      text-transform: uppercase; 
+    }
+
+    .sidebar-index-list { display: flex; flex-direction: column; gap: 6px; overflow-y: auto; }
+    
+    .sidebar-item { 
+      display: flex; 
+      flex-direction: column; 
+      align-items: flex-start; 
+      padding: 10px 12px; 
+      background: transparent; 
+      border: 1px solid transparent; 
+      border-radius: 4px; 
+      cursor: pointer; 
+      text-align: left; 
+      transition: all 0.2s ease; 
+    }
+
+    .sidebar-item:hover { 
+      background: rgba(255, 255, 255, 0.05); 
+      border-color: rgba(255, 255, 255, 0.15); 
+    }
+
+    .sidebar-item.active { 
+      background: rgba(255, 255, 255, 0.12); 
+      border-color: var(--accent-highlight); 
+    }
+
+    .sidebar-item .item-code { 
+      font-family: "SF Mono", monospace; 
+      font-size: 0.75rem; 
+      font-weight: 700; 
+      color: var(--accent-highlight); 
+      transition: color 0.3s ease;
+    }
+
+    .sidebar-item .item-label { 
+      font-size: 0.75rem; 
+      color: var(--text-muted); 
+      margin-top: 3px; 
+      white-space: nowrap; 
+      overflow: hidden; 
+      text-overflow: ellipsis; 
+      width: 100%; 
+    }
+
+    .sidebar-item.active .item-label { color: var(--text-light); }
+
+    /* RESPONSIVE BREAKPOINTS */
+    @media (max-width: 1200px) {
+      .layout-masonry { column-count: 3; }
+      .layout-balanced-grid { grid-template-columns: repeat(4, 1fr); }
+    }
+    @media (max-width: 800px) {
+      .layout-masonry { column-count: 2; }
+      .layout-balanced-grid { grid-template-columns: repeat(2, 1fr); }
+      .motion-layout-wrapper { flex-direction: column; height: auto; }
+      .film-vertical-nav { width: 100%; height: auto; }
+      .sidebar-index-list { flex-direction: row; }
+      .film-frame { width: calc(100% - 40px); }
+    }
+    @media (max-width: 500px) {
+      .layout-masonry { column-count: 1; }
+      .layout-balanced-grid { grid-template-columns: 1fr; }
+      .layout-balanced-grid .polaroid.portrait, .layout-balanced-grid .polaroid.landscape { grid-column: span 1; grid-row: span 1; }
+    }
+  </style>
+</head>
+<body data-theme="cinematic-gold">
+
+  <div class="container">
+    
+    <!-- Header -->
+    <header>
+      <div>
+        <h1 class="brand-title">ALEX MORGAN</h1>
+        <div class="subtitle">VISUAL ARCHIVE & FILM LAB</div>
+      </div>
+      <nav>
+        <button class="nav-btn active" onclick="switchTab('stills', event)">STILLS</button>
+        <button class="nav-btn" onclick="switchTab('motion', event)">MOTION</button>
+      </nav>
+    </header>
+
+    <!-- TAB 1: STILLS -->
+    <main id="stills" class="tab-content active">
+      
+      <!-- Unified Controls Bar -->
+      <div class="controls-toolbar">
+        
+        <!-- LAYOUT ENGINE SELECTOR -->
+        <div class="control-group">
+          <span class="control-title">LAYOUT ENGINE:</span>
+          <div class="control-options">
+            <button class="chip-btn active" onclick="setLayoutEngine('justified', this)">
+              Option 1: Justified Rows
+            </button>
+            <button class="chip-btn" onclick="setLayoutEngine('masonry', this)">
+              Option 2: Masonry Columns
+            </button>
+            <button class="chip-btn" onclick="setLayoutEngine('balanced-grid', this)">
+              Option 3: Balanced Grid
+            </button>
+          </div>
+        </div>
+
+        <!-- PALETTE SELECTOR -->
+        <div class="control-group">
+          <span class="control-title">PALETTE:</span>
+          <div class="control-options">
+            <button class="chip-btn active" onclick="setPolaroidTheme('cinematic-gold', this)">
+              <span class="swatch swatch-gold"></span> Cinematic Gold
+            </button>
+            <button class="chip-btn" onclick="setPolaroidTheme('stark-white', this)">
+              <span class="swatch swatch-stark"></span> Stark White
+            </button>
+            <button class="chip-btn" onclick="setPolaroidTheme('warm-ivory', this)">
+              <span class="swatch swatch-ivory"></span> Warm Ivory
+            </button>
+            <button class="chip-btn" onclick="setPolaroidTheme('aged-linen', this)">
+              <span class="swatch swatch-linen"></span> Aged Linen
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- PHOTO MOSAIC CONTAINER -->
+      <div id="mosaicWall" class="layout-justified">
+
+        <article class="polaroid portrait" style="--ratio: 0.75;">
+          <div class="media-frame"><img src="https://picsum.photos/800/1066?random=10" alt="Portrait" loading="lazy"></div>
+          <div class="polaroid-details"><div class="location">TOKYO / SHINJUKU</div><div class="exif-data">LEICA M6 · PORTRA 400</div></div>
+        </article>
+
+        <article class="polaroid landscape" style="--ratio: 1.6;">
+          <div class="media-frame"><img src="https://picsum.photos/1200/750?random=11" alt="Landscape" loading="lazy"></div>
+          <div class="polaroid-details"><div class="location">PATAGONIA / CHILE</div><div class="exif-data">HASSELBLAD 500C/M · EKTACHROME</div></div>
+        </article>
+
+        <article class="polaroid portrait" style="--ratio: 0.66;">
+          <div class="media-frame"><img src="https://picsum.photos/800/1200?random=12" alt="Street" loading="lazy"></div>
+          <div class="polaroid-details"><div class="location">NEW YORK / SOHO</div><div class="exif-data">CONTAX T2 · CINESTILL 800T</div></div>
+        </article>
+
+        <article class="polaroid landscape" style="--ratio: 1.33;">
+          <div class="media-frame"><img src="https://picsum.photos/1200/900?random=13" alt="Coastal" loading="lazy"></div>
+          <div class="polaroid-details"><div class="location">BIG SUR / CA</div><div class="exif-data">PENTAX 67 · PORTRA 160</div></div>
+        </article>
+
+        <article class="polaroid portrait" style="--ratio: 0.75;">
+          <div class="media-frame"><img src="https://picsum.photos/800/1066?random=14" alt="Architecture" loading="lazy"></div>
+          <div class="polaroid-details"><div class="location">ROME / COLOSSEUM</div><div class="exif-data">CANON AE-1 · ILFORD HP5</div></div>
+        </article>
+
+        <article class="polaroid landscape" style="--ratio: 1.77;">
+          <div class="media-frame"><img src="https://picsum.photos/1200/675?random=15" alt="Desert" loading="lazy"></div>
+          <div class="polaroid-details"><div class="location">MOJAVE / CA</div><div class="exif-data">MAMIYA 7II · PORTRA 400</div></div>
+        </article>
+
+      </div>
+    </main>
+
+    <!-- TAB 2: MOTION -->
+    <main id="motion" class="tab-content">
+      <div class="motion-scroll-track" id="motionTrack">
+        <div class="motion-layout-wrapper">
+          
+          <div class="film-projector">
+            <div class="spool-header">
+              <div class="spool-wheel" id="spoolWheel"></div>
+              <span>TRANSPORT MECHANISM</span>
+            </div>
+
+            <div class="film-strip" id="filmStrip">
+              <div class="frames-track" id="framesTrack">
+
+                <article class="film-frame">
+                  <div class="frame-header"><span>▶ KODAK 500T</span><span>FRAME 01A</span></div>
+                  <div class="video-container">
+                    <iframe src="https://www.youtube-nocookie.com/embed/L_LUpnjgPso?enablejsapi=1&rel=0" title="Iceland Reel" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+                  </div>
+                  <div class="frame-footer">
+                    <div class="video-title">ICELAND / CINEMATIC REEL</div>
+                    <div class="video-meta">RED KOMODO 6K · 35MM<br>24FPS · ISO 800</div>
+                  </div>
+                </article>
+
+                <article class="film-frame">
+                  <div class="frame-header"><span>▶ FUJI ETERNA</span><span>FRAME 02A</span></div>
+                  <div class="video-container">
+                    <iframe src="https://www.youtube-nocookie.com/embed/LXb3EKWsInQ?enablejsapi=1&rel=0" title="Berlin Short Film" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+                  </div>
+                  <div class="frame-footer">
+                    <div class="video-title">BERLIN / SHORT FILM TEASER</div>
+                    <div class="video-meta">ARRI ALEXA MINI · 50MM<br>4K PRORES · ISO 1600</div>
+                  </div>
+                </article>
+
+                <article class="film-frame">
+                  <div class="frame-header"><span>▶ KODAK 250D</span><span>FRAME 03A</span></div>
+                  <div class="video-container">
+                    <iframe src="https://www.youtube-nocookie.com/embed/M7lc1UVf-VE?enablejsapi=1&rel=0" title="Patagonia Documentary" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+                  </div>
+                  <div class="frame-footer">
+                    <div class="video-title">PATAGONIA / DOCUMENTARY</div>
+                    <div class="video-meta">SONY FX6 · 24-70MM<br>60FPS · ISO 800</div>
+                  </div>
+                </article>
+
+              </div>
+            </div>
+          </div>
+
+          <aside class="film-vertical-nav">
+            <div class="sidebar-title">ROLL INDEX (3)</div>
+            <div class="sidebar-index-list">
+              <button class="sidebar-item active" onclick="jumpToFrame(0)">
+                <span class="item-code">[01A]</span>
+                <span class="item-label">ICELAND / REEL</span>
+              </button>
+              <button class="sidebar-item" onclick="jumpToFrame(1)">
+                <span class="item-code">[02A]</span>
+                <span class="item-label">BERLIN / SHORT</span>
+              </button>
+              <button class="sidebar-item" onclick="jumpToFrame(2)">
+                <span class="item-code">[03A]</span>
+                <span class="item-label">PATAGONIA / DOC</span>
+              </button>
+            </div>
+          </aside>
+
+        </div>
+      </div>
+    </main>
+
+  </div>
+
+  <script>
+    // Tab Switching
+    function switchTab(tabId, evt) {
+      document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+      document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+
+      document.getElementById(tabId).classList.add('active');
+      evt.currentTarget.classList.add('active');
+      window.scrollTo(0, 0);
+    }
+
+    // Dynamic Theme Switching
+    function setPolaroidTheme(themeName, btnElement) {
+      document.body.setAttribute('data-theme', themeName);
+      btnElement.parentElement.querySelectorAll('.chip-btn').forEach(chip => chip.classList.remove('active'));
+      btnElement.classList.add('active');
+    }
+
+    // Layout Engine Switcher
+    function setLayoutEngine(engineName, btnElement) {
+      const wall = document.getElementById('mosaicWall');
+      wall.className = '';
+      wall.classList.add(`layout-${engineName}`);
+
+      btnElement.parentElement.querySelectorAll('.chip-btn').forEach(chip => chip.classList.remove('active'));
+      btnElement.classList.add('active');
+    }
+
+    // Motion Tab Mechanics
+    const motionTrack = document.getElementById('motionTrack');
+    const framesTrack = document.getElementById('framesTrack');
+    const filmStrip = document.getElementById('filmStrip');
+    const spoolWheel = document.getElementById('spoolWheel');
+    const sidebarItems = document.querySelectorAll('.sidebar-item');
+
+    function jumpToFrame(index) {
+      const frames = document.querySelectorAll('.film-frame');
+      if (!frames[index]) return;
+
+      const totalTravel = framesTrack.scrollHeight - filmStrip.clientHeight + 100;
+      const maxScroll = motionTrack.clientHeight - window.innerHeight;
+
+      const frameOffset = frames[index].offsetTop;
+      const progressRatio = Math.min(Math.max(frameOffset / totalTravel, 0), 1);
+      
+      const targetScroll = motionTrack.offsetTop + (progressRatio * maxScroll);
+      window.scrollTo({ top: targetScroll, behavior: 'smooth' });
+    }
+
+    window.addEventListener('scroll', () => {
+      if (!document.getElementById('motion').classList.contains('active')) return;
+
+      const trackTop = motionTrack.offsetTop;
+      const scrollProgress = window.scrollY - trackTop;
+
+      if (scrollProgress >= 0) {
+        const totalTravel = framesTrack.scrollHeight - filmStrip.clientHeight + 100;
+        const maxScroll = motionTrack.clientHeight - window.innerHeight;
+        const progressRatio = Math.min(Math.max(scrollProgress / maxScroll, 0), 1);
+        
+        const translateY = -1 * (progressRatio * totalTravel);
+        framesTrack.style.transform = `translateY(${translateY}px)`;
+
+        const sprocketOffset = translateY % 32; 
+        filmStrip.style.backgroundPosition = `18px ${sprocketOffset}px, calc(100% - 18px) ${sprocketOffset}px`;
+
+        spoolWheel.style.transform = `rotate(${progressRatio * 1080}deg)`;
+
+        const frames = document.querySelectorAll('.film-frame');
+        const currentPosition = Math.abs(translateY);
+        
+        frames.forEach((frame, idx) => {
+          if (currentPosition >= frame.offsetTop - 140) {
+            sidebarItems.forEach(item => item.classList.remove('active'));
+            if (sidebarItems[idx]) sidebarItems[idx].classList.add('active');
+          }
+        });
+      }
+    });
+  </script>
+
+</body>
+</html>
