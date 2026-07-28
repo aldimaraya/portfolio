@@ -1,0 +1,22 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ink: #0b0b0d;
+  --color-frame: #1c1c20;
+  --color-film: #141416;
+  --color-bone: #f4f4f5;
+  --color-ash: #8e8e93;
+  --color-gold: #d4af37;
+  --color-hairline: rgba(255, 255, 255, 0.1);
+  --color-goldline: rgba(212, 175, 55, 0.2);
+  --font-mono: "SF Mono", ui-monospace, "Cascadia Mono", Menlo, monospace;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--color-ink);
+  color: var(--color-bone);
+}
