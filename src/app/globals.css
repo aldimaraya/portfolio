@@ -1,0 +1,50 @@
+@import "tailwindcss";
+
+/* Cinematic gold — the one palette the site ships. Values carried over from
+   docs/superpowers/specs/assets/2026-07-28-mockup-reference.html. Tailwind v4
+   generates utilities from these (bg-ink, text-gold, border-hairline, ...). */
+@theme {
+  --color-ink: #0b0b0d;
+  --color-frame: #1c1c20;
+  --color-film: #141416;
+  --color-bone: #f4f4f5;
+  --color-ash: #8e8e93;
+  --color-gold: #d4af37;
+  --color-hairline: rgba(255, 255, 255, 0.1);
+  --color-goldline: rgba(212, 175, 55, 0.2);
+  --font-mono: "SF Mono", ui-monospace, "Cascadia Mono", Menlo, monospace;
+
+  /* Mockup breakpoints, so the layout collapse points carry over. */
+  --breakpoint-wall: 1200px;
+  --breakpoint-strip: 800px;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--color-ink);
+  color: var(--color-bone);
+}
+
+/* The sprite-sheet preview on the Motion page. A stepped translateX across one
+   wide image: a single request, compositor-driven, no per-tick main-thread
+   work. Only the centred frame gets `running` — see SpritePreview. */
+@keyframes sprite-steps {
+  to {
+    transform: translateX(-100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  /* Not optional: a page of looping previews is exactly what this setting
+     exists to suppress. Every frame holds on its poster instead. */
+  .sprite-strip {
+    animation: none !important;
+  }
+}
