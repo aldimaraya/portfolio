@@ -1,0 +1,96 @@
+// Prisma 7: the datasource block carries no `url`. The connection string for
+// Migrate lives in prisma.config.ts, and the runtime client gets it through the
+// Neon driver adapter in src/lib/db.ts.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Photo {
+  id       String @id @default(cuid())
+  imageUrl String
+
+  // Real pixel dimensions rather than a portrait/landscape enum: the wall needs
+  // the aspect ratio to size each polaroid, and orientation derives from it.
+  width  Int
+  height Int
+
+  location  String
+  camera    String
+  filmStock String
+
+  // Computed once at upload from a downsampled copy of the image, never
+  // recomputed per page load. See src/lib/color/analyze.ts.
+  avgHue       Float
+  avgLightness Float
+  isMonochrome Boolean
+
+  createdAt DateTime   @default(now())
+  tags      PhotoTag[]
+
+  // Photos carry no manual sort order — wall order is derived entirely from
+  // colour, and this index serves that query.
+  @@index([isMonochrome, avgHue])
+}
+
+model Video {
+  id             String @id @default(cuid())
+  videoUrl       String
+  posterImageUrl String
+  spriteUrl      String
+  spriteFrames   Int    @default(10)
+
+  title  String
+  camera String
+  format String
+  fps    String
+  iso    String
+
+  rollGroup String
+  sortOrder Int    @default(0)
+
+  createdAt DateTime   @default(now())
+  tags      VideoTag[]
+
+  @@index([rollGroup, sortOrder])
+}
+
+model BlogPost {
+  id              String   @id @default(cuid())
+  slug            String   @unique
+  title           String
+  markdownContent String
+  publishedAt     DateTime @default(now())
+  draft           Boolean  @default(true)
+
+  @@index([draft, publishedAt])
+}
+
+model Tag {
+  id     String     @id @default(cuid())
+  name   String     @unique
+  photos PhotoTag[]
+  videos VideoTag[]
+}
+
+model PhotoTag {
+  photoId String
+  tagId   String
+  photo   Photo  @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  tag     Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([photoId, tagId])
+}
+
+model VideoTag {
+  videoId String
+  tagId   String
+  video   Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  tag     Tag   @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([videoId, tagId])
+}
