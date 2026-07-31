@@ -27,6 +27,9 @@ export function FilmStrip({ videos }: { videos: FrameVideo[] }) {
   const framesRef = useRef<HTMLDivElement>(null);
   const spoolRef = useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = useState(0);
+  // Which clip is playing, if any. Held here rather than per frame so starting
+  // one stops the rest — two clips playing at once means two soundtracks.
+  const [playingId, setPlayingId] = useState<string | null>(null);
 
   /** Distance the frames must travel for the last one to clear the window. */
   const travel = useCallback(() => {
@@ -138,6 +141,8 @@ export function FilmStrip({ videos }: { videos: FrameVideo[] }) {
                   video={video}
                   index={index}
                   active={index === activeIndex}
+                  playing={video.id === playingId}
+                  onPlay={() => setPlayingId(video.id)}
                 />
               ))}
             </div>
