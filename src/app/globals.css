@@ -74,7 +74,11 @@ body {
   /* The strip is deliberately wider than its window — without this, Preflight's
      `max-width: 100%` on img would squeeze all N frames into one frame's width. */
   max-width: none;
-  animation: sprite-steps 2s steps(var(--sprite-frames, 10)) infinite;
+  /* Both custom properties come from SpritePreview. The duration matches the
+     span of clip the frames were sampled from, so the loop replays that motion
+     at life speed instead of stretching or rushing it. */
+  animation: sprite-steps var(--sprite-duration, 1.5s) steps(var(--sprite-frames, 18))
+    infinite;
   /* Paused by default: a page of simultaneously looping previews is noise, and
      every frame off-centre is meant to hold on frame one. */
   animation-play-state: paused;

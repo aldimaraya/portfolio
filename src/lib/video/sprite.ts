@@ -18,7 +18,14 @@ export interface SpriteResult {
   durationSeconds: number;
 }
 
-export const DEFAULT_SPRITE_FRAME_WIDTH = 320;
+/**
+ * Frames were 320px wide and displayed around 820px — a 2.5x upscale, and the
+ * other half of why previews looked poor. 480 covers the strip's frame at a
+ * sensible density without pushing the sheet near a canvas limit: at 18 frames
+ * this is 8640px wide, well inside the ~16384px browsers allow. Going much
+ * denser or wider needs a grid sheet and 2D stepping rather than one strip.
+ */
+export const DEFAULT_SPRITE_FRAME_WIDTH = 480;
 
 /** Resolves on the first of `event` or an error, whichever fires. */
 function once(video: HTMLVideoElement, event: string, failure: string): Promise<void> {
