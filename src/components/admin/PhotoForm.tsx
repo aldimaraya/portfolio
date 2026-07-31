@@ -230,6 +230,7 @@ export function PhotoForm({ initial }: { initial?: Initial }) {
         file={file}
         onSelect={handleSelect}
         progress={progress}
+        allowSelect={!isEdit}
       />
 
       {form.width ? (

@@ -15,9 +15,18 @@ interface Props {
   warnAboveBytes?: number;
   /** Upload percentage while the parent is saving, or null when idle. */
   progress?: number | null;
-  /** How to preview the pending file. Videos need a <video>, not an <img>. */
+  /** How to preview the file. Videos need a <video>, not an <img>. */
   previewAs?: 'image' | 'video';
+  /**
+   * Whether a file can be chosen at all. False on the edit pages, which exist to
+   * change a record's fields rather than swap its media — and which would
+   * otherwise strand the replaced object in R2 with nothing left pointing at it.
+   */
+  allowSelect?: boolean;
 }
+
+/** Starting height of the preview box, which the user can then drag to resize. */
+const PREVIEW_HEIGHT = 260;
 
 /**
  * Picks a file and previews it locally — it does not upload. The parent sends the
@@ -34,6 +43,7 @@ export function UploadField({
   warnAboveBytes,
   progress = null,
   previewAs = 'image',
+  allowSelect = true,
 }: Props) {
   // Derived from the file rather than held in state: setting state from an effect
   // would cascade an extra render on every pick.
@@ -51,44 +61,59 @@ export function UploadField({
       ? `That file is ${(file.size / 1024 / 1024).toFixed(0)} MB — larger than expected. Upload the compressed web encode, not the 4K master.`
       : '';
 
+  const source = preview || value;
+
+  // `resize-y` needs a non-visible overflow and an explicit height to have
+  // something to drag against, so the media fills a sized box rather than
+  // setting the height itself.
+  const media = source ? (
+    <div
+      className="mt-1 resize-y overflow-hidden rounded border border-hairline bg-black"
+      style={{ height: PREVIEW_HEIGHT, minHeight: 96 }}
+    >
+      {previewAs === 'video' ? (
+        /* Deliberately not muted: nothing autoplays here, so muting only costs
+           a click. */
+        <video
+          src={source}
+          controls
+          playsInline
+          preload="metadata"
+          className="h-full w-full object-contain"
+        />
+      ) : (
+        /* Plain <img>: a local object URL or an R2 URL, neither of which is
+           worth handing to the image optimiser. */
+        /* eslint-disable-next-line @next/next/no-img-element */
+        <img src={source} alt="" className="h-full w-full object-contain" />
+      )}
+    </div>
+  ) : null;
+
+  const caption = preview
+    ? `${file?.name} · uploads when you save`
+    : value
+      ? `Stored: ${value}`
+      : '';
+
   return (
     <label className="flex flex-col gap-1">
       <span className={LABEL}>{label}</span>
-      <input
-        type="file"
-        accept={accept}
-        onChange={(event) => onSelect(event.target.files?.[0] ?? null)}
-        className="text-sm text-ash file:mr-3 file:rounded file:border file:border-hairline file:bg-frame file:px-3 file:py-1 file:text-bone"
-      />
-      {hint ? <span className="text-xs text-ash">{hint}</span> : null}
 
-      {preview ? (
+      {allowSelect ? (
         <>
-          {previewAs === 'video' ? (
-            <video
-              src={preview}
-              controls
-              muted
-              playsInline
-              className="mt-1 max-h-56 w-full rounded border border-hairline bg-black object-contain"
-            />
-          ) : (
-            /* Plain <img>: a local object URL, not something to hand to the
-               image optimiser. */
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img
-              src={preview}
-              alt=""
-              className="mt-1 max-h-40 w-full rounded border border-hairline object-contain"
-            />
-          )}
-          <span className="truncate text-xs text-ash">
-            {file?.name} · uploads when you save
-          </span>
+          <input
+            type="file"
+            accept={accept}
+            onChange={(event) => onSelect(event.target.files?.[0] ?? null)}
+            className="text-sm text-ash file:mr-3 file:rounded file:border file:border-hairline file:bg-frame file:px-3 file:py-1 file:text-bone"
+          />
+          {hint ? <span className="text-xs text-ash">{hint}</span> : null}
         </>
-      ) : value ? (
-        <span className="truncate text-xs text-ash">Stored: {value}</span>
       ) : null}
+
+      {media}
+      {caption ? <span className="truncate text-xs text-ash">{caption}</span> : null}
 
       {warning ? <span className="text-xs text-amber-400">{warning}</span> : null}
       {progress !== null ? (

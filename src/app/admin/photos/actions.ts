@@ -6,6 +6,7 @@ import { db } from '@/lib/db';
 import { isAuthenticated } from '@/lib/auth/guard';
 import { tagConnections } from '@/lib/tags';
 import { photoSettingsSchema } from '@/lib/photo/settings';
+import { deleteObjectsByUrl } from '@/lib/storage/r2';
 
 const photoSchema = z.object({
   id: z.string().optional(),
@@ -58,6 +59,19 @@ export async function savePhoto(input: PhotoInput): Promise<{ error?: string }> 
 
 export async function deletePhoto(id: string): Promise<{ error?: string }> {
   if (!(await isAuthenticated())) return { error: 'Unauthorized' };
+
+  const photo = await db.photo.findUnique({ where: { id }, select: { imageUrl: true } });
+  if (!photo) return { error: 'That photo no longer exists' };
+
+  // R2 first, then the row. Deleting an object that is already gone is not an
+  // error, so this is safe to retry; doing it in the other order would leave the
+  // file behind for good the moment the row that names it disappears.
+  try {
+    await deleteObjectsByUrl([photo.imageUrl]);
+  } catch (cause) {
+    console.error('R2 cleanup failed for photo', id, cause);
+    return { error: 'Could not remove the image from storage — nothing was deleted' };
+  }
 
   await db.photo.delete({ where: { id } });
 

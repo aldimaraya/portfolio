@@ -10,7 +10,54 @@ vi.mock('@/lib/env', () => ({
   }),
 }));
 
-const { buildObjectKey, publicUrl } = await import('@/lib/storage/r2');
+const { buildObjectKey, publicUrl, objectKeyFromUrl } = await import('@/lib/storage/r2');
+
+const BASE = 'https://media.example.com';
+
+describe('objectKeyFromUrl', () => {
+  it('recovers the key from a public URL', () => {
+    expect(objectKeyFromUrl(`${BASE}/photos/shot-abc123.jpg`, BASE)).toBe(
+      'photos/shot-abc123.jpg',
+    );
+  });
+
+  it('round-trips whatever publicUrl produced', () => {
+    const key = buildObjectKey('Blue Hour.JPG', 'photos');
+    expect(objectKeyFromUrl(publicUrl(key), BASE)).toBe(key);
+  });
+
+  it('tolerates a trailing slash on the base', () => {
+    expect(objectKeyFromUrl(`${BASE}/videos/clip.mov`, `${BASE}/`)).toBe('videos/clip.mov');
+  });
+
+  it('decodes percent-escaped keys', () => {
+    expect(objectKeyFromUrl(`${BASE}/photos/blue%20hour.jpg`, BASE)).toBe(
+      'photos/blue hour.jpg',
+    );
+  });
+
+  it('drops a query string or fragment', () => {
+    expect(objectKeyFromUrl(`${BASE}/photos/a.jpg?v=2`, BASE)).toBe('photos/a.jpg');
+    expect(objectKeyFromUrl(`${BASE}/photos/a.jpg#top`, BASE)).toBe('photos/a.jpg');
+  });
+
+  // The delete path depends on this: anything not provably ours must be skipped
+  // rather than turned into a key we then delete.
+  it('refuses URLs that are not on our own base', () => {
+    expect(objectKeyFromUrl('https://evil.example.com/photos/a.jpg', BASE)).toBeNull();
+    expect(objectKeyFromUrl('https://media.example.com.evil.com/a.jpg', BASE)).toBeNull();
+    expect(objectKeyFromUrl('', BASE)).toBeNull();
+  });
+
+  it('refuses the bare base with no key', () => {
+    expect(objectKeyFromUrl(BASE, BASE)).toBeNull();
+    expect(objectKeyFromUrl(`${BASE}/`, BASE)).toBeNull();
+  });
+
+  it('returns null for a malformed escape rather than guessing', () => {
+    expect(objectKeyFromUrl(`${BASE}/photos/%E0%A4%A.jpg`, BASE)).toBeNull();
+  });
+});
 
 describe('buildObjectKey', () => {
   beforeEach(() => {

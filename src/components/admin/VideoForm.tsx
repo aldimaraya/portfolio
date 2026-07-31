@@ -4,9 +4,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { UploadField } from './UploadField';
 import { TagInput } from './TagInput';
-import { BUTTON, FIELD, LABEL } from './fields';
+import { BUTTON, FIELD } from './fields';
 import { generateSpriteSheet, type SpriteResult } from '@/lib/video/sprite';
-import { missingRequiredFields } from '@/lib/video/form';
+import { missingRequiredFields, titleFromFilename } from '@/lib/video/form';
 import { uploadFile } from '@/lib/storage/upload-client';
 import { saveVideo, type VideoInput } from '@/app/admin/videos/actions';
 
@@ -29,8 +29,7 @@ function buildForm(initial?: Initial): VideoInput {
     spriteUrl: initial?.spriteUrl ?? '',
     spriteFrames: initial?.spriteFrames ?? 0,
     title: initial?.title ?? '',
-    rollGroup: initial?.rollGroup ?? '',
-    sortOrder: initial?.sortOrder ?? 0,
+    description: initial?.description ?? '',
     tags: initial?.tags ?? '',
   };
 }
@@ -54,7 +53,6 @@ export function VideoForm({ initial }: { initial?: Initial }) {
     hasVideo: Boolean(file) || Boolean(form.videoUrl),
     hasPreview: Boolean(sprite) || Boolean(form.spriteUrl && form.posterImageUrl),
     title: form.title,
-    rollGroup: form.rollGroup,
   });
   const ready = missing.length === 0 && !generating;
 
@@ -82,6 +80,12 @@ export function VideoForm({ initial }: { initial?: Initial }) {
     setError('');
     setSprite(null);
     if (!picked) return;
+
+    // Offer the filename as a title, but never overwrite one already typed.
+    setForm((prev) => ({
+      ...prev,
+      title: prev.title || titleFromFilename(picked.name),
+    }));
 
     try {
       setGenerating(true);
@@ -160,9 +164,9 @@ export function VideoForm({ initial }: { initial?: Initial }) {
     }
 
     // The create form is rendered *on* /admin/videos, so there is no navigation
-    // to unmount it — reset by hand, ready for the next clip in the roll. The
-    // roll is deliberately kept, since clips are usually added in batches.
-    setForm({ ...buildForm(), rollGroup: form.rollGroup, sortOrder: form.sortOrder + 1 });
+    // to unmount it — reset by hand, ready for the next clip. Sort order is
+    // assigned server-side, so nothing about position needs carrying over.
+    setForm(buildForm());
     setFile(null);
     setSprite(null);
     setError('');
@@ -192,6 +196,7 @@ export function VideoForm({ initial }: { initial?: Initial }) {
         previewAs="video"
         warnAboveBytes={LARGE_VIDEO_BYTES}
         hint="Frames are grabbed in your browser — nothing is transcoded on a server."
+        allowSelect={!isEdit}
       />
 
       {generating ? <p className="text-xs text-gold">Grabbing frames…</p> : null}
@@ -218,24 +223,13 @@ export function VideoForm({ initial }: { initial?: Initial }) {
         value={form.title}
         onChange={(event) => set('title', event.target.value)}
       />
-      <input
-        className={FIELD}
-        placeholder="Roll (e.g. Seoul)"
-        aria-label="Roll"
-        value={form.rollGroup}
-        onChange={(event) => set('rollGroup', event.target.value)}
+      <textarea
+        className={`${FIELD} min-h-20 resize-y`}
+        placeholder="Description (optional)"
+        aria-label="Description"
+        value={form.description}
+        onChange={(event) => set('description', event.target.value)}
       />
-
-      <label className="flex flex-col gap-1">
-        <span className={LABEL}>Sort order within the roll</span>
-        <input
-          className={FIELD}
-          type="number"
-          aria-label="Sort order"
-          value={form.sortOrder}
-          onChange={(event) => set('sortOrder', Number(event.target.value) || 0)}
-        />
-      </label>
 
       <TagInput value={form.tags} onChange={(value) => set('tags', value)} />
 

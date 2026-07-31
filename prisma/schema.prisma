@@ -53,13 +53,19 @@ model Video {
   // No camera/format/fps/iso here on purpose. Capture settings carry real meaning
   // for stills (see Photo.settings) but not for these clips, so the model stays
   // limited to what the motion page actually renders.
-  rollGroup String
-  sortOrder Int    @default(0)
+  //
+  // Optional: plenty of clips need no blurb beyond their title.
+  description String @default("")
+
+  // Manual wall order, maintained by dragging rows in the admin list rather than
+  // typed in by hand. Assigned on create as (current max + 1), so a new clip
+  // lands at the end instead of colliding on 0.
+  sortOrder Int @default(0)
 
   createdAt DateTime   @default(now())
   tags      VideoTag[]
 
-  @@index([rollGroup, sortOrder])
+  @@index([sortOrder])
 }
 
 model BlogPost {
