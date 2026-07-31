@@ -14,18 +14,22 @@ export function SpritePreview({
   frames,
   active,
   alt,
+  boxStyle,
 }: {
   spriteUrl: string;
   frames: number;
   active: boolean;
   alt: string;
+  /** Shapes the window to the clip — see frameBoxStyle in FilmFrame. */
+  boxStyle: React.CSSProperties;
 }) {
   return (
     <div
-      className="sprite-window aspect-video w-full"
+      className="sprite-window mx-auto w-full"
       data-active={active ? 'true' : 'false'}
       style={
         {
+          ...boxStyle,
           '--sprite-frames': frames,
           '--sprite-duration': `${PREVIEW_WINDOW_SECONDS}s`,
         } as React.CSSProperties

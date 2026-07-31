@@ -23,6 +23,8 @@ function buildForm(initial?: Initial): VideoInput {
     posterImageUrl: initial?.posterImageUrl ?? '',
     spriteUrl: initial?.spriteUrl ?? '',
     spriteFrames: initial?.spriteFrames ?? 0,
+    width: initial?.width ?? 0,
+    height: initial?.height ?? 0,
     title: initial?.title ?? '',
     description: initial?.description ?? '',
     tags: initial?.tags ?? '',
@@ -86,7 +88,12 @@ export function VideoForm({ initial }: { initial?: Initial }) {
       setGenerating(true);
       const result = await generateSpriteSheet(picked);
       setSprite(result);
-      setForm((prev) => ({ ...prev, spriteFrames: result.frameCount }));
+      setForm((prev) => ({
+        ...prev,
+        spriteFrames: result.frameCount,
+        width: result.videoWidth,
+        height: result.videoHeight,
+      }));
     } catch (cause) {
       // Leaves sprite null, which keeps the save button disabled rather than
       // storing a video with no scrub preview.

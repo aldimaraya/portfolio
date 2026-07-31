@@ -15,6 +15,9 @@ export interface SpriteResult {
   frameCount: number;
   frameWidth: number;
   frameHeight: number;
+  /** The clip's own pixel dimensions, not the downscaled frame's. */
+  videoWidth: number;
+  videoHeight: number;
   durationSeconds: number;
 }
 
@@ -137,6 +140,8 @@ export async function generateSpriteSheet(
       frameCount: timestamps.length,
       frameWidth,
       frameHeight,
+      videoWidth: video.videoWidth,
+      videoHeight: video.videoHeight,
       durationSeconds: video.duration,
     };
   } finally {

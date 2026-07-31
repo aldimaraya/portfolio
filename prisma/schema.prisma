@@ -48,6 +48,12 @@ model Video {
   spriteUrl      String
   spriteFrames   Int    @default(10)
 
+  // Same reasoning as Photo.width/height: the frame must be shaped from the clip
+  // before layout, or a vertical video is stretched into a 16:9 box. Defaulted to
+  // 0 for clips stored before this existed — see FRAME_FALLBACK_RATIO.
+  width  Int @default(0)
+  height Int @default(0)
+
   title String
 
   // No camera/format/fps/iso here on purpose. Capture settings carry real meaning

@@ -9,8 +9,36 @@ export interface FrameVideo {
   posterImageUrl: string;
   spriteUrl: string;
   spriteFrames: number;
+  width: number;
+  height: number;
   title: string;
   description: string;
+}
+
+/**
+ * Used when a clip predates stored dimensions. 16:9 is the shape those frames
+ * were already being forced into, so an old clip looks no worse than before.
+ */
+const FRAME_FALLBACK_RATIO = 16 / 9;
+
+export function frameRatio(video: Pick<FrameVideo, 'width' | 'height'>): number {
+  if (video.width > 0 && video.height > 0) return video.width / video.height;
+  return FRAME_FALLBACK_RATIO;
+}
+
+/**
+ * Tallest a frame may stand. Filling the strip's width is fine for a landscape
+ * clip but not a vertical one — 9:16 across the full width would be some 1460px
+ * tall, taller than the strip itself, so a single frame would swallow the roll.
+ * Applied as a max-width derived from the ratio rather than a max-height, since
+ * clamping the height alone leaves the width at 100% and re-stretches the frame.
+ */
+const FRAME_MAX_HEIGHT = 480;
+
+/** Sizes a frame's media box from the clip's own shape. */
+export function frameBoxStyle(video: Pick<FrameVideo, 'width' | 'height'>): React.CSSProperties {
+  const ratio = frameRatio(video);
+  return { aspectRatio: ratio, maxWidth: FRAME_MAX_HEIGHT * ratio };
 }
 
 /** `01A`, `02A`, … — the frame numbering printed along a real strip. */
@@ -79,7 +107,8 @@ export function FilmFrame({
           controls
           preload="metadata"
           playsInline
-          className="aspect-video w-full bg-black"
+          style={frameBoxStyle(video)}
+          className="mx-auto w-full bg-black"
         />
       ) : (
         <button
@@ -96,6 +125,7 @@ export function FilmFrame({
             frames={video.spriteFrames}
             active={active}
             alt={video.title}
+            boxStyle={frameBoxStyle(video)}
           />
           <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
             <span className="rounded-full border border-gold/70 bg-ink/60 px-4 py-2 font-mono text-xs tracking-[0.1em] text-gold uppercase opacity-0 transition group-hover:opacity-100">

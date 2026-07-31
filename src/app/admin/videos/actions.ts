@@ -13,6 +13,10 @@ const videoSchema = z.object({
   posterImageUrl: z.url('The poster image failed to generate'),
   spriteUrl: z.url('The preview sprite failed to generate'),
   spriteFrames: z.number().int().positive(),
+  // Shapes the frame on the motion page; a clip saved without them would be
+  // stretched into 16:9.
+  width: z.number().int().positive('The clip dimensions could not be read'),
+  height: z.number().int().positive('The clip dimensions could not be read'),
   // Trimmed before the length check, so a lone space cannot pass as a value.
   title: z.string().trim().min(1, 'Title is required'),
   // Optional — not every clip needs a blurb.

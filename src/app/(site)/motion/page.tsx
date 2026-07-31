@@ -17,6 +17,8 @@ export default async function MotionPage() {
           posterImageUrl: video.posterImageUrl,
           spriteUrl: video.spriteUrl,
           spriteFrames: video.spriteFrames,
+          width: video.width,
+          height: video.height,
           title: video.title,
           description: video.description,
         }))}
