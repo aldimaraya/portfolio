@@ -4,8 +4,6 @@ import {
   formatLens,
   formatShutter,
   formatCoordinates,
-  orientedDimensions,
-  parseOrientation,
 } from '@/lib/photo/exif';
 
 describe('formatCamera', () => {
@@ -90,67 +88,3 @@ describe('formatCoordinates', () => {
   });
 });
 
-describe('parseOrientation', () => {
-  it('accepts a plain numeric orientation', () => {
-    expect(parseOrientation(6)).toBe(6);
-    expect(parseOrientation(1)).toBe(1);
-  });
-
-  it('accepts the human-readable labels exifr produces by default', () => {
-    expect(parseOrientation('Rotate 90 CW')).toBe(6);
-    expect(parseOrientation('Rotate 270 CW')).toBe(8);
-    expect(parseOrientation('Horizontal (normal)')).toBe(1);
-    expect(parseOrientation('Rotate 180')).toBe(3);
-    expect(parseOrientation('Mirror horizontal and rotate 90 CW')).toBe(7);
-  });
-
-  it('is case and whitespace insensitive', () => {
-    expect(parseOrientation('  rotate 90 cw  ')).toBe(6);
-  });
-
-  it('accepts a numeric string', () => {
-    expect(parseOrientation('8')).toBe(8);
-  });
-
-  it('treats an unrecognised quarter-turn label as a quarter turn', () => {
-    expect(parseOrientation('rotated 90 degrees somehow')).toBe(6);
-  });
-
-  it('returns undefined for values it cannot interpret', () => {
-    expect(parseOrientation(undefined)).toBeUndefined();
-    expect(parseOrientation('nonsense')).toBeUndefined();
-    expect(parseOrientation(0)).toBeUndefined();
-    expect(parseOrientation(99)).toBeUndefined();
-  });
-
-  it('round-trips into a dimension swap', () => {
-    const orientation = parseOrientation('Rotate 90 CW');
-    expect(orientedDimensions(4000, 3000, orientation)).toEqual({
-      width: 3000,
-      height: 4000,
-    });
-  });
-});
-
-describe('orientedDimensions', () => {
-  it('leaves unrotated images alone', () => {
-    expect(orientedDimensions(4000, 3000, 1)).toEqual({ width: 4000, height: 3000 });
-  });
-
-  it('leaves a 180 degree rotation alone', () => {
-    expect(orientedDimensions(4000, 3000, 3)).toEqual({ width: 4000, height: 3000 });
-  });
-
-  it('swaps width and height for every quarter-turn orientation', () => {
-    for (const orientation of [5, 6, 7, 8]) {
-      expect(orientedDimensions(4000, 3000, orientation)).toEqual({
-        width: 3000,
-        height: 4000,
-      });
-    }
-  });
-
-  it('assumes no rotation when orientation is absent', () => {
-    expect(orientedDimensions(4000, 3000, undefined)).toEqual({ width: 4000, height: 3000 });
-  });
-});

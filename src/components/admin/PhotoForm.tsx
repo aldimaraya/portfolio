@@ -6,7 +6,7 @@ import { UploadField } from './UploadField';
 import { TagInput } from './TagInput';
 import { BUTTON, FIELD, LABEL } from './fields';
 import { analyzeImageFile } from '@/lib/color/analyze-image';
-import { extractPhotoExif, orientedDimensions, type PhotoExif } from '@/lib/photo/exif';
+import { extractPhotoExif, type PhotoExif } from '@/lib/photo/exif';
 import {
   EMPTY_SETTINGS,
   settingsFromExif,
@@ -115,11 +115,9 @@ export function PhotoForm({ initial }: { initial?: Initial }) {
       setAnalyzing(false);
     }
 
-    const { width, height } = orientedDimensions(
-      analysis.width,
-      analysis.height,
-      metadata.orientation,
-    );
+    // Already the upright dimensions — analyzeImageFile decodes with the photo's
+    // own orientation applied.
+    const { width, height } = analysis;
 
     setExif(metadata);
 

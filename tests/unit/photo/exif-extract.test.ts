@@ -7,9 +7,9 @@ vi.mock('exifr', () => ({ default: { parse } }));
 const { extractPhotoExif } = await import('@/lib/photo/exif');
 
 /**
- * The shape here mirrors what exifr actually returned for a hand-built EXIF JPEG,
- * including Orientation arriving as a translated label rather than a number — the
- * case that silently disabled the dimension swap.
+ * The shape here mirrors what exifr actually returned for a hand-built EXIF JPEG.
+ * Orientation is present but deliberately unmapped: dimensions come from decoding
+ * the image upright, not from correcting raw pixels by this tag.
  */
 const REAL_WORLD_OUTPUT = {
   Make: 'NIKON CORPORATION',
@@ -49,7 +49,6 @@ describe('extractPhotoExif', () => {
       shutter: '1/250',
       focalLength: 35,
       coordinates: '35.68393, 139.69171',
-      orientation: 6,
     });
   });
 
@@ -73,7 +72,6 @@ describe('extractPhotoExif', () => {
     expect(result.camera).toBe('Leica');
     expect(result.lens).toBeUndefined();
     expect(result.coordinates).toBeUndefined();
-    expect(result.orientation).toBeUndefined();
     expect(result.capturedAt).toBeUndefined();
   });
 
