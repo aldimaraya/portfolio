@@ -17,11 +17,15 @@ export function buildPhotoWhere(filters: MediaFilters): Prisma.PhotoWhereInput {
   return clauses.length ? { AND: clauses } : {};
 }
 
-/** Videos carry no location, so that filter is intentionally ignored here. */
+/**
+ * Videos carry neither a location nor a camera, so only the tag filter applies.
+ * The other two are intentionally ignored rather than rejected: the filter bar is
+ * shared with the stills page, and a camera in the URL should narrow the wall
+ * without emptying the motion page.
+ */
 export function buildVideoWhere(filters: MediaFilters): Prisma.VideoWhereInput {
   const clauses: Prisma.VideoWhereInput[] = [];
 
-  if (filters.cameras.length) clauses.push({ camera: { in: filters.cameras } });
   if (filters.tags.length) {
     clauses.push({ tags: { some: { tag: { name: { in: filters.tags } } } } });
   }

@@ -48,12 +48,11 @@ model Video {
   spriteUrl      String
   spriteFrames   Int    @default(10)
 
-  title  String
-  camera String
-  format String
-  fps    String
-  iso    String
+  title String
 
+  // No camera/format/fps/iso here on purpose. Capture settings carry real meaning
+  // for stills (see Photo.settings) but not for these clips, so the model stays
+  // limited to what the motion page actually renders.
   rollGroup String
   sortOrder Int    @default(0)
 

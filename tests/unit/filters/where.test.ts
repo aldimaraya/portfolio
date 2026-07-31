@@ -32,17 +32,23 @@ describe('buildVideoWhere', () => {
     expect(buildVideoWhere({ cameras: [], locations: [], tags: [] })).toEqual({});
   });
 
-  it('ignores location, which videos do not carry', () => {
-    expect(buildVideoWhere({ cameras: [], locations: ['Tokyo'], tags: [] })).toEqual({});
+  it('ignores location and camera, which videos do not carry', () => {
+    expect(buildVideoWhere({ cameras: ['RED'], locations: ['Tokyo'], tags: [] })).toEqual({});
   });
 
-  it('combines camera and tag filters with AND', () => {
-    const result = buildVideoWhere({ cameras: ['RED'], locations: [], tags: ['reel'] });
-    expect(result).toEqual({
-      AND: [
-        { camera: { in: ['RED'] } },
-        { tags: { some: { tag: { name: { in: ['reel'] } } } } },
-      ],
+  it('filters on tags alone', () => {
+    expect(buildVideoWhere({ cameras: [], locations: [], tags: ['reel'] })).toEqual({
+      AND: [{ tags: { some: { tag: { name: { in: ['reel'] } } } } }],
+    });
+  });
+
+  // A camera in the URL narrows the stills wall; it must not empty the motion
+  // page as a side effect, since both pages share one filter bar.
+  it('still matches tag-filtered videos when a camera is also in the URL', () => {
+    expect(
+      buildVideoWhere({ cameras: ['RED'], locations: [], tags: ['reel'] }),
+    ).toEqual({
+      AND: [{ tags: { some: { tag: { name: { in: ['reel'] } } } } }],
     });
   });
 });

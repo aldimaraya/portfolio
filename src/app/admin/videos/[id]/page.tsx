@@ -1,10 +1,42 @@
-import { Placeholder } from '@/components/site/Placeholder';
+import { notFound } from 'next/navigation';
+import { db } from '@/lib/db';
+import { VideoForm } from '@/components/admin/VideoForm';
+import { DeleteButton } from '@/components/admin/DeleteButton';
+import { LABEL } from '@/components/admin/fields';
+import { deleteVideo } from '../actions';
 
-export default async function AdminVideoEditPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export const dynamic = 'force-dynamic';
+
+export default async function EditVideoPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  return <Placeholder title={`Edit video — ${id}`} task="Task 12" />;
+  const video = await db.video.findUnique({
+    where: { id },
+    include: { tags: { include: { tag: true } } },
+  });
+  if (!video) notFound();
+
+  return (
+    <div className="flex flex-col gap-6">
+      <h2 className={LABEL}>Edit video</h2>
+      <VideoForm
+        initial={{
+          id: video.id,
+          videoUrl: video.videoUrl,
+          posterImageUrl: video.posterImageUrl,
+          spriteUrl: video.spriteUrl,
+          spriteFrames: video.spriteFrames,
+          title: video.title,
+          rollGroup: video.rollGroup,
+          sortOrder: video.sortOrder,
+          tags: video.tags.map((entry) => entry.tag.name).join(', '),
+        }}
+      />
+      <DeleteButton
+        id={video.id}
+        action={deleteVideo}
+        redirectTo="/admin/videos"
+        label="Delete video"
+      />
+    </div>
+  );
 }
