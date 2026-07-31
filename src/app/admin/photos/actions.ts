@@ -5,15 +5,20 @@ import { z } from 'zod';
 import { db } from '@/lib/db';
 import { isAuthenticated } from '@/lib/auth/guard';
 import { tagConnections } from '@/lib/tags';
+import { photoSettingsSchema } from '@/lib/photo/settings';
 
 const photoSchema = z.object({
   id: z.string().optional(),
   imageUrl: z.url('Upload an image before saving'),
   width: z.number().int().positive(),
   height: z.number().int().positive(),
-  location: z.string().min(1, 'Location is required'),
-  camera: z.string().min(1, 'Camera is required'),
-  filmStock: z.string().min(1, 'Film stock or lens is required'),
+  // Trimmed before the length check: a lone space would otherwise satisfy min(1)
+  // and store a blank-looking value.
+  location: z.string().trim().min(1, 'Location is required'),
+  camera: z.string().trim().min(1, 'Camera is required'),
+  // Every settings field is optional — a phone snap or a stripped export may
+  // carry no EXIF at all, and none of it is worth blocking a save over.
+  settings: photoSettingsSchema,
   avgHue: z.number(),
   avgLightness: z.number(),
   isMonochrome: z.boolean(),

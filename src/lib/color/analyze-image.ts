@@ -15,7 +15,12 @@ export interface ImageAnalysis extends ColorStats {
 const SAMPLE_WIDTH = 100;
 
 export async function analyzeImageFile(file: File): Promise<ImageAnalysis> {
-  const bitmap = await createImageBitmap(file);
+  // `imageOrientation: 'none'` is deliberate. Browsers disagree on whether the
+  // default applies EXIF rotation, so the dimensions below are always raw pixel
+  // dimensions and orientedDimensions() in lib/photo/exif.ts is the single place
+  // that corrects them. Average colour is rotation-invariant, so the pixels being
+  // unrotated does not affect the analysis.
+  const bitmap = await createImageBitmap(file, { imageOrientation: 'none' });
   try {
     const scale = Math.min(1, SAMPLE_WIDTH / bitmap.width);
     const sampleWidth = Math.max(1, Math.round(bitmap.width * scale));
@@ -34,7 +39,8 @@ export async function analyzeImageFile(file: File): Promise<ImageAnalysis> {
     return {
       ...analyzePixels(data),
       // Dimensions come from the bitmap, not the downsample — the wall needs the
-      // real aspect ratio to size each polaroid.
+      // real aspect ratio to size each polaroid. These are pre-rotation; see the
+      // note above.
       width: bitmap.width,
       height: bitmap.height,
     };

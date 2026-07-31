@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { db } from '@/lib/db';
 import { PhotoForm } from '@/components/admin/PhotoForm';
 import { LABEL } from '@/components/admin/fields';
+import { summarizeSettings, toSettings } from '@/lib/photo/settings';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,10 +31,13 @@ export default async function AdminPhotosPage() {
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm">{photo.location}</div>
                 <div className="truncate font-mono text-xs text-ash">
-                  {photo.camera} · {photo.filmStock}
-                  {photo.tags.length
-                    ? ` · ${photo.tags.map((entry) => entry.tag.name).join(', ')}`
-                    : ''}
+                  {[
+                    photo.camera,
+                    summarizeSettings(toSettings(photo.settings)),
+                    photo.tags.map((entry) => entry.tag.name).join(', '),
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
                 </div>
               </div>
               <Link href={`/admin/photos/${photo.id}`} className="text-sm text-gold">

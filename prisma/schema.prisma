@@ -19,9 +19,13 @@ model Photo {
   width  Int
   height Int
 
-  location  String
-  camera    String
-  filmStock String
+  location String
+  camera   String
+
+  // Lens and exposure settings as one structured blob — see PhotoSettings in
+  // src/lib/photo/settings.ts. Prefilled from EXIF at upload; every field is an
+  // optional free-text string, so a file with no EXIF simply stores blanks.
+  settings Json
 
   // Computed once at upload from a downsampled copy of the image, never
   // recomputed per page load. See src/lib/color/analyze.ts.

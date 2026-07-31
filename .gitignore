@@ -42,3 +42,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# claude code — machine-specific (absolute paths, local permission grants).
+# A shared .claude/settings.json would still be committed.
+.claude/settings.local.json
+.claude/launch.json

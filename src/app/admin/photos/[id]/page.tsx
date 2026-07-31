@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { PhotoForm } from '@/components/admin/PhotoForm';
 import { DeleteButton } from '@/components/admin/DeleteButton';
 import { LABEL } from '@/components/admin/fields';
+import { toSettings } from '@/lib/photo/settings';
 import { deletePhoto } from '../actions';
 
 export const dynamic = 'force-dynamic';
@@ -26,7 +27,9 @@ export default async function EditPhotoPage({ params }: { params: Promise<{ id: 
           height: photo.height,
           location: photo.location,
           camera: photo.camera,
-          filmStock: photo.filmStock,
+          // The Json column is untyped at the DB boundary — coerce it before it
+          // reaches the form.
+          settings: toSettings(photo.settings),
           avgHue: photo.avgHue,
           avgLightness: photo.avgLightness,
           isMonochrome: photo.isMonochrome,
