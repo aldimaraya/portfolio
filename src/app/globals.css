@@ -28,6 +28,31 @@ body {
   color: var(--color-bone);
 }
 
+/* Tailwind v4's Preflight leaves buttons on `cursor: default` — a deliberate
+   break from v3, on the reasoning that native buttons do the same. On a site
+   where most controls are unlabelled chips and framed images, that reads as
+   "not clickable", so the pointer is restored here in one place rather than
+   with a cursor-pointer on every button.
+
+   `@layer base` is load-bearing, not decoration: unlayered rules outrank every
+   cascade layer, so leaving these outside one would beat the cursor-* utilities
+   and flatten cursor-zoom-in and cursor-grab back to a pointer. */
+@layer base {
+  button,
+  summary,
+  [role="button"],
+  label:has(> input[type="checkbox"]),
+  label:has(> input[type="radio"]) {
+    cursor: pointer;
+  }
+
+  /* A control that cannot act should not invite the click it will ignore. */
+  button:disabled,
+  [role="button"][aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+}
+
 /* The sprite-sheet preview on the Motion page. A stepped translateX across one
    wide image: a single request, compositor-driven, no per-tick main-thread
    work. Only the centred frame gets `running` — see SpritePreview. */
