@@ -29,8 +29,20 @@ function distanceFromCentre(child: HTMLElement, position: number, stripHeight: n
   return Math.abs(centre - stripHeight / 2);
 }
 
-/** Scroll distance allotted per clip. Lower feels rushed, higher feels stuck. */
-const TRACK_VH_PER_VIDEO = 200;
+/**
+ * Page scroll per pixel of film travel. 1 moves the film exactly with the wheel;
+ * higher gears it down and makes the roll feel heavy.
+ *
+ * The track used to be a flat 200vh per clip, which is unrelated to how far the
+ * film actually has to move: three clips bought 6776px of scrolling to deliver
+ * 936px of travel, so the reel crawled and one frame held the centre for half
+ * the page. Sizing the track from the measured travel keeps the ratio fixed no
+ * matter the clip count, frame height or viewport.
+ */
+const SCROLL_GEARING = 1;
+
+/** Only until the first measurement lands — see the effect below. */
+const FALLBACK_VH_PER_VIDEO = 60;
 
 export function FilmStrip({ videos }: { videos: FrameVideo[] }) {
   const trackRef = useRef<HTMLDivElement>(null);
@@ -41,6 +53,8 @@ export function FilmStrip({ videos }: { videos: FrameVideo[] }) {
   // Which clip is playing, if any. Held here rather than per frame so starting
   // one stops the rest — two clips playing at once means two soundtracks.
   const [playingId, setPlayingId] = useState<string | null>(null);
+  // Null until measured on the client; the fallback below covers first paint.
+  const [trackHeight, setTrackHeight] = useState<number | null>(null);
 
   /** Distance the frames must travel for the last one to clear the window. */
   const travel = useCallback(() => {
@@ -56,6 +70,19 @@ export function FilmStrip({ videos }: { videos: FrameVideo[] }) {
     if (!track) return 1;
     return Math.max(1, track.clientHeight - window.innerHeight);
   }, []);
+
+  // The track is only a scroll runway: its height buys the distance the film
+  // needs, so it is measured from the content rather than guessed in viewport
+  // units. Re-measured on resize, since travel depends on the strip's height.
+  useEffect(() => {
+    function measure() {
+      setTrackHeight(window.innerHeight + travel() * SCROLL_GEARING);
+    }
+
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [travel]);
 
   useEffect(() => {
     function onScroll() {
@@ -94,7 +121,8 @@ export function FilmStrip({ videos }: { videos: FrameVideo[] }) {
       setActiveIndex(next);
     }
 
-    // Once up front: a reload partway down the page must not start at frame one.
+    // Once up front: a reload partway down the page must not start at frame one,
+    // and a new trackHeight changes the mapping without firing a scroll event.
     onScroll();
     window.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('resize', onScroll);
@@ -102,7 +130,7 @@ export function FilmStrip({ videos }: { videos: FrameVideo[] }) {
       window.removeEventListener('scroll', onScroll);
       window.removeEventListener('resize', onScroll);
     };
-  }, [maxScroll, travel]);
+  }, [maxScroll, travel, trackHeight]);
 
   function jumpToFrame(index: number) {
     const track = trackRef.current;
@@ -128,7 +156,11 @@ export function FilmStrip({ videos }: { videos: FrameVideo[] }) {
     <div
       ref={trackRef}
       className="relative"
-      style={{ height: `${videos.length * TRACK_VH_PER_VIDEO}vh` }}
+      style={{
+        height: trackHeight
+          ? `${trackHeight}px`
+          : `${videos.length * FALLBACK_VH_PER_VIDEO}vh`,
+      }}
     >
       <div className="sticky top-5 flex h-[85vh] w-full gap-6 max-strip:h-auto max-strip:flex-col">
         <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
