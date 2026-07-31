@@ -15,8 +15,19 @@ import { RollIndex } from './RollIndex';
 /** Height of one sprocket hole cell, so the holes scroll with the film. */
 const SPROCKET_PITCH = 32;
 
-/** How far above the strip's top edge a frame counts as the current one. */
-const ACTIVE_LINE = 140;
+/**
+ * The current frame is whichever sits nearest the middle of the window.
+ *
+ * Measuring from the top edge instead cannot reach the end of the roll: the film
+ * stops travelling once its last frame's bottom meets the strip's bottom, so on a
+ * strip taller than one frame the final frame comes to rest below any fixed line
+ * near the top and never becomes current. Reading from the centre has no such
+ * dead zone at either end, whatever the strip height or frame count.
+ */
+function distanceFromCentre(child: HTMLElement, position: number, stripHeight: number): number {
+  const centre = child.offsetTop + child.offsetHeight / 2 - position;
+  return Math.abs(centre - stripHeight / 2);
+}
 
 /** Scroll distance allotted per clip. Lower feels rushed, higher feels stuck. */
 const TRACK_VH_PER_VIDEO = 200;
@@ -72,8 +83,13 @@ export function FilmStrip({ videos }: { videos: FrameVideo[] }) {
 
       const position = Math.abs(offset);
       let next = 0;
+      let nearest = Infinity;
       (Array.from(frames.children) as HTMLElement[]).forEach((child, index) => {
-        if (position >= child.offsetTop - ACTIVE_LINE) next = index;
+        const distance = distanceFromCentre(child, position, strip.clientHeight);
+        if (distance < nearest) {
+          nearest = distance;
+          next = index;
+        }
       });
       setActiveIndex(next);
     }
@@ -91,13 +107,16 @@ export function FilmStrip({ videos }: { videos: FrameVideo[] }) {
   function jumpToFrame(index: number) {
     const track = trackRef.current;
     const frames = framesRef.current;
-    if (!track || !frames) return;
+    const strip = stripRef.current;
+    if (!track || !frames || !strip) return;
     const child = frames.children[index] as HTMLElement | undefined;
     if (!child) return;
 
-    // Invert the mapping above: the frame's offset within the strip becomes the
-    // page scroll position that puts it at the top of the window.
-    const ratio = Math.min(Math.max(child.offsetTop / travel(), 0), 1);
+    // Invert the mapping above, centring the frame rather than aligning its top —
+    // landing anywhere else would leave the roll index highlighting a different
+    // frame than the one just clicked.
+    const wanted = child.offsetTop + child.offsetHeight / 2 - strip.clientHeight / 2;
+    const ratio = Math.min(Math.max(wanted / travel(), 0), 1);
     window.scrollTo({ top: track.offsetTop + ratio * maxScroll(), behavior: 'smooth' });
   }
 
