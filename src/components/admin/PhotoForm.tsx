@@ -13,14 +13,9 @@ import {
   type PhotoSettings,
 } from '@/lib/photo/settings';
 import { missingRequiredFields } from '@/lib/photo/form';
+import { listPhrase } from '@/lib/text';
 import { uploadFile } from '@/lib/storage/upload-client';
 import { savePhoto, type PhotoInput } from '@/app/admin/photos/actions';
-
-/** "camera" · "camera and lens" · "camera, lens and ISO". */
-function listPhrase(items: string[]): string {
-  if (items.length <= 1) return items.join('');
-  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
-}
 
 const SETTING_FIELDS: { key: keyof PhotoSettings; label: string; placeholder: string }[] = [
   { key: 'focalLength', label: 'Focal length', placeholder: '35mm' },

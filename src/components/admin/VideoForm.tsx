@@ -7,14 +7,9 @@ import { TagInput } from './TagInput';
 import { BUTTON, FIELD } from './fields';
 import { generateSpriteSheet, type SpriteResult } from '@/lib/video/sprite';
 import { missingRequiredFields, titleFromFilename } from '@/lib/video/form';
+import { listPhrase } from '@/lib/text';
 import { uploadFile } from '@/lib/storage/upload-client';
 import { saveVideo, type VideoInput } from '@/app/admin/videos/actions';
-
-/** "a title" · "a title and a roll" · "a video, a title and a roll". */
-function listPhrase(items: string[]): string {
-  if (items.length <= 1) return items.join('');
-  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
-}
 
 /** Clips are large; warn past this rather than silently starting a huge upload. */
 const LARGE_VIDEO_BYTES = 200 * 1024 * 1024;
