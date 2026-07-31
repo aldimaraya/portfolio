@@ -60,13 +60,20 @@ reference. The name "Alex Morgan" in that file is a placeholder only.
 
 ## Data model
 
+> **Superseded in places.** See "Status and deviations" in
+> `docs/superpowers/plans/2026-07-28-personal-portfolio.md` for the shipped shape.
+> In short: `Photo.filmStock` became `Photo.settings` (JSON: lens, focalLength,
+> aperture, shutter, iso); `Video` lost `camera`/`format`/`fps`/`iso`, and
+> `rollGroup` became a free-text `description`, so the motion page is one flat
+> drag-ordered wall rather than grouped rolls.
+
 ```
 Photo
   id
   imageUrl        // R2 key/URL
   location
   camera
-  filmStock       // or lens, free text
+  filmStock       // superseded by `settings` (JSON)
   orientation     // portrait | landscape (derived from image dimensions)
   avgHue          // 0-360, computed at upload
   avgLightness     // 0-1, computed at upload
@@ -79,12 +86,12 @@ Video
   posterImageUrl
   spriteUrl       // R2 key/URL of the 10-frame preview sprite sheet
   title
-  camera
-  format          // e.g. "35MM", "4K PRORES"
-  fps
-  iso
-  rollGroup       // which "roll" this belongs to, for the sidebar grouping
-  sortOrder       // manual order within its roll
+  camera          // dropped — capture settings mean little for clips
+  format          // dropped
+  fps             // dropped
+  iso             // dropped
+  rollGroup       // superseded by free-text `description`; no roll grouping
+  sortOrder       // manual order, set by dragging rows in the admin list
   createdAt
 
 BlogPost

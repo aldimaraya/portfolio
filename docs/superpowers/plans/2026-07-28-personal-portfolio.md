@@ -12,6 +12,72 @@
 
 ---
 
+## Status and deviations (updated 2026-07-31)
+
+**Done:** Tasks 1–12. **Next:** Task 13 (blog admin). `/admin/posts` is still a `Placeholder`.
+
+The code below in Tasks 11, 12, 15, 16 and 17 was written before the decisions
+recorded here. Where it disagrees with this section, **this section is correct** —
+the embedded snippets have deliberately not been rewritten, since they are a
+record of the original plan rather than the current implementation.
+
+### Schema
+
+- **`Photo.filmStock` → `Photo.settings` (`Json`).** Film stock is the wrong frame
+  for a digital shooter. Settings are now a structured blob — `lens`,
+  `focalLength`, `aperture`, `shutter`, `iso` — prefilled from EXIF at upload.
+  See `src/lib/photo/settings.ts`; read the column back through `toSettings()`,
+  which coerces malformed JSON to blanks rather than throwing.
+- **`Video.camera` / `format` / `fps` / `iso` dropped.** Capture settings carry
+  real meaning for stills but not for these clips.
+- **`Video.rollGroup` → `Video.description`** (optional). There are no rolls; the
+  motion page is one flat wall. **This removes the per-roll grouping that Task 17
+  was written around.**
+- **`Video.sortOrder` is never typed in.** New clips are appended server-side as
+  `max + 1`, and order is changed by dragging rows in the admin list, persisted by
+  the `reorderVideos` action as a whole-list rewrite in one transaction.
+
+### Behaviour established in the admin panel
+
+Task 13 and anything else with an upload form should follow these; they exist
+because each one was a real bug.
+
+- **Uploads happen on save, not on file pick.** Picking only previews locally.
+  Browsing away without saving used to orphan an object in R2.
+- **Required-field checks run *before* the upload**, not just server-side, so an
+  incomplete form cannot push a large file that the server then rejects. See
+  `missingRequiredFields` in `src/lib/photo/form.ts` and `src/lib/video/form.ts`.
+- **Create forms must reset themselves.** They render *on* the list page, so
+  `router.push` to that same path does not unmount them and their state survives.
+- **Client components holding server data need an explicit sync.** `useState`
+  ignores its initial value on re-render, so a list initialised from props goes
+  stale after `router.refresh()`. See `VideoList`.
+- **Deleting a record deletes its R2 objects** (`deleteObjectsByUrl`), R2 first so
+  a failure is retryable and leaves no orphan. Edit pages cannot replace a file,
+  which closes the other orphan path.
+
+### Filters
+
+`buildVideoWhere` matches on tags only, and deliberately **ignores** a camera or
+location in the URL rather than matching nothing — the filter bar is shared with
+the stills page, so narrowing the wall must not empty the motion page.
+
+### Temporary
+
+`DEV_SKIP_AUTH` (`src/lib/auth/dev-bypass.ts`) skips the `/admin` login while the
+panel is being built. It is inert unless `NODE_ENV` is development, so a deployed
+instance cannot enable it. **Delete the file and its three call sites when the
+admin panel is finished** — grep `DEV_SKIP_AUTH`.
+
+### Operational notes
+
+- A schema change needs the dev server **restarted**, not just `prisma generate` —
+  `src/lib/db.ts` keeps a Prisma singleton in the dev process, and a stale one
+  fails with `The column (not available) does not exist in the current database`.
+- This project uses `prisma db push`; there is no migrations directory.
+
+---
+
 ## Prerequisites (do this first — nothing else works without it)
 
 - [x] **Node.js installed** — v24.18.0 with npm 11.16.0, at `C:\Program Files\nodejs`. Verified 2026-07-28.
@@ -490,7 +556,7 @@ model Photo {
   height       Int
   location     String
   camera       String
-  filmStock    String
+  settings     Json       // See "Deviations" — replaced `filmStock`
   avgHue       Float
   avgLightness Float
   isMonochrome Boolean
@@ -507,16 +573,12 @@ model Video {
   spriteUrl      String
   spriteFrames   Int        @default(10)
   title          String
-  camera         String
-  format         String
-  fps            String
-  iso            String
-  rollGroup      String
-  sortOrder      Int        @default(0)
+  description    String     @default("") // See "Deviations" — replaced `rollGroup`
+  sortOrder      Int        @default(0)  // Set by drag-reordering, never typed
   createdAt      DateTime   @default(now())
   tags           VideoTag[]
 
-  @@index([rollGroup, sortOrder])
+  @@index([sortOrder])
 }
 
 model BlogPost {
@@ -3954,6 +4016,11 @@ git commit -m "feat: add URL-driven filter bar"
 
 Create `src/components/stills/Polaroid.tsx`:
 
+> ⚠ **Outdated — `photo.filmStock` no longer exists.** Take `settings: PhotoSettings`
+> instead and render the caption with `summarizeSettings(toSettings(photo.settings))`
+> from `src/lib/photo/settings.ts`, which yields e.g.
+> `23mm · f/2 · 1/8 · ISO 640`. See "Status and deviations" at the top.
+
 ```tsx
 import Image from 'next/image';
 
@@ -4216,6 +4283,9 @@ export interface FrameVideo {
   spriteUrl: string;
   spriteFrames: number;
   title: string;
+  // ⚠ Outdated — camera/format/fps/iso and rollGroup were all dropped from Video.
+  // Use `description: string` instead; there is no per-clip metadata overlay and
+  // no roll to group by. See "Status and deviations" at the top.
   camera: string;
   format: string;
   fps: string;
@@ -4486,6 +4556,8 @@ export default async function MotionPage({
 
   const [videos, options] = await Promise.all([
     db.video.findMany({
+      // ⚠ Outdated — no rollGroup. Order by { sortOrder: 'asc' } alone; the wall
+      // is one flat, drag-ordered list. See "Status and deviations" at the top.
       where: buildVideoWhere(filters),
       orderBy: [{ rollGroup: 'asc' }, { sortOrder: 'asc' }],
     }),
