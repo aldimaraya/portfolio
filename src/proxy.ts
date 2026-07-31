@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { SESSION_COOKIE, verifySessionToken } from '@/lib/auth/session';
+import { devAuthBypassEnabled } from '@/lib/auth/dev-bypass';
 
 /**
  * Auth gate for /admin/*. In Next.js 16 this file must be named `proxy.ts` and
@@ -7,6 +8,8 @@ import { SESSION_COOKIE, verifySessionToken } from '@/lib/auth/session';
  * deprecated. Its runtime is Node and is not configurable.
  */
 export async function proxy(request: NextRequest) {
+  if (devAuthBypassEnabled()) return NextResponse.next();
+
   const token = request.cookies.get(SESSION_COOKIE)?.value ?? '';
   if (await verifySessionToken(token)) return NextResponse.next();
 
