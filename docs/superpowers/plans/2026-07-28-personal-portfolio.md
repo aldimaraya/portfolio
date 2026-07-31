@@ -14,7 +14,7 @@
 
 ## Status and deviations (updated 2026-07-31)
 
-**Done:** Tasks 1–12. **Next:** Task 13 (blog admin). `/admin/posts` is still a `Placeholder`.
+**Done:** Tasks 1–17. **Next:** Task 18 (journal pages). `/journal` is still a `Placeholder`.
 
 The code below in Tasks 11, 12, 15, 16 and 17 was written before the decisions
 recorded here. Where it disagrees with this section, **this section is correct** —
@@ -58,9 +58,13 @@ because each one was a real bug.
 
 ### Filters
 
-`buildVideoWhere` matches on tags only, and deliberately **ignores** a camera or
-location in the URL rather than matching nothing — the filter bar is shared with
-the stills page, so narrowing the wall must not empty the motion page.
+**There is no `buildVideoWhere`, and no video filter bar.** Filtering is
+stills-only: videos carry neither a camera nor a location, so a video where-clause
+had nothing to narrow. The motion page is one flat, drag-ordered list.
+
+(This supersedes an earlier note here that `buildVideoWhere` matched on tags
+alone. That function and its tests were removed in Task 15 rather than left as
+dead code.)
 
 ### Temporary
 

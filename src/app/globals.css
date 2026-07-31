@@ -62,6 +62,28 @@ body {
   }
 }
 
+.sprite-window {
+  position: relative;
+  overflow: hidden;
+  background-color: #000;
+}
+
+.sprite-strip {
+  display: block;
+  height: 100%;
+  /* The strip is deliberately wider than its window — without this, Preflight's
+     `max-width: 100%` on img would squeeze all N frames into one frame's width. */
+  max-width: none;
+  animation: sprite-steps 2s steps(var(--sprite-frames, 10)) infinite;
+  /* Paused by default: a page of simultaneously looping previews is noise, and
+     every frame off-centre is meant to hold on frame one. */
+  animation-play-state: paused;
+}
+
+.sprite-window[data-active='true'] .sprite-strip {
+  animation-play-state: running;
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
@@ -71,6 +93,9 @@ body {
      exists to suppress. Every frame holds on its poster instead. */
   .sprite-strip {
     animation: none !important;
+    /* Removing the animation alone would leave the strip wherever its last step
+       landed, showing a sliver of two frames. Pin it back to frame one. */
+    transform: translateX(0) !important;
   }
 }
 
