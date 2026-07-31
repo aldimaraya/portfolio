@@ -17,18 +17,6 @@ export function buildPhotoWhere(filters: MediaFilters): Prisma.PhotoWhereInput {
   return clauses.length ? { AND: clauses } : {};
 }
 
-/**
- * Videos carry neither a location nor a camera, so only the tag filter applies.
- * The other two are intentionally ignored rather than rejected: the filter bar is
- * shared with the stills page, and a camera in the URL should narrow the wall
- * without emptying the motion page.
- */
-export function buildVideoWhere(filters: MediaFilters): Prisma.VideoWhereInput {
-  const clauses: Prisma.VideoWhereInput[] = [];
-
-  if (filters.tags.length) {
-    clauses.push({ tags: { some: { tag: { name: { in: filters.tags } } } } });
-  }
-
-  return clauses.length ? { AND: clauses } : {};
-}
+// No buildVideoWhere: filtering is stills-only. Videos carry neither a camera nor
+// a location, and the motion page has no filter bar, so there is nothing for a
+// video where-clause to narrow.

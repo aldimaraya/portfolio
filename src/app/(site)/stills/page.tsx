@@ -1,13 +1,43 @@
-import { Placeholder } from '@/components/site/Placeholder';
+import { db } from '@/lib/db';
+import { sortPhotosForWall } from '@/lib/color/sort';
+import { filtersFromSearchParams } from '@/lib/filters/parse';
+import { buildPhotoWhere } from '@/lib/filters/where';
+import { getPhotoFilterOptions } from '@/lib/filters/options';
+import { FilterBar } from '@/components/site/FilterBar';
+import { PolaroidWall } from '@/components/stills/PolaroidWall';
+import { toSettings } from '@/lib/photo/settings';
 
-// searchParams is a Promise in Next 16 and must be awaited. Task 16 reads the
-// camera/location/tag filters from it via filtersFromSearchParams.
+export const dynamic = 'force-dynamic';
+
 export default async function StillsPage({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  await searchParams;
+  const filters = filtersFromSearchParams(await searchParams);
 
-  return <Placeholder title="Stills — colour-sorted photo wall" task="Tasks 15–16" />;
+  const [photos, options] = await Promise.all([
+    db.photo.findMany({ where: buildPhotoWhere(filters) }),
+    // Unfiltered on purpose: the chips must stay put as you narrow, or the
+    // control you just clicked disappears from under you.
+    getPhotoFilterOptions(),
+  ]);
+
+  return (
+    <main>
+      <FilterBar options={options} active={filters} />
+      <PolaroidWall
+        photos={sortPhotosForWall(photos).map((photo) => ({
+          id: photo.id,
+          imageUrl: photo.imageUrl,
+          width: photo.width,
+          height: photo.height,
+          location: photo.location,
+          camera: photo.camera,
+          // The Json column is untyped at the DB boundary — coerce it here.
+          settings: toSettings(photo.settings),
+        }))}
+      />
+    </main>
+  );
 }
