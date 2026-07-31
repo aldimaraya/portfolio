@@ -9,10 +9,11 @@ export function Header() {
 
   return (
     <header className="mb-8 flex flex-wrap items-end justify-between gap-4 border-b border-hairline pb-5">
-      <div>
+      {/* The wordmark doubles as the way home, which is what people try first. */}
+      <Link href="/stills" className="block">
         <h1 className="text-2xl font-semibold tracking-tight uppercase">{SITE_NAME}</h1>
         <p className="mt-1 text-sm text-ash uppercase">{SITE_TAGLINE}</p>
-      </div>
+      </Link>
 
       <nav className="flex gap-6">
         {NAV_TABS.map((tab) => {

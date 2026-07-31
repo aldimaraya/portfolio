@@ -1,5 +1,4 @@
 import { Placeholder } from '@/components/site/Placeholder';
-import { SiteShell } from '@/components/site/SiteShell';
 
 export default async function MotionPage({
   searchParams,
@@ -8,9 +7,5 @@ export default async function MotionPage({
 }) {
   await searchParams;
 
-  return (
-    <SiteShell>
-      <Placeholder title="Motion — film-strip video reel" task="Task 17" />
-    </SiteShell>
-  );
+  return <Placeholder title="Motion — film-strip video reel" task="Task 17" />;
 }

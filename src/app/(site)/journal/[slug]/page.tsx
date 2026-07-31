@@ -1,5 +1,4 @@
 import { Placeholder } from '@/components/site/Placeholder';
-import { SiteShell } from '@/components/site/SiteShell';
 
 // params is a Promise in Next 16 and must be awaited.
 export default async function JournalPostPage({
@@ -9,9 +8,5 @@ export default async function JournalPostPage({
 }) {
   const { slug } = await params;
 
-  return (
-    <SiteShell>
-      <Placeholder title={`Journal post — ${slug}`} task="Task 18" />
-    </SiteShell>
-  );
+  return <Placeholder title={`Journal post — ${slug}`} task="Task 18" />;
 }
