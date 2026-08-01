@@ -10,6 +10,13 @@
   --color-bone: #f4f4f5;
   --color-ash: #8e8e93;
   --color-gold: #d4af37;
+  /* Photographic paper rather than the UI's bone white: a hair warm, so the mat
+     around a lightbox photo reads as a print and not as a blown-out panel. */
+  --color-mat: #f2efe6;
+  /* Caption ink on that mat. The site's gold is a display colour on near-black
+     and falls to roughly 2:1 on white, so the mat gets its own darker pair. */
+  --color-matink: #24242a;
+  --color-matmeta: #7a6323;
   --color-hairline: rgba(255, 255, 255, 0.1);
   --color-goldline: rgba(212, 175, 55, 0.2);
   --font-mono: "SF Mono", ui-monospace, "Cascadia Mono", Menlo, monospace;
@@ -190,10 +197,49 @@ body {
   animation: lightbox-in 200ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
+/* The photo inside the lightbox's white mat.
+ *
+ * Capped against the viewport rather than against its parent: the mat is sized
+ * by its contents, so asking the image for a percentage of it would be
+ * circular — the image would be waiting on a height the image itself decides.
+ *
+ * --lightbox-chrome is everything stacked around the picture: the counter row
+ * above, the mat's own padding, and the caption printed across its foot. */
+.lightbox-photo {
+  --lightbox-chrome: 12rem;
+  max-height: calc(100dvh - var(--lightbox-chrome));
+  max-width: calc(100vw - 7rem);
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+
+/* On a phone the side budget goes to the picture: the nav arrows already float
+   over the mat, and there is no room to inset them as well. */
+@media (max-width: 40rem) {
+  .lightbox-photo {
+    max-width: calc(100vw - 3rem);
+  }
+}
+
 /* `forwards`, so it holds at transparent for the frame between the animation
    ending and React unmounting it. */
 .lightbox[data-closing='true'] {
   animation: lightbox-out 160ms ease-in forwards;
+}
+
+/* Set once the mat is expanding out of its wall frame under its own animation
+   (see Lightbox). The backdrop then only dissolves: two scales running at once
+   — the overlay's and the mat's — read as a lens breathing rather than as one
+   print being lifted. The closing duration is what unmounts the overlay, so it
+   must outlast the shrink; COLLAPSE_MS in Lightbox is the number to match. */
+.lightbox[data-flip='true'] {
+  animation-name: page-fade;
+}
+
+.lightbox[data-flip='true'][data-closing='true'] {
+  animation-name: lightbox-fade-out;
+  animation-duration: 220ms;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -232,7 +278,11 @@ body {
     animation-duration: 120ms;
   }
 
-  .lightbox[data-closing='true'] {
+  /* Written to beat .lightbox[data-flip='true'][data-closing='true'] above,
+     which is more specific than the plain closing rule. Nothing is expanding
+     under reduced motion, so there is no shrink for the fade to outlast. */
+  .lightbox[data-closing='true'],
+  .lightbox[data-flip='true'][data-closing='true'] {
     animation-name: lightbox-fade-out;
     animation-duration: 80ms;
   }

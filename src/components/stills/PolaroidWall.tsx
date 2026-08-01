@@ -1,6 +1,6 @@
 'use client';
 
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { CARD_PADDING, FRAME_HEIGHT, Polaroid, type PolaroidPhoto } from './Polaroid';
 import { Lightbox } from './Lightbox';
 import { justifyRows } from '@/lib/photo/justify';
@@ -53,6 +53,24 @@ export function PolaroidWall({ photos }: { photos: PolaroidPhoto[] }) {
    * the right shape already; the measurement only tightens each row to the edge.
    */
   const [wallWidth, setWallWidth] = useState(0);
+  /** Each frame's button, so the lightbox can grow out of the one you clicked. */
+  const frames = useRef(new Map<string, HTMLButtonElement>());
+
+  /**
+   * Where the photo at an index currently sits on the wall, for the lightbox's
+   * expand and shrink. Read on demand rather than captured at click: by the time
+   * it closes you may have arrowed onto a different photo, and it should return
+   * to that one's frame. Null when the frame is no longer on screen — scrolled
+   * away, or filtered out — and the lightbox falls back to a plain fade.
+   */
+  const originFor = useCallback(
+    (index: number) => {
+      const id = photos[index]?.id;
+      const frame = id ? frames.current.get(id) : undefined;
+      return frame ? frame.getBoundingClientRect() : null;
+    },
+    [photos],
+  );
 
   // Width, not a breakpoint: the packing has to react to the sidebar-less mobile
   // layout and to a window drag alike, and only the real box knows.
@@ -177,6 +195,10 @@ export function PolaroidWall({ photos }: { photos: PolaroidPhoto[] }) {
         {photos.map((photo, index) => (
           <button
             key={photo.id}
+            ref={(node) => {
+              if (node) frames.current.set(photo.id, node);
+              else frames.current.delete(photo.id);
+            }}
             type="button"
             aria-label={`Open ${photo.location} full screen`}
             onClick={() => setOpenIndex(index)}
@@ -201,6 +223,7 @@ export function PolaroidWall({ photos }: { photos: PolaroidPhoto[] }) {
         <Lightbox
           photos={photos}
           index={openIndex}
+          originFor={originFor}
           onClose={() => setOpenIndex(null)}
           onNavigate={setOpenIndex}
         />
