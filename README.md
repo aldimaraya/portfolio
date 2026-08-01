@@ -40,8 +40,19 @@ cp .env.example .env
 ```
 
 You need a [Neon](https://neon.tech) Postgres database for `DATABASE_URL` and a
-Cloudflare R2 bucket with an API token for the `R2_*` values. Generate the two
-secrets locally:
+Cloudflare R2 bucket with an API token for the `R2_*` values. The bucket needs
+two pieces of configuration that no code in this repo can set for you:
+
+- **`ExposeHeaders: ["ETag"]` in its CORS policy.** Multipart uploads cannot be
+  completed without reading each part's ETag back, and the browser hides that
+  header unless the bucket says otherwise.
+- **An `AbortIncompleteMultipartUpload` lifecycle rule** (a day or two is
+  plenty). `uploadFile` aborts an upload it sees fail, but a closed tab or a
+  dead connection never reaches that code — and the parts already sent stay
+  stored, billed, and absent from a normal object listing until something
+  expires them.
+
+Generate the two secrets locally:
 
 ```bash
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
@@ -50,6 +61,11 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```bash
 node -e "console.log(require('bcryptjs').hashSync(process.argv[1], 12))" "your-admin-password"
 ```
+
+Changing `ADMIN_PASSWORD_HASH` signs everyone out. The session signing key is
+derived from the secret *and* the password hash, so a new password invalidates
+every token issued under the old one — which means changing the password is a
+complete response to a leaked one, with no second secret to remember to rotate.
 
 Then push the schema and start the dev server:
 
