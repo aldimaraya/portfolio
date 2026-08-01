@@ -1,14 +1,23 @@
 'use client';
 
-import { useLayoutEffect, useRef, useState } from 'react';
-import { Polaroid, type PolaroidPhoto } from './Polaroid';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { CARD_PADDING, FRAME_HEIGHT, Polaroid, type PolaroidPhoto } from './Polaroid';
 import { Lightbox } from './Lightbox';
+import { justifyRows } from '@/lib/photo/justify';
 
 /**
- * Justified rows via plain flex-wrap: each polaroid's flex-basis is proportional
- * to its aspect ratio, so a row grows its items to fill the width. Order comes in
- * already sorted by colour — see sortPhotosForWall.
+ * Justified rows: justifyRows packs the photos into rows that span the measured
+ * width exactly, and each frame is rendered at the height its row settled on.
+ * Order comes in already sorted by colour — see sortPhotosForWall.
+ *
+ * The frames stay a single flat flex-wrap list rather than one element per row.
+ * Because every row is packed to just under the container width, flex wraps at
+ * exactly the row boundaries anyway — and keeping the list flat is what lets the
+ * FLIP re-flow and the entry stagger below index straight into `photos`.
  */
+
+/** Matches the container's gap-5. */
+const GAP = 20;
 
 /** Gap between one frame's arrival and the next. */
 const STAGGER_STEP_MS = 45;
@@ -38,6 +47,43 @@ export function PolaroidWall({ photos }: { photos: PolaroidPhoto[] }) {
   const wallRef = useRef<HTMLDivElement>(null);
   /** Where each frame sat before this render, for the re-flow below. */
   const lastRects = useRef(new Map<string, DOMRect>());
+  /**
+   * Zero until the wall has been measured. The first render — including the
+   * server's — falls back to unjustified frames at the target height, which is
+   * the right shape already; the measurement only tightens each row to the edge.
+   */
+  const [wallWidth, setWallWidth] = useState(0);
+
+  // Width, not a breakpoint: the packing has to react to the sidebar-less mobile
+  // layout and to a window drag alike, and only the real box knows.
+  useLayoutEffect(() => {
+    const wall = wallRef.current;
+    if (!wall) return;
+
+    const observer = new ResizeObserver(([entry]) => {
+      // Rounded down so a fractional width can never exceed the box and push the
+      // last frame of a row onto its own line.
+      setWallWidth(Math.floor(entry.contentRect.width));
+    });
+    observer.observe(wall);
+    return () => observer.disconnect();
+  }, []);
+
+  /**
+   * Keyed by id rather than index so the lookup survives a filter change, where
+   * the same photo lands at a different position.
+   */
+  const placement = useMemo(() => {
+    const rows = justifyRows(
+      photos.map((photo) => ({
+        id: photo.id,
+        ratio: photo.height > 0 ? photo.width / photo.height : 1,
+      })),
+      wallWidth,
+      { targetHeight: FRAME_HEIGHT, gap: GAP, padding: CARD_PADDING },
+    );
+    return new Map(rows.flat().map((item) => [item.id, item]));
+  }, [photos, wallWidth]);
 
   /**
    * Filtering rewrites the wall in place — same pathname, so the page itself is
@@ -143,7 +189,11 @@ export function PolaroidWall({ photos }: { photos: PolaroidPhoto[] }) {
               } as React.CSSProperties
             }
           >
-            <Polaroid photo={photo} />
+            <Polaroid
+              photo={photo}
+              height={placement.get(photo.id)?.height}
+              width={placement.get(photo.id)?.width}
+            />
           </button>
         ))}
       </div>
