@@ -1,11 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { UploadField } from './UploadField';
 import { TagInput } from './TagInput';
+import { TrimControls } from './TrimControls';
 import { BUTTON, FIELD, LABEL } from './fields';
-import { analyzeImageFile } from '@/lib/color/analyze-image';
+import { analyzePixels } from '@/lib/color/analyze';
+import { NO_BORDER, hasBorder, type BorderInsets } from '@/lib/photo/border';
+import { decodeImage, detectBorder, prepareUpload } from '@/lib/photo/trim-client';
 import { extractPhotoExif, type PhotoExif } from '@/lib/photo/exif';
 import {
   EMPTY_SETTINGS,
@@ -13,7 +16,6 @@ import {
   type PhotoSettings,
 } from '@/lib/photo/settings';
 import { missingRequiredFields } from '@/lib/photo/form';
-import { compressPhoto } from '@/lib/photo/compress';
 import { listPhrase } from '@/lib/text';
 import { uploadFile } from '@/lib/storage/upload-client';
 import { savePhoto, type PhotoInput } from '@/app/admin/photos/actions';
@@ -58,6 +60,16 @@ export function PhotoForm({ initial }: { initial?: Initial }) {
   // screen.
   const [resetKey, setResetKey] = useState(0);
   const [analyzing, setAnalyzing] = useState(false);
+  // The picked file's decoded bitmap, kept so the border can be re-cropped from
+  // the full-quality source each time an inset changes — re-cropping the last
+  // crop would compound the WebP loss with every nudge.
+  const bitmapRef = useRef<ImageBitmap | null>(null);
+  const originalRef = useRef<File | null>(null);
+  /** Whether the picked file carries EXIF — see the prepareUpload call below. */
+  const hasMetadataRef = useRef(true);
+  const [bitmap, setBitmap] = useState<ImageBitmap | null>(null);
+  const [insets, setInsets] = useState<BorderInsets | null>(null);
+  const [autoTrimmed, setAutoTrimmed] = useState(false);
 
   const isEdit = Boolean(initial?.id);
 
@@ -78,56 +90,123 @@ export function PhotoForm({ initial }: { initial?: Initial }) {
     setForm((prev) => ({ ...prev, settings: { ...prev.settings, [key]: value } }));
   }
 
+  // Decoded bitmaps hold their full pixel buffer; navigating away from the form
+  // without closing one leaves tens of megabytes behind until GC gets to it.
+  useEffect(() => () => bitmapRef.current?.close(), []);
+
+  function clearImageState() {
+    setExif(null);
+    setPrefilled([]);
+    setInsets(null);
+    setBitmap(null);
+    bitmapRef.current?.close();
+    bitmapRef.current = null;
+    originalRef.current = null;
+    hasMetadataRef.current = true;
+    // Dimensions describe the cleared file, so they must go with it — leaving
+    // them set would let the form look complete with no image.
+    setForm((prev) => ({ ...prev, width: 0, height: 0 }));
+  }
+
   /**
-   * Reads the picked file locally — colour analysis and EXIF both work on the
-   * File in hand, so the preview and prefills cost nothing and need no upload.
+   * Crops the picked file to the current insets, re-encodes it, and re-derives
+   * the colour stats from the result. Always works from the decoded original, so
+   * nudging an inset re-crops the source rather than the previous crop.
+   *
+   * Runs as an effect rather than inside the change handlers because both
+   * picking a file and editing a side have to trigger it, and the two would
+   * otherwise race: a slow first render could land after a fast re-crop and
+   * overwrite it with the untrimmed result.
+   */
+  useEffect(() => {
+    const source = bitmapRef.current;
+    const original = originalRef.current;
+    if (!source || !original || !insets) return;
+
+    let cancelled = false;
+    setAnalyzing(true);
+
+    // Keeping the original bytes would publish its EXIF verbatim, so what the
+    // file carries decides whether the re-encode is optional. Read from a ref
+    // rather than state: it is set in the same handler as the bitmap, and it
+    // should not be a reason to re-run this.
+    prepareUpload(source, insets, original, hasMetadataRef.current)
+      .then((prepared) => {
+        if (cancelled) return;
+        const colour = analyzePixels(prepared.pixels);
+        // What gets uploaded on save — so the size the form reports is the size
+        // that actually reaches R2, and the stats describe the cropped picture
+        // rather than a frame the visitor never sees.
+        setFile(prepared.file);
+        setForm((prev) => ({
+          ...prev,
+          width: prepared.width,
+          height: prepared.height,
+          avgHue: colour.avgHue,
+          avgLightness: colour.avgLightness,
+          isMonochrome: colour.isMonochrome,
+        }));
+      })
+      .catch((cause) => {
+        if (cancelled) return;
+        setError(cause instanceof Error ? cause.message : 'Could not process that image');
+        setForm((prev) => ({ ...prev, width: 0, height: 0 }));
+      })
+      .finally(() => {
+        if (!cancelled) setAnalyzing(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+    // `bitmap` is the state mirror of bitmapRef, and is what marks a new file.
+  }, [bitmap, insets]);
+
+  /**
+   * Reads the picked file locally — border detection, EXIF and colour all work
+   * on the File in hand, so the preview and prefills cost nothing and need no
+   * upload.
    */
   async function handleSelect(picked: File | null) {
     setFile(picked);
     setError('');
     if (!picked) {
-      setExif(null);
-      setPrefilled([]);
-      // Dimensions describe the cleared file, so they must go with it — leaving
-      // them set would let the form look complete with no image.
-      setForm((prev) => ({ ...prev, width: 0, height: 0 }));
+      clearImageState();
       return;
     }
 
-    let analysis: Awaited<ReturnType<typeof analyzeImageFile>>;
     let metadata: PhotoExif;
-    let compressed: Awaited<ReturnType<typeof compressPhoto>>;
+    let decoded: ImageBitmap;
     try {
       setAnalyzing(true);
-      // Both read the *original* file: a canvas round-trip drops EXIF entirely,
-      // so metadata has to come off the picked file before it is re-encoded.
-      [analysis, metadata] = await Promise.all([
-        analyzeImageFile(picked),
+      // EXIF comes off the *original* file: a canvas round-trip drops it
+      // entirely, so metadata has to be read before the image is re-encoded.
+      [decoded, metadata] = await Promise.all([
+        decodeImage(picked),
         extractPhotoExif(picked),
       ]);
-      compressed = await compressPhoto(picked);
-      // What gets uploaded on save, and what the preview shows — so the size the
-      // form reports is the size that actually reaches R2.
-      setFile(compressed.file);
     } catch (cause) {
       // A file the browser cannot decode. Dimensions stay at zero, which keeps
       // the save button disabled rather than saving a broken record.
       setError(
         cause instanceof Error ? `Could not read that image: ${cause.message}` : 'Could not read that image',
       );
-      setExif(null);
-      setPrefilled([]);
-      setForm((prev) => ({ ...prev, width: 0, height: 0 }));
-      return;
-    } finally {
+      clearImageState();
       setAnalyzing(false);
+      return;
     }
 
-    // The compressed file's dimensions, not the original's: the wall sizes each
-    // frame from the stored ratio against the file it actually loads, so these
-    // have to describe the bytes in R2. Already upright — both compressPhoto and
-    // analyzeImageFile decode with the photo's own orientation applied.
-    const { width, height } = compressed;
+    bitmapRef.current?.close();
+    bitmapRef.current = decoded;
+    originalRef.current = picked;
+    hasMetadataRef.current = metadata.hasExif;
+    setBitmap(decoded);
+
+    // Detected up front so a framed export arrives already cropped, with the
+    // sides on screen to correct. The effect above turns these into the file.
+    const detected = detectBorder(decoded);
+    setInsets(detected);
+    setAutoTrimmed(hasBorder(detected));
 
     setExif(metadata);
 
@@ -148,16 +227,9 @@ export function PhotoForm({ initial }: { initial?: Initial }) {
       }
       setPrefilled(filled);
 
-      return {
-        ...prev,
-        width,
-        height,
-        avgHue: analysis.avgHue,
-        avgLightness: analysis.avgLightness,
-        isMonochrome: analysis.isMonochrome,
-        camera,
-        settings,
-      };
+      // Dimensions and colour are not set here: they describe the cropped,
+      // re-encoded file, which the effect above produces.
+      return { ...prev, camera, settings };
     });
   }
 
@@ -215,8 +287,7 @@ export function PhotoForm({ initial }: { initial?: Initial }) {
     // photo. router.refresh() re-renders the list below with the new row.
     setForm(buildForm());
     setFile(null);
-    setExif(null);
-    setPrefilled([]);
+    clearImageState();
     setError('');
     setBusy(false);
     setResetKey((key) => key + 1);
@@ -235,6 +306,37 @@ export function PhotoForm({ initial }: { initial?: Initial }) {
         progress={progress}
         allowSelect={!isEdit}
       />
+
+      {/* Only for a freshly picked file. An already-stored photo is trimmed by
+          BorderTrimmer on the edit page, which has to re-upload to change it. */}
+      {bitmap && insets ? (
+        <section className="flex flex-col gap-3 rounded border border-hairline bg-film p-3">
+          <h3 className={LABEL}>Trim white border</h3>
+          <p className="text-xs text-ash">
+            {autoTrimmed
+              ? 'Found a white border and cropped it. Adjust any side before saving.'
+              : 'No white border found. Enter the sides by hand if you can see one.'}
+          </p>
+          <TrimControls
+            bitmap={bitmap}
+            insets={insets}
+            onChange={setInsets}
+            onRedetect={() => {
+              const source = bitmapRef.current;
+              if (source) setInsets(detectBorder(source));
+            }}
+            disabled={busy}
+          />
+          <button
+            type="button"
+            onClick={() => setInsets(NO_BORDER)}
+            disabled={busy || !hasBorder(insets)}
+            className="self-start text-sm text-ash transition hover:text-bone disabled:opacity-50"
+          >
+            Keep the border
+          </button>
+        </section>
+      ) : null}
 
       {form.width ? (
         <p className="font-mono text-xs text-ash">
