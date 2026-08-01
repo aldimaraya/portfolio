@@ -21,10 +21,20 @@ async function authBypassed(page: Page): Promise<boolean> {
   return response.status() < 300 || response.status() >= 400;
 }
 
+/** The admin chrome's own nav, as opposed to links in the page body. */
+function adminNav(page: Page) {
+  return page.getByRole('navigation');
+}
+
 async function signIn(page: Page) {
   await page.goto('/login');
   await page.getByLabel('Password').fill(PASSWORD);
   await page.getByRole('button', { name: 'Sign in' }).click();
+  // Waits for the redirect, not just the click: the session cookie arrives with
+  // the login response, so navigating on before it lands bounces straight back
+  // to /login — and only when the gate is actually on, which is exactly the
+  // configuration these tests exist to cover.
+  await page.waitForURL('**/admin', { timeout: 60_000 });
 }
 
 test('the login form renders', async ({ page }) => {
@@ -74,7 +84,10 @@ test.describe('signed in', () => {
   test('the correct password opens the dashboard', async ({ page }) => {
     await signIn(page);
     await expect(page).toHaveURL(/\/admin$/);
-    await expect(page.getByRole('link', { name: 'Photos' })).toBeVisible();
+    // Scoped to the nav: the dashboard also links each section from a summary
+    // card, whose accessible name ("Photos 12 Ordered automatically by colour")
+    // contains the label too.
+    await expect(adminNav(page).getByRole('link', { name: 'Photos' })).toBeVisible();
   });
 
   test('every admin section is reachable', async ({ page }) => {
@@ -86,8 +99,10 @@ test.describe('signed in', () => {
       ['Videos', '/admin/videos'],
       ['Posts', '/admin/posts'],
     ]) {
-      await page.getByRole('link', { name: label, exact: true }).click();
-      await expect(page).toHaveURL(new RegExp(`${path}$`));
+      await adminNav(page).getByRole('link', { name: label }).click();
+      // Generous, because a dev server compiles each admin route the first time
+      // it is asked for and the default 5s expires mid-build on a cold start.
+      await page.waitForURL(`**${path}`, { timeout: 60_000 });
     }
   });
 
