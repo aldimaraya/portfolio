@@ -70,11 +70,13 @@ export function FilmFrame({
     if (!element) return;
 
     if (playing) {
-      // An explicit play() rather than the autoPlay attribute. autoPlay hands
-      // the decision to the browser's autoplay policy, which grants sound at
-      // its own discretion -- in practice the first clip played with audio and
-      // every later one was silently muted, leaving a video whose own unmute
-      // button could not fix it.
+      // An explicit play() rather than the autoPlay attribute, because which
+      // clip runs is FilmStrip's decision: autoPlay would start a clip the
+      // moment it mounted, regardless of whether it holds the playing slot.
+      //
+      // This is not what made clips play silently — that was uncompressed PCM
+      // audio in the uploaded .mov files, which no browser can decode. See
+      // lib/video/audio.ts, which now warns about it at upload time.
       element.play().catch(() => {
         // Rejection just leaves it paused with its controls showing; the user
         // can press play. Nothing here is worth an error state.

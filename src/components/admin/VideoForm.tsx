@@ -6,6 +6,7 @@ import { UploadField } from './UploadField';
 import { TagInput } from './TagInput';
 import { BUTTON, FIELD } from './fields';
 import { generateSpriteSheet, type SpriteResult } from '@/lib/video/sprite';
+import { inspectAudio } from '@/lib/video/audio';
 import { missingRequiredFields, titleFromFilename } from '@/lib/video/form';
 import { listPhrase } from '@/lib/text';
 import { uploadFile } from '@/lib/storage/upload-client';
@@ -41,6 +42,9 @@ export function VideoForm({ initial }: { initial?: Initial }) {
   const [stage, setStage] = useState('');
   const [progress, setProgress] = useState<number | null>(null);
   const [error, setError] = useState('');
+  // Advisory only, never blocking: a clip whose audio the browser cannot decode
+  // is still a clip worth publishing if that is what the admin intends.
+  const [audioWarning, setAudioWarning] = useState('');
   const [busy, setBusy] = useState(false);
   const [resetKey, setResetKey] = useState(0);
 
@@ -75,8 +79,13 @@ export function VideoForm({ initial }: { initial?: Initial }) {
   async function handleSelect(picked: File | null) {
     setFile(picked);
     setError('');
+    setAudioWarning('');
     setSprite(null);
     if (!picked) return;
+
+    // Not awaited with the sprite work: reading the container is quick, and a
+    // codec warning is worth showing while the frame grab is still running.
+    inspectAudio(picked).then((problem) => setAudioWarning(problem ?? ''));
 
     // Offer the filename as a title, but never overwrite one already typed.
     setForm((prev) => ({
@@ -172,6 +181,7 @@ export function VideoForm({ initial }: { initial?: Initial }) {
     setFile(null);
     setSprite(null);
     setError('');
+    setAudioWarning('');
     setBusy(false);
     setResetKey((key) => key + 1);
     router.refresh();
@@ -202,6 +212,12 @@ export function VideoForm({ initial }: { initial?: Initial }) {
       />
 
       {generating ? <p className="text-xs text-gold">Grabbing frames…</p> : null}
+
+      {audioWarning ? (
+        <p className="rounded border border-amber-400/40 bg-amber-400/10 p-2 text-xs text-amber-400">
+          {audioWarning}
+        </p>
+      ) : null}
 
       {sprite ? (
         <div className="rounded border border-hairline bg-film p-3">
