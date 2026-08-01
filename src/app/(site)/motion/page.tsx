@@ -1,8 +1,6 @@
 import { db } from '@/lib/db';
 import { FilmStrip } from '@/components/motion/FilmStrip';
 
-export const dynamic = 'force-dynamic';
-
 export default async function MotionPage() {
   // One flat list in the order set by dragging rows in the admin — no rolls to
   // group by, and no filter bar: videos carry neither a camera nor a location.

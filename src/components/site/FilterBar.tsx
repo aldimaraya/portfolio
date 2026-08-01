@@ -1,8 +1,13 @@
 'use client';
 
-import { usePathname, useRouter } from 'next/navigation';
-import { hasActiveFilters, serializeFilters, type MediaFilters } from '@/lib/filters/parse';
-import type { FilterOptions } from '@/lib/filters/options';
+import { usePathname } from 'next/navigation';
+import {
+  EMPTY_FILTERS,
+  hasActiveFilters,
+  serializeFilters,
+  type MediaFilters,
+} from '@/lib/filters/parse';
+import type { FilterOptions } from '@/lib/filters/apply';
 
 interface Props {
   options: FilterOptions;
@@ -20,16 +25,22 @@ const GROUPS: { key: FilterKey; label: string }[] = [
 /**
  * Filter state lives in the URL, not in component state, so a filtered wall is a
  * shareable link and the back button steps through filter changes.
+ *
+ * The URL is updated through the History API rather than router.push. Both keep
+ * the URL honest, but router.push asks the router for the new URL's payload —
+ * a network round-trip to re-fetch a page whose server output does not depend on
+ * the query string at all. Next syncs pushState into useSearchParams, so the
+ * wall re-filters from data the browser already has and a chip click costs
+ * nothing.
  */
 export function FilterBar({ options, active }: Props) {
-  const router = useRouter();
   const pathname = usePathname();
 
   function go(filters: MediaFilters) {
     const query = serializeFilters(filters).toString();
-    // scroll: false — the wall reorders in place; jumping to the top on every
-    // chip would lose the reader's position.
-    router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    // No scroll reset: the wall re-flows in place, and jumping to the top on
+    // every chip would lose the reader's position.
+    window.history.pushState(null, '', query ? `${pathname}?${query}` : pathname);
   }
 
   function toggle(key: FilterKey, value: string) {
@@ -77,7 +88,7 @@ export function FilterBar({ options, active }: Props) {
       {hasActiveFilters(active) ? (
         <button
           type="button"
-          onClick={() => router.push(pathname, { scroll: false })}
+          onClick={() => go(EMPTY_FILTERS)}
           className="ml-auto text-xs text-ash transition hover:text-bone"
         >
           Clear filters
