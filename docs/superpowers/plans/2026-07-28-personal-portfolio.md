@@ -14,7 +14,10 @@
 
 ## Status and deviations (updated 2026-07-31)
 
-**Done:** Tasks 1–18. **Next:** Task 19 (end-to-end smoke tests).
+**Done:** Tasks 1–19. **Next:** the deployment checklist at the end of this file.
+
+Six of the admin e2e tests skip while `DEV_SKIP_AUTH=true` and
+`ADMIN_PASSWORD_HASH` is still the placeholder — see the note under *Temporary*.
 
 `Placeholder` is gone — Task 18 was its last caller, so the component was deleted
 rather than left as dead code.
