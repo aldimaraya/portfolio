@@ -13,6 +13,7 @@ import {
   type PhotoSettings,
 } from '@/lib/photo/settings';
 import { missingRequiredFields } from '@/lib/photo/form';
+import { compressPhoto } from '@/lib/photo/compress';
 import { listPhrase } from '@/lib/text';
 import { uploadFile } from '@/lib/storage/upload-client';
 import { savePhoto, type PhotoInput } from '@/app/admin/photos/actions';
@@ -95,12 +96,19 @@ export function PhotoForm({ initial }: { initial?: Initial }) {
 
     let analysis: Awaited<ReturnType<typeof analyzeImageFile>>;
     let metadata: PhotoExif;
+    let compressed: Awaited<ReturnType<typeof compressPhoto>>;
     try {
       setAnalyzing(true);
+      // Both read the *original* file: a canvas round-trip drops EXIF entirely,
+      // so metadata has to come off the picked file before it is re-encoded.
       [analysis, metadata] = await Promise.all([
         analyzeImageFile(picked),
         extractPhotoExif(picked),
       ]);
+      compressed = await compressPhoto(picked);
+      // What gets uploaded on save, and what the preview shows — so the size the
+      // form reports is the size that actually reaches R2.
+      setFile(compressed.file);
     } catch (cause) {
       // A file the browser cannot decode. Dimensions stay at zero, which keeps
       // the save button disabled rather than saving a broken record.
@@ -115,9 +123,11 @@ export function PhotoForm({ initial }: { initial?: Initial }) {
       setAnalyzing(false);
     }
 
-    // Already the upright dimensions — analyzeImageFile decodes with the photo's
-    // own orientation applied.
-    const { width, height } = analysis;
+    // The compressed file's dimensions, not the original's: the wall sizes each
+    // frame from the stored ratio against the file it actually loads, so these
+    // have to describe the bytes in R2. Already upright — both compressPhoto and
+    // analyzeImageFile decode with the photo's own orientation applied.
+    const { width, height } = compressed;
 
     setExif(metadata);
 

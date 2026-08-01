@@ -13,6 +13,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "check:r2": "node scripts/check-r2.mjs",
+    "backfill:photos": "node scripts/backfill-photos.mjs",
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
     "db:studio": "prisma studio"
@@ -45,6 +46,7 @@
     "eslint-config-next": "16.2.12",
     "jsdom": "^30.0.1",
     "prisma": "^7.9.1",
+    "sharp": "^0.35.3",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^4.1.10"
