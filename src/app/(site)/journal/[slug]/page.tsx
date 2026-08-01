@@ -7,10 +7,26 @@ import { db } from '@/lib/db';
 import { buildExcerpt } from '@/lib/excerpt';
 import { formatPostDate } from '@/lib/post/date';
 
-export const dynamic = 'force-dynamic';
-
 // params is a Promise in Next 16 and must be awaited.
 type Params = { params: Promise<{ slug: string }> };
+
+/**
+ * Prerenders every published post at build time. Without this the route falls
+ * back to rendering on demand, which for the one page type on this site that
+ * never changes between edits would mean a database round-trip per reader.
+ *
+ * Drafts are left out deliberately — they 404 either way, and building a page
+ * for one would only put it in the output where it does not belong. A post
+ * published after the build is rendered on first request and cached from then
+ * on, which is what savePost's revalidatePath keeps honest.
+ */
+export async function generateStaticParams() {
+  const posts = await db.blogPost.findMany({
+    where: { draft: false },
+    select: { slug: true },
+  });
+  return posts.map((post) => ({ slug: post.slug }));
+}
 
 /** Drafts are unreachable, so a draft slug is a 404 rather than a private page. */
 async function publishedPost(slug: string) {

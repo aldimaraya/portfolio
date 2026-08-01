@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { useState } from 'react';
+import { setAdminState } from './useIsAdmin';
 
 /**
  * Maps a public page to the admin screen that edits it, so the bar's main link
@@ -17,7 +18,6 @@ const SECTIONS = [
 
 export function AdminBarNav() {
   const pathname = usePathname();
-  const router = useRouter();
   const [busy, setBusy] = useState(false);
 
   const section = SECTIONS.find(
@@ -28,8 +28,10 @@ export function AdminBarNav() {
     setBusy(true);
     await fetch('/api/auth/logout', { method: 'POST' });
     // No navigation: signing out from a public page should leave you on that
-    // page, just without the bar — which refresh() re-renders away.
-    router.refresh();
+    // page, just without the bar. The cookie is gone, but the admin state is
+    // held on the client now, so it has to be told rather than re-fetched —
+    // refresh() alone would re-render a static page that never knew.
+    setAdminState(false);
     setBusy(false);
   }
 

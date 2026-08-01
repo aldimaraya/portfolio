@@ -3,8 +3,6 @@ import { db } from '@/lib/db';
 import { buildExcerpt } from '@/lib/excerpt';
 import { formatPostDate } from '@/lib/post/date';
 
-export const dynamic = 'force-dynamic';
-
 export default async function JournalPage() {
   // Drafts are excluded in the query rather than filtered afterwards: an
   // unpublished post should never reach the client, not even to be dropped there.
