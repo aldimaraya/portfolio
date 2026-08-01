@@ -87,7 +87,7 @@ test.describe('the stills wall', () => {
   test('staggers each frame in, capped so the wall never crawls', async ({ page }) => {
     await page.goto('/stills');
 
-    const items = page.locator('.wall-item');
+    const items = page.locator('.stagger-in');
     const count = await items.count();
     if (count === 0) test.skip(true, 'No photos on the wall');
 
@@ -106,7 +106,7 @@ test.describe('the stills wall', () => {
 
   test('every frame settles to no transform', async ({ page }) => {
     await page.goto('/stills');
-    const items = page.locator('.wall-item');
+    const items = page.locator('.stagger-in');
     if ((await items.count()) === 0) test.skip(true, 'No photos on the wall');
 
     await page.waitForTimeout(1200);
@@ -114,6 +114,148 @@ test.describe('the stills wall', () => {
       nodes.map((node) => getComputedStyle(node).transform),
     );
     expect(transforms.every((transform) => transform === 'none')).toBe(true);
+  });
+});
+
+test.describe('scroll reveal', () => {
+  test('holds back frames below the fold, and releases them on scroll', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 600 });
+    await page.goto('/stills');
+
+    // The hold is applied by an effect, so it does not exist at first paint —
+    // counting immediately after goto reads zero and skips the whole test.
+    const pending = page.locator('.stagger-in[data-pending="true"]');
+    await expect.poll(async () => pending.count(), { timeout: 5000 }).toBeGreaterThan(0);
+    const held = await pending.count();
+
+    // Anything already on screen keeps its entry stagger — only what is out of
+    // sight waits, or the first paint would blink out to be revealed again.
+    const firstItem = page.locator('.stagger-in').first();
+    expect(await firstItem.getAttribute('data-pending')).toBeNull();
+
+    await page.mouse.wheel(0, 2000);
+    await expect
+      .poll(async () => pending.count(), { timeout: 5000 })
+      .toBeLessThan(held);
+  });
+
+  test('a revealed frame ends up fully visible', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 600 });
+    await page.goto('/stills');
+
+    const items = page.locator('.stagger-in');
+    if ((await items.count()) < 2) test.skip(true, 'Not enough photos');
+
+    await page.mouse.wheel(0, 2000);
+    await page.waitForTimeout(1200);
+
+    const last = items.last();
+    expect(await last.getAttribute('data-pending')).toBeNull();
+    expect(await last.evaluate((node) => getComputedStyle(node).opacity)).toBe('1');
+  });
+});
+
+test.describe('filtering the wall', () => {
+  test('surviving frames slide to their new places', async ({ page }) => {
+    await page.setViewportSize({ width: 1400, height: 1000 });
+    await page.goto('/stills');
+    await page.waitForTimeout(800);
+
+    const chips = page.locator('[aria-pressed]');
+    if ((await chips.count()) === 0) test.skip(true, 'No filters available');
+
+    // Counted every frame: the re-flow is a WAAPI animation a few hundred
+    // milliseconds long, and a single reading after the navigation settles
+    // would land after it finished either way.
+    await page.evaluate(() => {
+      Object.assign(window, { __peak: 0 });
+      let frames = 0;
+      const tick = () => {
+        const running = [...document.querySelectorAll('.stagger-in')].filter((node) =>
+          node.getAnimations().some((animation) => animation.playState === 'running'),
+        ).length;
+        const w = window as unknown as { __peak: number };
+        w.__peak = Math.max(w.__peak, running);
+        if (++frames < 200) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    });
+
+    await chips.first().click();
+    await page.waitForTimeout(2000);
+
+    const peak = await page.evaluate(
+      () => (window as unknown as { __peak: number }).__peak,
+    );
+    // More than one at once distinguishes a re-flow from a single frame simply
+    // running its entry animation.
+    expect(peak).toBeGreaterThan(1);
+  });
+});
+
+test.describe('the lightbox', () => {
+  test('scales in when opened', async ({ page }) => {
+    await page.goto('/stills');
+    const first = page.locator('.stagger-in button, .stagger-in').first();
+    if ((await first.count()) === 0) test.skip(true, 'No photos on the wall');
+
+    await first.click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    expect(await dialog.evaluate((node) => getComputedStyle(node).animationName)).toBe(
+      'lightbox-in',
+    );
+  });
+
+  test('plays its exit before unmounting rather than vanishing', async ({ page }) => {
+    await page.goto('/stills');
+    const first = page.locator('.stagger-in').first();
+    if ((await first.count()) === 0) test.skip(true, 'No photos on the wall');
+
+    await first.click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+
+    await page.keyboard.press('Escape');
+
+    // Still on screen, now running the exit — the overlay has to outlive the
+    // decision to close or there is nothing left to animate.
+    await expect(dialog).toHaveAttribute('data-closing', 'true');
+    expect(await dialog.evaluate((node) => getComputedStyle(node).animationName)).toBe(
+      'lightbox-out',
+    );
+
+    // And then it really does go, rather than being left behind mid-fade.
+    await expect(dialog).toHaveCount(0, { timeout: 5000 });
+  });
+
+  test('closing restores scrolling behind it', async ({ page }) => {
+    await page.goto('/stills');
+    const first = page.locator('.stagger-in').first();
+    if ((await first.count()) === 0) test.skip(true, 'No photos on the wall');
+
+    await first.click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog')).toHaveCount(0, { timeout: 5000 });
+
+    expect(await page.evaluate(() => document.body.style.overflow)).not.toBe('hidden');
+  });
+});
+
+test.describe('the film strip', () => {
+  test('staggers its frames like the wall', async ({ page }) => {
+    await page.goto('/motion');
+
+    const frames = page.locator('.stagger-in');
+    const count = await frames.count();
+    if (count === 0) test.skip(true, 'No clips');
+
+    const delays = await frames.evaluateAll((nodes) =>
+      nodes.map((node) => getComputedStyle(node).animationDelay),
+    );
+    expect(delays[0]).toBe('0s');
+    if (count > 1) expect(delays[1]).toBe('0.045s');
   });
 });
 
@@ -192,7 +334,7 @@ test.describe('reduced motion', () => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto('/stills');
 
-    const items = page.locator('.wall-item');
+    const items = page.locator('.stagger-in');
     if ((await items.count()) === 0) test.skip(true, 'No photos on the wall');
 
     const delays = await items.evaluateAll((nodes) =>
@@ -200,6 +342,17 @@ test.describe('reduced motion', () => {
     );
     // Arrival spread over half a second is motion in its own right.
     expect(delays.every((delay) => delay === '0s')).toBe(true);
+  });
+
+  test('never hides a frame behind the scroll', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.setViewportSize({ width: 1280, height: 600 });
+    await page.goto('/stills');
+    await page.waitForTimeout(300);
+
+    // Withholding content until it is scrolled to is motion in its own right,
+    // so the whole wall arrives at once.
+    await expect(page.locator('.stagger-in[data-pending="true"]')).toHaveCount(0);
   });
 
   test('drops the underline slide and the row shift', async ({ page }) => {

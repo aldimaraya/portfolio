@@ -41,6 +41,10 @@ export function frameBoxStyle(video: Pick<FrameVideo, 'width' | 'height'>): Reac
   return { aspectRatio: ratio, maxWidth: FRAME_MAX_HEIGHT * ratio };
 }
 
+/** Matches the stills wall, so the two pages assemble at the same rhythm. */
+const STAGGER_STEP_MS = 45;
+const STAGGER_MAX_MS = 450;
+
 /** `01A`, `02A`, … — the frame numbering printed along a real strip. */
 function frameCode(index: number): string {
   return `${String(index + 1).padStart(2, '0')}A`;
@@ -87,7 +91,12 @@ export function FilmFrame({
   }, [playing]);
 
   return (
-    <article className="mx-auto mb-20 w-[calc(100%-140px)] rounded-sm border border-goldline bg-frame p-3 pb-4 shadow-[0_8px_24px_rgba(0,0,0,0.6)] max-strip:w-[calc(100%-40px)]">
+    <article
+      className="stagger-in mx-auto mb-20 w-[calc(100%-140px)] rounded-sm border border-goldline bg-frame p-3 pb-4 shadow-[0_8px_24px_rgba(0,0,0,0.6)] max-strip:w-[calc(100%-40px)]"
+      style={
+        { '--stagger': `${Math.min(index * STAGGER_STEP_MS, STAGGER_MAX_MS)}ms` } as React.CSSProperties
+      }
+    >
       <div className="mb-2 flex justify-between font-mono text-[0.7rem] font-semibold tracking-[0.08em] text-gold uppercase">
         <span>{playing ? '● Playing' : opened ? '❚❚ Paused' : '▶ Preview'}</span>
         <span>Frame {frameCode(index)}</span>
