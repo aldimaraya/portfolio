@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { db } from '@/lib/db';
 import { PhotoForm } from '@/components/admin/PhotoForm';
+import { BorderTrimmer } from '@/components/admin/BorderTrimmer';
 import { DeleteButton } from '@/components/admin/DeleteButton';
 import { LABEL } from '@/components/admin/fields';
 import { toSettings } from '@/lib/photo/settings';
@@ -36,6 +37,7 @@ export default async function EditPhotoPage({ params }: { params: Promise<{ id: 
           tags: photo.tags.map((entry) => entry.tag.name).join(', '),
         }}
       />
+      <BorderTrimmer id={photo.id} imageUrl={photo.imageUrl} />
       <DeleteButton
         id={photo.id}
         action={deletePhoto}

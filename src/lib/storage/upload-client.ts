@@ -65,36 +65,58 @@ export async function uploadFile(
   const ranges = splitIntoParts(file.size);
   const completed: { ETag: string; PartNumber: number }[] = [];
 
-  for (const range of ranges) {
-    const { url } = await postJson<{ url: string }>('/api/upload/part-url', {
+  try {
+    for (const range of ranges) {
+      const { url } = await postJson<{ url: string }>('/api/upload/part-url', {
+        key,
+        uploadId,
+        partNumber: range.partNumber,
+      });
+
+      const response = await fetch(url, {
+        method: 'PUT',
+        body: file.slice(range.start, range.end),
+      });
+      if (!response.ok) {
+        throw new Error(`Part ${range.partNumber} failed with status ${response.status}`);
+      }
+
+      const etag = response.headers.get('ETag');
+      if (!etag) {
+        throw new Error(
+          `Part ${range.partNumber} response was missing an ETag header — check the bucket's CORS ExposeHeaders`,
+        );
+      }
+
+      completed.push({ ETag: etag, PartNumber: range.partNumber });
+      onProgress?.(Math.round((completed.length / ranges.length) * 100));
+    }
+
+    const { url } = await postJson<{ url: string }>('/api/upload/complete', {
       key,
       uploadId,
-      partNumber: range.partNumber,
+      parts: completed,
     });
-
-    const response = await fetch(url, {
-      method: 'PUT',
-      body: file.slice(range.start, range.end),
-    });
-    if (!response.ok) {
-      throw new Error(`Part ${range.partNumber} failed with status ${response.status}`);
-    }
-
-    const etag = response.headers.get('ETag');
-    if (!etag) {
-      throw new Error(
-        `Part ${range.partNumber} response was missing an ETag header — check the bucket's CORS ExposeHeaders`,
-      );
-    }
-
-    completed.push({ ETag: etag, PartNumber: range.partNumber });
-    onProgress?.(Math.round((completed.length / ranges.length) * 100));
+    return url;
+  } catch (cause) {
+    // An upload that will never be completed still holds every part it managed
+    // to send — stored and billed, and absent from a normal object listing, so
+    // nothing about the bucket would ever show you they are there.
+    await abortQuietly(key, uploadId);
+    throw cause;
   }
+}
 
-  const { url } = await postJson<{ url: string }>('/api/upload/complete', {
-    key,
-    uploadId,
-    parts: completed,
-  });
-  return url;
+/**
+ * Cleanup on a path that is already failing, so the abort must never become the
+ * error the caller sees: whatever broke the upload is the more useful message.
+ * A tab closed mid-upload never reaches this at all, which is what the bucket's
+ * AbortIncompleteMultipartUpload lifecycle rule is there to catch.
+ */
+async function abortQuietly(key: string, uploadId: string): Promise<void> {
+  try {
+    await postJson('/api/upload/abort', { key, uploadId });
+  } catch (cause) {
+    console.error('Could not abort the incomplete upload', key, cause);
+  }
 }

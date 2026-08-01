@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { AdminEditLink } from '@/components/site/AdminEditLink';
 import { db } from '@/lib/db';
 import { buildExcerpt } from '@/lib/excerpt';
 import { formatPostDate } from '@/lib/post/date';
@@ -36,12 +37,15 @@ export default async function JournalPostPage({ params }: Params) {
 
   return (
     <main className="max-w-2xl">
-      <Link
-        href="/journal"
-        className="font-mono text-xs tracking-[0.1em] text-ash uppercase transition hover:text-gold"
-      >
-        ← Journal
-      </Link>
+      <div className="flex items-center justify-between gap-4">
+        <Link
+          href="/journal"
+          className="font-mono text-xs tracking-[0.1em] text-ash uppercase transition hover:text-gold"
+        >
+          ← Journal
+        </Link>
+        <AdminEditLink href={`/admin/posts/${post.id}`} label="Edit post" />
+      </div>
 
       <article className="mt-6">
         <time
