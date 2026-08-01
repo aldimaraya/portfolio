@@ -29,6 +29,11 @@ describe('settingsFromExif', () => {
     expect(settingsFromExif({ focalLength: 34.7 }).focalLength).toBe('35mm');
   });
 
+  it('rounds a phone aperture to the marked f-stop', () => {
+    expect(settingsFromExif({ aperture: 2.798828125 }).aperture).toBe('f/2.8');
+    expect(settingsFromExif({ aperture: 8 }).aperture).toBe('f/8');
+  });
+
   it('leaves unrecorded values blank rather than inventing them', () => {
     expect(settingsFromExif({ iso: 100 })).toEqual({
       ...EMPTY_SETTINGS,

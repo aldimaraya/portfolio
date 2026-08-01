@@ -14,6 +14,7 @@
     "test:e2e": "playwright test",
     "check:r2": "node scripts/check-r2.mjs",
     "backfill:photos": "node scripts/backfill-photos.mjs",
+    "backfill:settings": "node scripts/backfill-settings.mjs",
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
     "db:studio": "prisma studio"

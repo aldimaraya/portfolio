@@ -42,7 +42,9 @@ export function settingsFromExif(exif: ExifSettingsSource): PhotoSettings {
   return {
     lens: exif.lens ?? '',
     focalLength: exif.focalLength ? `${Math.round(exif.focalLength)}mm` : '',
-    aperture: exif.aperture ? `f/${exif.aperture}` : '',
+    // Phones record the true aperture of the element, not the marked one
+    // (2.798828125). One decimal is how it is written on the barrel: f/2.8.
+    aperture: exif.aperture ? `f/${Number(exif.aperture.toFixed(1))}` : '',
     shutter: exif.shutter ?? '',
     iso: exif.iso ? String(exif.iso) : '',
   };

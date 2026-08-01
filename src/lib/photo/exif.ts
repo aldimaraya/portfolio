@@ -51,8 +51,20 @@ export function formatCamera(make?: string, model?: string): string | undefined 
   return joinMakeModel(make, model);
 }
 
+/**
+ * Phones name their built-in module rather than a lens: "iPhone 17 Pro Max back
+ * triple camera 16.891mm f/2.8". That restates the camera, the focal length and
+ * the aperture all at once, so the caption ends up saying everything twice. Those
+ * read as no lens at all — the camera name already says what took the picture.
+ */
+function isBuiltInPhoneModule(lens: string): boolean {
+  return /\b(back|front)\b.*\bcamera\b/i.test(lens);
+}
+
 export function formatLens(lensMake?: string, lensModel?: string): string | undefined {
-  return joinMakeModel(lensMake, lensModel);
+  const lens = joinMakeModel(lensMake, lensModel);
+  if (!lens || isBuiltInPhoneModule(lens)) return undefined;
+  return lens;
 }
 
 /** Exposure time in seconds to the way photographers write it. */

@@ -50,6 +50,17 @@ describe('formatLens', () => {
   it('returns undefined with nothing to show', () => {
     expect(formatLens(undefined, undefined)).toBeUndefined();
   });
+
+  it('drops a phone module, which only restates the camera', () => {
+    expect(
+      formatLens('Apple', 'iPhone 17 Pro Max back triple camera 16.891mm f/2.8'),
+    ).toBeUndefined();
+    expect(formatLens('Apple', 'iPhone 12 front camera 2.71mm f/2.2')).toBeUndefined();
+  });
+
+  it('keeps a real lens whose name happens to mention a camera mount', () => {
+    expect(formatLens('Sigma', '35mm F1.4 DG HSM')).toBe('Sigma 35mm F1.4 DG HSM');
+  });
 });
 
 describe('formatShutter', () => {
