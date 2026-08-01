@@ -26,7 +26,13 @@ export default async function JournalPage() {
       <ul className="flex flex-col divide-y divide-hairline">
         {posts.map((post) => (
           <li key={post.id} className="py-6">
-            <Link href={`/journal/${post.slug}`} className="group block">
+            {/* motion-safe, so the shift is dropped under a reduced-motion
+                preference while the colour change survives — the row still has
+                to show it is interactive. */}
+            <Link
+              href={`/journal/${post.slug}`}
+              className="group block transition-transform duration-200 ease-out motion-safe:hover:translate-x-1"
+            >
               <time
                 dateTime={post.publishedAt.toISOString()}
                 className="font-mono text-xs tracking-[0.1em] text-gold uppercase"

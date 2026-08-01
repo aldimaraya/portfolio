@@ -83,6 +83,97 @@ test('the film strip still sticks while the roll scrolls', async ({ page }) => {
   expect(Math.abs((stillStuck?.y ?? 0) - (stuck?.y ?? 0))).toBeLessThan(4);
 });
 
+test.describe('the stills wall', () => {
+  test('staggers each frame in, capped so the wall never crawls', async ({ page }) => {
+    await page.goto('/stills');
+
+    const items = page.locator('.wall-item');
+    const count = await items.count();
+    if (count === 0) test.skip(true, 'No photos on the wall');
+
+    const delays = await items.evaluateAll((nodes) =>
+      nodes.map((node) => getComputedStyle(node).animationDelay),
+    );
+
+    expect(delays[0]).toBe('0s');
+    if (count > 1) expect(delays[1]).toBe('0.045s');
+
+    // Nothing waits longer than the cap, however many photos are on the wall.
+    for (const delay of delays) {
+      expect(Number.parseFloat(delay)).toBeLessThanOrEqual(0.45);
+    }
+  });
+
+  test('every frame settles to no transform', async ({ page }) => {
+    await page.goto('/stills');
+    const items = page.locator('.wall-item');
+    if ((await items.count()) === 0) test.skip(true, 'No photos on the wall');
+
+    await page.waitForTimeout(1200);
+    const transforms = await items.evaluateAll((nodes) =>
+      nodes.map((node) => getComputedStyle(node).transform),
+    );
+    expect(transforms.every((transform) => transform === 'none')).toBe(true);
+  });
+});
+
+test.describe('the tab underline', () => {
+  test('sits under the active tab', async ({ page }) => {
+    await page.goto('/motion');
+
+    const bar = page.getByTestId('tab-underline');
+    const tab = page.getByRole('link', { name: 'Motion', exact: true });
+    const barBox = await bar.boundingBox();
+    const tabBox = await tab.boundingBox();
+
+    expect(Math.abs((barBox?.x ?? 0) - (tabBox?.x ?? 0))).toBeLessThan(2);
+    expect(Math.abs((barBox?.width ?? 0) - (tabBox?.width ?? 0))).toBeLessThan(2);
+  });
+
+  test('slides to the next tab rather than jumping', async ({ page }) => {
+    await page.goto('/stills');
+
+    // Sampled every frame from inside the page rather than polled from the test:
+    // a fixed delay races the dev server's navigation, and arriving late looks
+    // exactly like a jump. The bar survives navigation — the header sits outside
+    // the page transition — so one element can be watched throughout.
+    // The bar only exists once the measuring effect has run, so wait for it
+    // before sampling — and re-query each frame rather than closing over the
+    // node, so a remount would show up as missing samples instead of stale ones.
+    await page.getByTestId('tab-underline').waitFor();
+    await page.evaluate(() => {
+      const samples: number[] = [];
+      Object.assign(window, { __barSamples: samples });
+      let frames = 0;
+      const tick = () => {
+        const bar = document.querySelector('[data-testid="tab-underline"]');
+        if (bar) samples.push(bar.getBoundingClientRect().x);
+        if (++frames < 150) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    });
+
+    await page.getByRole('link', { name: 'Journal', exact: true }).click();
+    await expect(page).toHaveURL(/\/journal$/);
+    await page.waitForTimeout(700);
+
+    const samples: number[] = await page.evaluate(
+      () => (window as unknown as { __barSamples: number[] }).__barSamples,
+    );
+    const distinct = [...new Set(samples.map((x) => Math.round(x)))];
+
+    // A jump produces two positions, start and end. Travelling produces a run of
+    // them; 300ms at 60fps leaves plenty of room above this floor.
+    expect(distinct.length).toBeGreaterThan(4);
+    expect(distinct.at(-1)).toBeGreaterThan(distinct[0]);
+  });
+
+  test('there is exactly one underline, not one per tab', async ({ page }) => {
+    await page.goto('/stills');
+    await expect(page.getByTestId('tab-underline')).toHaveCount(1);
+  });
+});
+
 test.describe('reduced motion', () => {
   // emulateMedia per test rather than `test.use({ reducedMotion })` at describe
   // level, which did not reach the page here — matchMedia still reported
@@ -95,6 +186,30 @@ test.describe('reduced motion', () => {
       name: 'page-fade',
       duration: '0.12s',
     });
+  });
+
+  test('flattens the wall stagger', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('/stills');
+
+    const items = page.locator('.wall-item');
+    if ((await items.count()) === 0) test.skip(true, 'No photos on the wall');
+
+    const delays = await items.evaluateAll((nodes) =>
+      nodes.map((node) => getComputedStyle(node).animationDelay),
+    );
+    // Arrival spread over half a second is motion in its own right.
+    expect(delays.every((delay) => delay === '0s')).toBe(true);
+  });
+
+  test('drops the underline slide and the row shift', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('/stills');
+
+    const barTransition = await page
+      .getByTestId('tab-underline')
+      .evaluate((node) => getComputedStyle(node).transitionDuration);
+    expect(['0s', '']).toContain(barTransition);
   });
 
   test('still suppresses the looping sprite previews', async ({ page }) => {

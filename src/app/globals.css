@@ -128,6 +128,29 @@ body {
   animation: page-enter 280ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
+/* Stills wall. Each frame arrives just behind the one before it, so the wall
+   assembles rather than appearing whole.
+
+   `backwards` is doing real work here, not just avoiding a flash: an animation
+   with a delay leaves the element at its normal styles until it starts, so
+   without it every frame would show fully opaque, then blink out and fade in
+   when its turn came. The delay itself is set per item by PolaroidWall. */
+@keyframes wall-item-enter {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.wall-item {
+  animation: wall-item-enter 420ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation-delay: var(--stagger, 0ms);
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
@@ -146,6 +169,14 @@ body {
   .page-enter {
     animation-name: page-fade;
     animation-duration: 120ms;
+  }
+
+  /* The stagger goes too, not just the drift: arrival spread over half a second
+     is motion in its own right, whatever each individual frame is doing. */
+  .wall-item {
+    animation-name: page-fade;
+    animation-duration: 120ms;
+    animation-delay: 0ms !important;
   }
 }
 
