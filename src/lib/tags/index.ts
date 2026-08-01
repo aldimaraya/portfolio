@@ -19,6 +19,22 @@ export async function tagConnections(tagsRaw: string): Promise<{ tagId: string }
 }
 
 /**
+ * Drops tags nothing points at any more.
+ *
+ * The join rows go on their own — cascaded by a delete, wiped wholesale by a
+ * save — but the Tag row they named survives, so a tag typed once and then
+ * removed used to linger forever. Invisible until the forms started offering
+ * every tag as a pill; now it is the difference between the suggestions being
+ * the vocabulary in use and a list of everything ever typed.
+ *
+ * Called after any write that can strand one. Nothing depends on its result, so
+ * it is cheap to over-call and harmless when there is nothing to remove.
+ */
+export async function pruneUnusedTags(): Promise<void> {
+  await db.tag.deleteMany({ where: { photos: { none: {} }, videos: { none: {} } } });
+}
+
+/**
  * Every tag ever used, photos and videos alike — the admin forms offer these as
  * pills so a tag gets typed out once and clicked thereafter.
  */

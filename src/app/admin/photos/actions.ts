@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { db } from '@/lib/db';
 import { isAuthenticated } from '@/lib/auth/guard';
-import { tagConnections } from '@/lib/tags';
+import { pruneUnusedTags, tagConnections } from '@/lib/tags';
 import { photoSettingsSchema } from '@/lib/photo/settings';
 import { deleteObjectsByUrl } from '@/lib/storage/r2';
 
@@ -51,6 +51,9 @@ export async function savePhoto(input: PhotoInput): Promise<{ error?: string }> 
   } else {
     await db.photo.create({ data: { ...data, tags: { create: connections } } });
   }
+
+  // An edit that drops the last photo carrying a tag leaves it behind.
+  await pruneUnusedTags();
 
   revalidatePath('/admin/photos');
   revalidatePath('/stills');
@@ -124,6 +127,7 @@ export async function deletePhoto(id: string): Promise<{ error?: string }> {
   }
 
   await db.photo.delete({ where: { id } });
+  await pruneUnusedTags();
 
   revalidatePath('/admin/photos');
   revalidatePath('/stills');
