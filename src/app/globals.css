@@ -88,6 +88,46 @@ body {
   animation-play-state: running;
 }
 
+/* Page transition. Applied to the public pages' content only — the header lives
+   outside it, because chrome that re-animates on every navigation reads as a
+   full page reload rather than a transition.
+
+   Entry only: the App Router gives no way to hold the outgoing page while the
+   next one renders, so there is nothing to animate out. At this duration the
+   missing exit is not perceptible.
+
+   The fill mode is `backwards`, not `both`. `both` implies `forwards`, which
+   keeps the last keyframe applied for good — and a held `transform: none`
+   computes to an identity matrix, which still makes this the containing block
+   for fixed descendants. `backwards` only reaches back to cover the moment
+   before the first frame, so once the animation finishes the element carries no
+   transform at all. The Motion page parks a sticky viewport in here. */
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* The reduced-motion counterpart: the drift is what needs removing, not the
+   dissolve. Cutting straight to the finished page is its own kind of jarring. */
+@keyframes page-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.page-enter {
+  animation: page-enter 280ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
@@ -100,6 +140,12 @@ body {
     /* Removing the animation alone would leave the strip wherever its last step
        landed, showing a sliver of two frames. Pin it back to frame one. */
     transform: translateX(0) !important;
+  }
+
+  /* Keeps the dissolve, drops the drift — see page-fade above. */
+  .page-enter {
+    animation-name: page-fade;
+    animation-duration: 120ms;
   }
 }
 

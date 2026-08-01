@@ -1,4 +1,5 @@
 import { Header } from '@/components/site/Header';
+import { PageTransition } from '@/components/site/PageTransition';
 
 /**
  * Chrome for the public pages. A route group, so it wraps /stills, /motion and
@@ -10,8 +11,10 @@ import { Header } from '@/components/site/Header';
 export default function SiteLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="mx-auto max-w-[1300px] px-6 py-10">
+      {/* Outside the transition: the header is chrome that persists across
+          navigations, and re-animating it would read as a page reload. */}
       <Header />
-      {children}
+      <PageTransition>{children}</PageTransition>
     </div>
   );
 }
