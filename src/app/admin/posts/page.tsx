@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { db } from '@/lib/db';
 import { PostForm } from '@/components/admin/PostForm';
 import { LABEL } from '@/components/admin/fields';
+import { formatPostDate } from '@/lib/post/date';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,11 +35,7 @@ export default async function AdminPostsPage() {
                 <div className="truncate text-sm">{post.title}</div>
                 <div className="truncate font-mono text-xs text-ash">
                   /journal/{post.slug} ·{' '}
-                  {post.publishedAt.toLocaleDateString('en-GB', {
-                    day: 'numeric',
-                    month: 'short',
-                    year: 'numeric',
-                  })}
+                  {formatPostDate(post.publishedAt)}
                 </div>
               </div>
               <Link href={`/admin/posts/${post.id}`} className="shrink-0 text-sm text-gold">

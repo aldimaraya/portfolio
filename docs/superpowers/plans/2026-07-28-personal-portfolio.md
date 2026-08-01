@@ -14,7 +14,10 @@
 
 ## Status and deviations (updated 2026-07-31)
 
-**Done:** Tasks 1–17. **Next:** Task 18 (journal pages). `/journal` is still a `Placeholder`.
+**Done:** Tasks 1–18. **Next:** Task 19 (end-to-end smoke tests).
+
+`Placeholder` is gone — Task 18 was its last caller, so the component was deleted
+rather than left as dead code.
 
 The code below in Tasks 11, 12, 15, 16 and 17 was written before the decisions
 recorded here. Where it disagrees with this section, **this section is correct** —
