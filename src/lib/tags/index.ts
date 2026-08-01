@@ -1,4 +1,5 @@
 import { db } from '@/lib/db';
+import { parseTagNames } from './parse';
 
 /**
  * Tags are created inline as they are typed — there is no manage-tags screen.
@@ -6,13 +7,7 @@ import { db } from '@/lib/db';
  * Never copy the upsert into an actions file.
  */
 
-export function parseTagNames(input: string): string[] {
-  const names = input
-    .split(',')
-    .map((name) => name.trim().toLowerCase())
-    .filter((name) => name.length > 0);
-  return [...new Set(names)];
-}
+export { parseTagNames, formatTagNames } from './parse';
 
 /** Upserts each named tag and returns join-table rows ready to `create`. */
 export async function tagConnections(tagsRaw: string): Promise<{ tagId: string }[]> {
@@ -21,4 +16,13 @@ export async function tagConnections(tagsRaw: string): Promise<{ tagId: string }
     names.map((name) => db.tag.upsert({ where: { name }, create: { name }, update: {} })),
   );
   return tags.map((tag) => ({ tagId: tag.id }));
+}
+
+/**
+ * Every tag ever used, photos and videos alike — the admin forms offer these as
+ * pills so a tag gets typed out once and clicked thereafter.
+ */
+export async function listTagNames(): Promise<string[]> {
+  const tags = await db.tag.findMany({ select: { name: true }, orderBy: { name: 'asc' } });
+  return tags.map((tag) => tag.name);
 }

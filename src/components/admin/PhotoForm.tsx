@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { UploadField } from './UploadField';
 import { TagInput } from './TagInput';
+import { SuggestInput } from './SuggestInput';
 import { TrimControls } from './TrimControls';
 import { BUTTON, FIELD, LABEL } from './fields';
 import { analyzePixels } from '@/lib/color/analyze';
@@ -45,7 +46,15 @@ function buildForm(initial?: Initial): PhotoInput {
   };
 }
 
-export function PhotoForm({ initial }: { initial?: Initial }) {
+export function PhotoForm({
+  initial,
+  tagOptions,
+  locationOptions,
+}: {
+  initial?: Initial;
+  tagOptions: string[];
+  locationOptions: string[];
+}) {
   const router = useRouter();
   const [form, setForm] = useState<PhotoInput>(() => buildForm(initial));
   // The chosen file waits here until save — nothing reaches R2 before then.
@@ -73,8 +82,12 @@ export function PhotoForm({ initial }: { initial?: Initial }) {
 
   const isEdit = Boolean(initial?.id);
 
+  // Also what gates the rest of the form: the fields below all describe a
+  // picture, and there is nothing to describe until one is picked.
+  const hasImage = Boolean(file) || Boolean(form.imageUrl);
+
   const missing = missingRequiredFields({
-    hasImage: Boolean(file) || Boolean(form.imageUrl),
+    hasImage,
     width: form.width,
     height: form.height,
     location: form.location,
@@ -338,101 +351,109 @@ export function PhotoForm({ initial }: { initial?: Initial }) {
         </section>
       ) : null}
 
-      {form.width ? (
-        <p className="font-mono text-xs text-ash">
-          {form.width}×{form.height} · hue {Math.round(form.avgHue)}° ·{' '}
-          {form.isMonochrome ? 'black & white' : 'colour'}
-        </p>
-      ) : null}
-
-      {exif ? (
-        <div className="rounded border border-hairline bg-film p-3 text-xs">
-          {exif.hasExif ? (
-            <>
-              <p className="font-mono tracking-[0.15em] text-gold uppercase">Read from EXIF</p>
-              <dl className="mt-2 flex flex-col gap-1 text-ash">
-                {exif.capturedAt ? (
-                  <div className="flex gap-2">
-                    <dt className="w-24 shrink-0">Taken</dt>
-                    <dd className="text-bone">{exif.capturedAt.toLocaleString()}</dd>
-                  </div>
-                ) : null}
-                {exif.coordinates ? (
-                  <div className="flex gap-2">
-                    <dt className="w-24 shrink-0">Coordinates</dt>
-                    <dd className="font-mono text-bone">{exif.coordinates}</dd>
-                  </div>
-                ) : null}
-              </dl>
-              {prefilled.length ? (
-                <p className="mt-2 text-ash">
-                  Prefilled {listPhrase(prefilled)} below — edit freely.
-                </p>
-              ) : (
-                <p className="mt-2 text-ash">Nothing left to prefill.</p>
-              )}
-            </>
-          ) : (
-            <p className="text-ash">
-              No EXIF metadata in this file — common in exported or screenshotted
-              images. Fill the fields in by hand.
+      {hasImage ? (
+        <>
+          {form.width ? (
+            <p className="font-mono text-xs text-ash">
+              {form.width}×{form.height} · hue {Math.round(form.avgHue)}° ·{' '}
+              {form.isMonochrome ? 'black & white' : 'colour'}
             </p>
-          )}
-        </div>
-      ) : null}
+          ) : null}
 
-      <input
-        className={FIELD}
-        placeholder="Location (e.g. Tokyo / Shinjuku)"
-        aria-label="Location"
-        value={form.location}
-        onChange={(event) => set('location', event.target.value)}
-      />
-      <input
-        className={FIELD}
-        placeholder="Camera (e.g. Sony A7 IV)"
-        aria-label="Camera"
-        value={form.camera}
-        onChange={(event) => set('camera', event.target.value)}
-      />
-      <input
-        className={FIELD}
-        placeholder="Lens (e.g. Sigma 35mm F1.4 DG HSM)"
-        aria-label="Lens"
-        value={form.settings.lens}
-        onChange={(event) => setSetting('lens', event.target.value)}
-      />
+          {exif ? (
+            <div className="rounded border border-hairline bg-film p-3 text-xs">
+              {exif.hasExif ? (
+                <>
+                  <p className="font-mono tracking-[0.15em] text-gold uppercase">Read from EXIF</p>
+                  <dl className="mt-2 flex flex-col gap-1 text-ash">
+                    {exif.capturedAt ? (
+                      <div className="flex gap-2">
+                        <dt className="w-24 shrink-0">Taken</dt>
+                        <dd className="text-bone">{exif.capturedAt.toLocaleString()}</dd>
+                      </div>
+                    ) : null}
+                    {exif.coordinates ? (
+                      <div className="flex gap-2">
+                        <dt className="w-24 shrink-0">Coordinates</dt>
+                        <dd className="font-mono text-bone">{exif.coordinates}</dd>
+                      </div>
+                    ) : null}
+                  </dl>
+                  {prefilled.length ? (
+                    <p className="mt-2 text-ash">
+                      Prefilled {listPhrase(prefilled)} below — edit freely.
+                    </p>
+                  ) : (
+                    <p className="mt-2 text-ash">Nothing left to prefill.</p>
+                  )}
+                </>
+              ) : (
+                <p className="text-ash">
+                  No EXIF metadata in this file — common in exported or screenshotted images. Fill
+                  the fields in by hand.
+                </p>
+              )}
+            </div>
+          ) : null}
 
-      <fieldset className="flex flex-col gap-2">
-        <legend className={LABEL}>Settings</legend>
-        <div className="grid grid-cols-2 gap-2">
-          {SETTING_FIELDS.map(({ key, label, placeholder }) => (
-            <input
-              key={key}
-              className={FIELD}
-              placeholder={`${label} (${placeholder})`}
-              aria-label={label}
-              value={form.settings[key]}
-              onChange={(event) => setSetting(key, event.target.value)}
-            />
-          ))}
-        </div>
-      </fieldset>
+          <SuggestInput
+            label="Location"
+            placeholder="Location (e.g. Tokyo / Shinjuku)"
+            value={form.location}
+            onChange={(value) => set('location', value)}
+            suggestions={locationOptions}
+          />
+          <input
+            className={FIELD}
+            placeholder="Camera (e.g. Sony A7 IV)"
+            aria-label="Camera"
+            value={form.camera}
+            onChange={(event) => set('camera', event.target.value)}
+          />
+          <input
+            className={FIELD}
+            placeholder="Lens (e.g. Sigma 35mm F1.4 DG HSM)"
+            aria-label="Lens"
+            value={form.settings.lens}
+            onChange={(event) => setSetting('lens', event.target.value)}
+          />
 
-      <TagInput value={form.tags} onChange={(value) => set('tags', value)} />
+          <fieldset className="flex flex-col gap-2">
+            <legend className={LABEL}>Settings</legend>
+            <div className="grid grid-cols-2 gap-2">
+              {SETTING_FIELDS.map(({ key, label, placeholder }) => (
+                <input
+                  key={key}
+                  className={FIELD}
+                  placeholder={`${label} (${placeholder})`}
+                  aria-label={label}
+                  value={form.settings[key]}
+                  onChange={(event) => setSetting(key, event.target.value)}
+                />
+              ))}
+            </div>
+          </fieldset>
 
-      {error ? <p className="text-sm text-red-400">{error}</p> : null}
+          <TagInput
+            value={form.tags}
+            onChange={(value) => set('tags', value)}
+            suggestions={tagOptions}
+          />
 
-      <button type="submit" disabled={busy || !ready} className={BUTTON}>
-        {busy ? (progress !== null ? `Uploading… ${progress}%` : 'Saving…') : 'Save photo'}
-      </button>
+          {error ? <p className="text-sm text-red-400">{error}</p> : null}
 
-      {/* Says why the button is disabled — a dead control with no explanation
+          <button type="submit" disabled={busy || !ready} className={BUTTON}>
+            {busy ? (progress !== null ? `Uploading… ${progress}%` : 'Saving…') : 'Save photo'}
+          </button>
+
+          {/* Says why the button is disabled — a dead control with no explanation
           reads as a broken page. */}
-      {!busy && !ready ? (
-        <p className="text-xs text-ash">
-          {analyzing ? 'Reading the image…' : `Still needs ${listPhrase(missing)}.`}
-        </p>
+          {!busy && !ready ? (
+            <p className="text-xs text-ash">
+              {analyzing ? 'Reading the image…' : `Still needs ${listPhrase(missing)}.`}
+            </p>
+          ) : null}
+        </>
       ) : null}
     </form>
   );

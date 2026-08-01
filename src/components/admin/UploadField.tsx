@@ -1,7 +1,17 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { LABEL } from './fields';
+
+/**
+ * Whether a dropped file matches the `accept` string. Only the `type/*` form the
+ * two forms actually use is handled — the file picker enforces this for itself,
+ * but a drop bypasses it entirely.
+ */
+function accepts(file: File, accept: string): boolean {
+  const [type] = accept.split('/');
+  return file.type.startsWith(`${type}/`);
+}
 
 interface Props {
   label: string;
@@ -48,6 +58,8 @@ export function UploadField({
   // Derived from the file rather than held in state: setting state from an effect
   // would cascade an extra render on every pick.
   const preview = useMemo(() => (file ? URL.createObjectURL(file) : ''), [file]);
+  const [dragging, setDragging] = useState(false);
+  const [rejected, setRejected] = useState('');
 
   // Revoked on replacement and unmount; leaking object URLs pins the
   // full-resolution file in memory for the life of the page.
@@ -102,12 +114,46 @@ export function UploadField({
 
       {allowSelect ? (
         <>
-          <input
-            type="file"
-            accept={accept}
-            onChange={(event) => onSelect(event.target.files?.[0] ?? null)}
-            className="text-sm text-ash file:mr-3 file:rounded file:border file:border-hairline file:bg-frame file:px-3 file:py-1 file:text-bone"
-          />
+          <div
+            // The browse button and the drop target are the same box, so there is
+            // one place to aim at either way.
+            onDragOver={(event) => {
+              // Both are required, and on *this* element — without them the
+              // browser treats the drop as a navigation and opens the file.
+              event.preventDefault();
+              setDragging(true);
+            }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={(event) => {
+              event.preventDefault();
+              setDragging(false);
+              const dropped = event.dataTransfer.files[0];
+              // A folder, or the wrong kind of file. Silently ignoring it would
+              // look like the drop missed, so the caption says what happened.
+              if (!dropped) return;
+              if (accepts(dropped, accept)) {
+                setRejected('');
+                onSelect(dropped);
+              } else {
+                setRejected(`${dropped.name} is not a ${accept.split('/')[0]} file.`);
+              }
+            }}
+            className={`mt-1 flex flex-col items-center gap-2 rounded border border-dashed px-4 py-6 text-center transition ${
+              dragging ? 'border-gold bg-gold/5' : 'border-hairline'
+            }`}
+          >
+            <span className="text-xs text-ash">Drag a file here, or</span>
+            <input
+              type="file"
+              accept={accept}
+              onChange={(event) => {
+                setRejected('');
+                onSelect(event.target.files?.[0] ?? null);
+              }}
+              className="text-sm text-ash file:mr-3 file:rounded file:border file:border-hairline file:bg-frame file:px-3 file:py-1 file:text-bone"
+            />
+          </div>
+          {rejected ? <span className="text-xs text-amber-400">{rejected}</span> : null}
           {hint ? <span className="text-xs text-ash">{hint}</span> : null}
         </>
       ) : null}

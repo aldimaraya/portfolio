@@ -2,6 +2,7 @@
 
 import Image from 'next/image';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { AdminEditLink } from '@/components/site/AdminEditLink';
 import { summarizeSettings } from '@/lib/photo/settings';
 import type { PolaroidPhoto } from './Polaroid';
 
@@ -244,14 +245,22 @@ export function Lightbox({ photos, index, originFor, onClose, onNavigate }: Ligh
         <div className="font-mono tracking-[0.05em] text-ash">
           {index + 1} / {photos.length}
         </div>
-        <button
-          type="button"
-          aria-label="Close"
-          onClick={requestClose}
-          className="px-2 py-1 text-lg leading-none text-ash transition hover:text-gold"
-        >
-          ✕
-        </button>
+        <div className="flex items-center gap-4">
+          {/* Renders nothing for a visitor. The click must not reach the
+              backdrop, whose job is to dismiss — leaving here should be a
+              navigation, not a dismissal that happens to navigate. */}
+          <span onClick={(event) => event.stopPropagation()}>
+            <AdminEditLink href={`/admin/photos/${photo.id}`} label="Edit photo" />
+          </span>
+          <button
+            type="button"
+            aria-label="Close"
+            onClick={requestClose}
+            className="px-2 py-1 text-lg leading-none text-ash transition hover:text-gold"
+          >
+            ✕
+          </button>
+        </div>
       </div>
 
       <div className="relative flex min-h-0 flex-1 items-center justify-center px-4 pb-6">

@@ -106,17 +106,16 @@ test.describe('signed in', () => {
     }
   });
 
-  test('the photo form refuses to save until it is complete', async ({ page }) => {
+  test('the photo form waits for a photo before asking anything about it', async ({ page }) => {
     await signIn(page);
     await page.goto('/admin/photos');
 
-    // The button is disabled rather than clickable-then-rejected, so the guard
-    // is the disabled state plus the hint explaining it — clicking would assert
-    // nothing.
-    await expect(page.getByRole('button', { name: 'Save photo' })).toBeDisabled();
-    await expect(
-      page.getByText('Still needs a photo, a location and a camera.'),
-    ).toBeVisible();
+    // Every field below the picker describes a picture, so until one is chosen
+    // there is nothing to fill in and nothing to save.
+    await expect(page.getByRole('button', { name: 'Save photo' })).toBeHidden();
+    await expect(page.getByLabel('Location')).toBeHidden();
+    await expect(page.getByLabel('Camera')).toBeHidden();
+    await expect(page.getByText('Drag a file here, or')).toBeVisible();
   });
 
   test('signing out closes the session', async ({ page }) => {

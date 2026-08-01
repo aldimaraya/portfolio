@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseTagNames } from '@/lib/tags';
+import { formatTagNames, parseTagNames } from '@/lib/tags';
 
 describe('parseTagNames', () => {
   it('splits on commas', () => {
@@ -21,5 +21,18 @@ describe('parseTagNames', () => {
   it('returns an empty array for empty input', () => {
     expect(parseTagNames('')).toEqual([]);
     expect(parseTagNames('   ')).toEqual([]);
+  });
+});
+
+describe('formatTagNames', () => {
+  it('round-trips through parseTagNames', () => {
+    // The admin tag pills lean on this: whatever the editor emits has to parse
+    // back to the same list the pills showed.
+    expect(formatTagNames(parseTagNames('A, b , a'))).toBe('a, b');
+    expect(parseTagNames(formatTagNames(['street', 'night']))).toEqual(['street', 'night']);
+  });
+
+  it('formats an empty list as an empty string', () => {
+    expect(formatTagNames([])).toBe('');
   });
 });

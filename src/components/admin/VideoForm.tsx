@@ -32,7 +32,7 @@ function buildForm(initial?: Initial): VideoInput {
   };
 }
 
-export function VideoForm({ initial }: { initial?: Initial }) {
+export function VideoForm({ initial, tagOptions }: { initial?: Initial; tagOptions: string[] }) {
   const router = useRouter();
   const [form, setForm] = useState<VideoInput>(() => buildForm(initial));
   // The clip waits here until save — nothing reaches R2 before then.
@@ -249,7 +249,7 @@ export function VideoForm({ initial }: { initial?: Initial }) {
         onChange={(event) => set('description', event.target.value)}
       />
 
-      <TagInput value={form.tags} onChange={(value) => set('tags', value)} />
+      <TagInput value={form.tags} onChange={(value) => set('tags', value)} suggestions={tagOptions} />
 
       {error ? <p className="text-sm text-red-400">{error}</p> : null}
 
