@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { rgbToHsl, analyzePixels } from '@/lib/color/analyze';
+import { rgbToHsl, analyzePixels, placeholderColor } from '@/lib/color/analyze';
 
 function pixels(...rgb: [number, number, number][]): Uint8ClampedArray {
   const out = new Uint8ClampedArray(rgb.length * 4);
@@ -68,5 +68,25 @@ describe('analyzePixels', () => {
   it('returns safe defaults for an empty buffer', () => {
     const result = analyzePixels(new Uint8ClampedArray(0));
     expect(result).toEqual({ avgHue: 0, avgSaturation: 0, avgLightness: 0, isMonochrome: true });
+  });
+});
+
+describe('placeholderColor', () => {
+  it('keeps the hue and lightness of a colour photo', () => {
+    expect(placeholderColor({ avgHue: 210.4, avgLightness: 0.42, isMonochrome: false })).toBe(
+      'hsl(210 30% 42%)',
+    );
+  });
+
+  it('drops saturation entirely for a monochrome photo', () => {
+    expect(placeholderColor({ avgHue: 210, avgLightness: 0.42, isMonochrome: true })).toBe(
+      'hsl(210 0% 42%)',
+    );
+  });
+
+  it('handles the all-zero stats stored for an unanalysable image', () => {
+    expect(placeholderColor({ avgHue: 0, avgLightness: 0, isMonochrome: true })).toBe(
+      'hsl(0 0% 0%)',
+    );
   });
 });

@@ -1,5 +1,6 @@
 import Image from 'next/image';
 import { summarizeSettings, type PhotoSettings } from '@/lib/photo/settings';
+import { placeholderColor } from '@/lib/color/analyze';
 
 export interface PolaroidPhoto {
   id: string;
@@ -9,6 +10,10 @@ export interface PolaroidPhoto {
   location: string;
   camera: string;
   settings: PhotoSettings;
+  /** Colour stats from upload — the wall sorts by them, the frame paints with them. */
+  avgHue: number;
+  avgLightness: number;
+  isMonochrome: boolean;
 }
 
 /**
@@ -29,9 +34,15 @@ interface PolaroidProps {
   height?: number;
   /** Image width at that height. Derived from the ratio when not supplied. */
   width?: number;
+  /**
+   * Skip lazy loading. The wall sets this on the frames that start above the
+   * fold, which would otherwise wait for an intersection callback to begin
+   * fetching the one image the visitor is already looking at.
+   */
+  priority?: boolean;
 }
 
-export function Polaroid({ photo, height, width }: PolaroidProps) {
+export function Polaroid({ photo, height, width, priority = false }: PolaroidProps) {
   const ratio = photo.height > 0 ? photo.width / photo.height : 1;
   const caption = [photo.camera, summarizeSettings(photo.settings)].filter(Boolean).join(' · ');
 
@@ -52,14 +63,18 @@ export function Polaroid({ photo, height, width }: PolaroidProps) {
       style={{ width: frameWidth + CARD_PADDING }}
     >
       <div
-        className="relative overflow-hidden bg-black"
-        style={{ height: frameHeight }}
+        className="relative overflow-hidden"
+        // The photo's own average colour, not black: a frame that arrives before
+        // its image should read as the photo dimmed, not as a hole punched in the
+        // card. Costs nothing — the stats are already on the row for the sort.
+        style={{ height: frameHeight, backgroundColor: placeholderColor(photo) }}
       >
         <Image
           src={photo.imageUrl}
           alt={photo.location}
           fill
           sizes={`${frameWidth}px`}
+          priority={priority}
           className="object-cover"
         />
       </div>

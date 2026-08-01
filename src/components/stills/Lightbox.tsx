@@ -307,6 +307,53 @@ export function Lightbox({ photos, index, originFor, onClose, onNavigate }: Ligh
         </figure>
         <NavButton side="right" disabled={photos.length < 2} onClick={() => step(1)} />
       </div>
+      <Prefetch photos={photos} index={index} />
+    </div>
+  );
+}
+
+/**
+ * The two photos an arrow press away, fetched while you are still looking at
+ * this one. Unlike the wall — where "either side" is a whole row and scrolling
+ * is continuous — the lightbox has exactly two candidates and a keypress moves
+ * to one of them instantly, so there is no cheaper moment to pay for them.
+ *
+ * Rendered rather than preloaded by hand so the URLs come from next/image's own
+ * optimizer, matching the `sizes` the real photo will ask for and therefore
+ * landing in the browser cache under the same key. Wraps at both ends, as `step`
+ * does — at the last photo, the next one really is the first.
+ */
+function Prefetch({ photos, index }: { photos: PolaroidPhoto[]; index: number }) {
+  if (photos.length < 2) return null;
+
+  const neighbours = new Set(
+    [1, -1].map((delta) => (index + delta + photos.length) % photos.length),
+  );
+  // A pair of photos wraps onto itself; the current one is never worth refetching.
+  neighbours.delete(index);
+
+  return (
+    // Off-screen but still laid out: display:none would leave the fetch to the
+    // browser's discretion, and a zero-size box would have next/image pick a
+    // thumbnail-width candidate that the real render then discards.
+    <div aria-hidden className="pointer-events-none fixed h-px w-px overflow-hidden opacity-0">
+      {[...neighbours].map((neighbour) => {
+        const photo = photos[neighbour];
+        return (
+          <Image
+            key={photo.id}
+            src={photo.imageUrl}
+            alt=""
+            width={photo.width}
+            height={photo.height}
+            sizes="100vw"
+            // Eager, not priority: this has to start now, but a <link rel=preload>
+            // reinjected on every arrow press would compete with the photo on
+            // screen rather than filling in behind it.
+            loading="eager"
+          />
+        );
+      })}
     </div>
   );
 }

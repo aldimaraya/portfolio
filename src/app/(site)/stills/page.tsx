@@ -42,6 +42,11 @@ export default async function StillsPage() {
     camera: photo.camera,
     // The Json column is untyped at the DB boundary — coerce it here.
     settings: toSettings(photo.settings),
+    // Already selected for the wall order; the frame reuses them for its
+    // load-time placeholder colour.
+    avgHue: photo.avgHue,
+    avgLightness: photo.avgLightness,
+    isMonochrome: photo.isMonochrome,
     tags: photo.tags.map((entry) => entry.tag.name),
   }));
 

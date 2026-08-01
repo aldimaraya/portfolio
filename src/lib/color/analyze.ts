@@ -13,6 +13,30 @@ export interface ColorStats {
 
 export const MONOCHROME_SATURATION_THRESHOLD = 0.12;
 
+/**
+ * Saturation for the placeholder below. The row stores hue and lightness but not
+ * avgSaturation, so a colour photo gets one flat, deliberately muted value: the
+ * placeholder only has to stop reading as a hole in the frame, and guessing high
+ * would make a desaturated photo flash a vivid card before it loads.
+ */
+const PLACEHOLDER_SATURATION = 0.3;
+
+/**
+ * The photo's average colour, for the frame to sit on while the image loads.
+ * Built from the stats already on the row, so it costs no extra bytes over the
+ * wire and needs no blur data URL.
+ */
+export function placeholderColor(stats: {
+  avgHue: number;
+  avgLightness: number;
+  isMonochrome: boolean;
+}): string {
+  const saturation = stats.isMonochrome ? 0 : PLACEHOLDER_SATURATION;
+  const hue = Math.round(stats.avgHue);
+  const lightness = Math.round(stats.avgLightness * 100);
+  return `hsl(${hue} ${Math.round(saturation * 100)}% ${lightness}%)`;
+}
+
 export function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
   const rn = r / 255;
   const gn = g / 255;
