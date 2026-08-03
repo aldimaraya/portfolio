@@ -4,6 +4,7 @@ import Image from 'next/image';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { AdminEditLink } from '@/components/site/AdminEditLink';
 import { summarizeSettings } from '@/lib/photo/settings';
+import { formatTakenAt } from '@/lib/photo/date';
 import type { PolaroidPhoto } from './Polaroid';
 
 interface LightboxProps {
@@ -219,7 +220,13 @@ export function Lightbox({ photos, index, originFor, onClose, onNavigate }: Ligh
 
   if (!photo) return null;
 
-  const caption = [photo.camera, summarizeSettings(photo.settings)].filter(Boolean).join(' · ');
+  const caption = [
+    photo.camera,
+    summarizeSettings(photo.settings),
+    photo.takenAt ? formatTakenAt(photo.takenAt) : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
     <div

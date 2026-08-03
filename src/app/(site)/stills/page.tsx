@@ -31,6 +31,7 @@ export default async function StillsPage() {
       avgLightness: true,
       warmth: true,
       isMonochrome: true,
+      takenAt: true,
       tags: { select: { tag: { select: { name: true } } } },
     },
   });
@@ -51,6 +52,7 @@ export default async function StillsPage() {
     avgLightness: photo.avgLightness,
     warmth: photo.warmth,
     isMonochrome: photo.isMonochrome,
+    takenAt: photo.takenAt,
     tags: photo.tags.map((entry) => entry.tag.name),
   }));
 

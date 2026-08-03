@@ -11,6 +11,7 @@ import { analyzePixels } from '@/lib/color/analyze';
 import { NO_BORDER, hasBorder, type BorderInsets } from '@/lib/photo/border';
 import { decodeImage, detectBorder, prepareUpload } from '@/lib/photo/trim-client';
 import { extractPhotoExif, type PhotoExif } from '@/lib/photo/exif';
+import { exifCapturedAtToInputValue } from '@/lib/photo/date';
 import {
   EMPTY_SETTINGS,
   settingsFromExif,
@@ -44,6 +45,7 @@ function buildForm(initial?: Initial): PhotoInput {
     avgLightness: initial?.avgLightness ?? 0,
     warmth: initial?.warmth ?? 0,
     isMonochrome: initial?.isMonochrome ?? false,
+    takenAt: initial?.takenAt ?? '',
     tags: initial?.tags ?? '',
   };
 }
@@ -234,6 +236,10 @@ export function PhotoForm({
       const camera = prev.camera || metadata.camera || '';
       if (!prev.camera && metadata.camera) filled.push('camera');
 
+      const takenAt =
+        prev.takenAt || (metadata.capturedAt ? exifCapturedAtToInputValue(metadata.capturedAt) : '');
+      if (!prev.takenAt && metadata.capturedAt) filled.push('date taken');
+
       const fromExif = settingsFromExif(metadata);
       const settings = { ...prev.settings };
       for (const key of Object.keys(fromExif) as (keyof PhotoSettings)[]) {
@@ -246,7 +252,7 @@ export function PhotoForm({
 
       // Dimensions and colour are not set here: they describe the cropped,
       // re-encoded file, which the effect above produces.
-      return { ...prev, camera, settings };
+      return { ...prev, camera, settings, takenAt };
     });
   }
 
@@ -411,6 +417,16 @@ export function PhotoForm({
             onChange={(value) => set('location', value)}
             suggestions={locationOptions}
           />
+          <label className="flex flex-col gap-1">
+            <span className={LABEL}>Date taken</span>
+            <input
+              type="date"
+              className={FIELD}
+              aria-label="Date taken"
+              value={form.takenAt}
+              onChange={(event) => set('takenAt', event.target.value)}
+            />
+          </label>
           <input
             className={FIELD}
             placeholder="Camera (e.g. Sony A7 IV)"

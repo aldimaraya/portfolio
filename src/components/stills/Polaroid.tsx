@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import { summarizeSettings, type PhotoSettings } from '@/lib/photo/settings';
 import { placeholderColor } from '@/lib/color/analyze';
+import { formatTakenAt } from '@/lib/photo/date';
 
 export interface PolaroidPhoto {
   id: string;
@@ -16,6 +17,8 @@ export interface PolaroidPhoto {
   avgLightness: number;
   warmth: number;
   isMonochrome: boolean;
+  /** Null for most of the library — see Photo.takenAt in schema.prisma. */
+  takenAt: Date | null;
 }
 
 /**
@@ -46,7 +49,13 @@ interface PolaroidProps {
 
 export function Polaroid({ photo, height, width, priority = false }: PolaroidProps) {
   const ratio = photo.height > 0 ? photo.width / photo.height : 1;
-  const caption = [photo.camera, summarizeSettings(photo.settings)].filter(Boolean).join(' · ');
+  const caption = [
+    photo.camera,
+    summarizeSettings(photo.settings),
+    photo.takenAt ? formatTakenAt(photo.takenAt) : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   // Falls back to the photo's natural size at the target height, which is what
   // server-rendered markup and the first paint use.

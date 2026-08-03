@@ -7,6 +7,7 @@ import { BorderTrimmer } from '@/components/admin/BorderTrimmer';
 import { DeleteButton } from '@/components/admin/DeleteButton';
 import { LABEL } from '@/components/admin/fields';
 import { toSettings } from '@/lib/photo/settings';
+import { takenAtToInputValue } from '@/lib/photo/date';
 import { deletePhoto } from '../actions';
 
 export const dynamic = 'force-dynamic';
@@ -44,6 +45,7 @@ export default async function EditPhotoPage({ params }: { params: Promise<{ id: 
           avgLightness: photo.avgLightness,
           warmth: photo.warmth,
           isMonochrome: photo.isMonochrome,
+          takenAt: photo.takenAt ? takenAtToInputValue(photo.takenAt) : '',
           tags: photo.tags.map((entry) => entry.tag.name).join(', '),
         }}
       />

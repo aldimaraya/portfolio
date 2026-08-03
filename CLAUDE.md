@@ -59,6 +59,11 @@ Load-bearing constraints — these are why the code is shaped this way:
   election and orders the wall by noise. Warmth stays meaningful when nothing dominates. `isMonochrome` is
   deliberately measured differently, from per-pixel RMS chroma before any cancellation, so a red car
   against a cyan sky is not filed as black-and-white. Videos, by contrast, do have a manual `sortOrder`.
+- **A photo's EXIF never reaches the stored copy, on purpose.** `prepareUpload` (`lib/photo/trim-client.ts`)
+  always re-encodes a file that carries EXIF through a canvas before it reaches R2, so a photo's GPS
+  coordinates are never published — see `keepsOriginal`. That means `Photo.takenAt` (`lib/photo/date.ts`),
+  prefilled from `DateTimeOriginal` at upload, cannot be recovered later from anything already stored: once a
+  photo is uploaded without it, the date is gone for good and has to be typed in by hand.
 - **Filters are OR within a type, AND across types**, and live in the URL query string
   (`lib/filters/parse.ts` ↔ `where.ts`) so filtered views are shareable.
 - **`prefers-reduced-motion: reduce` disables sprite animation entirely**, not just softens it.
