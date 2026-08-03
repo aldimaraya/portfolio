@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
 import { db } from '@/lib/db';
-import { sortPhotosForWall } from '@/lib/color/sort';
+import { DEFAULT_SORT, sortPhotosForWall } from '@/lib/color/sort';
 import { StillsGallery } from '@/components/stills/StillsGallery';
 import { toSettings } from '@/lib/photo/settings';
 
@@ -36,7 +36,9 @@ export default async function StillsPage() {
     },
   });
 
-  const wall = sortPhotosForWall(photos).map((photo) => ({
+  // The static HTML is built in the default order; StillsGallery re-sorts from
+  // the URL on hydration if the visitor asked for something else.
+  const wall = sortPhotosForWall(photos, DEFAULT_SORT).map((photo) => ({
     id: photo.id,
     imageUrl: photo.imageUrl,
     width: photo.width,
