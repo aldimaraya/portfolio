@@ -169,6 +169,28 @@ body {
   opacity: 0;
 }
 
+/* The phone's filter sheet. It rises from the edge it is anchored to, so the
+   gesture that opens it and the motion that follows agree. Both are behind
+   motion-safe: at the call site, so reduced motion gets the sheet already in
+   place rather than a shortened slide. */
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 /* Lightbox. The photo scales up very slightly as it fades, which reads as the
    image coming forward rather than being switched on. */
 @keyframes lightbox-in {

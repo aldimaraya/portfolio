@@ -19,6 +19,19 @@ export const SORT_LABELS: Record<WallSort, string> = {
   random: 'Shuffle',
 };
 
+/**
+ * What the control says when it has no room to say the whole thing. A phone's
+ * toolbar cannot spend half its width on "Sort Newest first" — the value alone
+ * is unambiguous next to a chevron.
+ */
+export const SORT_SHORT_LABELS: Record<WallSort, string> = {
+  newest: 'Newest',
+  oldest: 'Oldest',
+  warm: 'Warmer',
+  cool: 'Cooler',
+  random: 'Shuffled',
+};
+
 export const SORT_ORDER: WallSort[] = ['newest', 'oldest', 'warm', 'cool', 'random'];
 
 export function parseSort(value: string | null | undefined): WallSort {
