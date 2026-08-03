@@ -30,6 +30,14 @@ const SLIDE_DISTANCE = 56;
 /** How far a finger must travel before the release counts as a swipe. */
 const SWIPE_THRESHOLD = 60;
 /**
+ * Dismissal asks for a longer pull than a sideways swipe. Leaving costs more
+ * than turning the page, so it should be harder to do by accident — and a
+ * downward drag is also what a thumb does when it slips.
+ */
+const DISMISS_THRESHOLD = 110;
+/** How long the gesture hint stays up before it stops being useful and starts being clutter. */
+const HINT_MS = 3600;
+/**
  * The mat follows the finger at less than full speed. A drag that tracks 1:1
  * feels like the photo has come loose; damped, it reads as resistance that
  * something is holding.
@@ -51,14 +59,34 @@ export function Lightbox({ photos, index, originFor, onClose, onNavigate }: Ligh
   const requestClose = useCallback(() => setClosing(true), []);
 
   const figureRef = useRef<HTMLElement>(null);
+  const imageRef = useRef<HTMLImageElement>(null);
+  /**
+   * The photo's own rendered width, and the caption's cap. The mat has no width
+   * of its own — it sizes to its widest child — so without this, a caption
+   * whose text runs longer than a narrow portrait photo stretches the whole mat
+   * out to fit it on one line instead of wrapping. Measured rather than guessed:
+   * the photo's rendered width depends on both its aspect ratio and the
+   * viewport, so no fixed number is right for every photo.
+   */
+  const [captionWidth, setCaptionWidth] = useState<number>();
   /** Whether the expand ran, which is also whether the shrink should. */
   const expanded = useRef(false);
   /** The index the last render showed, for the direction of the slide. */
   const shown = useRef(index);
   /** Live touch: where the finger landed, and how far it has travelled. */
-  const drag = useRef<{ x: number; y: number; dx: number; axis: 'none' | 'x' | 'y' } | null>(
-    null,
-  );
+  const drag = useRef<{
+    x: number;
+    y: number;
+    dx: number;
+    dy: number;
+    axis: 'none' | 'x' | 'y';
+  } | null>(null);
+  /**
+   * The gesture hint. Shown on touch only, where the arrows are not, and only
+   * until it has been read or acted on — a caption that never leaves is a
+   * caption on the photograph.
+   */
+  const [hint, setHint] = useState(true);
 
   // Wrapping keeps the arrows live at both ends, so holding a key never leaves
   // you stuck on the last frame wondering whether the control broke.
@@ -87,6 +115,28 @@ export function Lightbox({ photos, index, originFor, onClose, onNavigate }: Ligh
       document.body.style.overflow = previousOverflow;
     };
   }, [requestClose, step]);
+
+  useEffect(() => {
+    if (!hint) return;
+    const timer = setTimeout(() => setHint(false), HINT_MS);
+    return () => clearTimeout(timer);
+  }, [hint]);
+
+  /**
+   * Tracks the photo's own rendered width for the caption cap above. A
+   * ResizeObserver rather than a one-off measurement: the same width has to
+   * keep up with a window resize, not just a photo change. Re-created per
+   * photo because the image swaps to a new element (`key={photo.id}` below),
+   * which orphans whatever the observer was watching.
+   */
+  useLayoutEffect(() => {
+    const node = imageRef.current;
+    if (!node) return;
+
+    const observer = new ResizeObserver(([entry]) => setCaptionWidth(entry.contentRect.width));
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [photo.id]);
 
   /**
    * The expand. FLIP, the same technique the wall uses for its re-flow: the mat
@@ -168,7 +218,10 @@ export function Lightbox({ photos, index, originFor, onClose, onNavigate }: Ligh
   /** Follows the finger, then either completes the swipe or springs back. */
   const onTouchStart = (event: React.TouchEvent) => {
     const touch = event.touches[0];
-    drag.current = { x: touch.clientX, y: touch.clientY, dx: 0, axis: 'none' };
+    drag.current = { x: touch.clientX, y: touch.clientY, dx: 0, dy: 0, axis: 'none' };
+    // Whoever is dragging has worked out the gesture; the instructions are just
+    // in the way now.
+    setHint(false);
   };
 
   const onTouchMove = (event: React.TouchEvent) => {
@@ -180,30 +233,49 @@ export function Lightbox({ photos, index, originFor, onClose, onNavigate }: Ligh
     const dx = touch.clientX - state.x;
     const dy = touch.clientY - state.y;
 
-    // The first few pixels decide what the gesture is. A mostly-vertical drag is
-    // someone reaching for the caption or bracing the phone, and dragging the
-    // photo sideways under them would feel like a misfire.
+    // The first few pixels decide what the gesture is, and it stays that way for
+    // the rest of the drag: a swipe that changed its mind halfway would either
+    // turn the page or close the lightbox depending on where the finger happened
+    // to stop.
     if (state.axis === 'none') {
       if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
       state.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
     }
-    if (state.axis !== 'x') return;
 
-    state.dx = dx;
-    figure.style.transform = `translateX(${dx * DRAG_DAMPING}px)`;
-    figure.style.opacity = `${Math.max(0.4, 1 - Math.abs(dx) / 600)}`;
+    if (state.axis === 'x') {
+      state.dx = dx;
+      figure.style.transform = `translateX(${dx * DRAG_DAMPING}px)`;
+      figure.style.opacity = `${Math.max(0.4, 1 - Math.abs(dx) / 600)}`;
+      return;
+    }
+
+    // Downward only. Dragging up has nowhere to go — there is nothing above the
+    // photo to reveal — so an upward pull just holds still rather than lifting
+    // the print off the top of the screen.
+    state.dy = Math.max(0, dy);
+    figure.style.transform = `translateY(${state.dy * DRAG_DAMPING}px)`;
+    figure.style.opacity = `${Math.max(0.3, 1 - state.dy / 500)}`;
   };
 
   const onTouchEnd = () => {
     const state = drag.current;
     const figure = figureRef.current;
     drag.current = null;
-    if (!state || !figure || state.axis !== 'x') return;
+    if (!state || !figure || state.axis === 'none') return;
 
+    const travelled = state.axis === 'x' ? state.dx : state.dy;
+
+    // Cleared before either ending: the closing shrink animates from `transform:
+    // none`, and an inline transform left over from the drag would fight it.
     figure.style.transform = '';
     figure.style.opacity = '';
 
-    if (Math.abs(state.dx) >= SWIPE_THRESHOLD && photos.length > 1) {
+    if (state.axis === 'y') {
+      if (state.dy >= DISMISS_THRESHOLD) {
+        requestClose();
+        return;
+      }
+    } else if (Math.abs(state.dx) >= SWIPE_THRESHOLD && photos.length > 1) {
       // Swiping left pulls the next photo in from the right, matching the way a
       // stack of prints moves under your thumb.
       step(state.dx < 0 ? 1 : -1);
@@ -212,15 +284,25 @@ export function Lightbox({ photos, index, originFor, onClose, onNavigate }: Ligh
 
     // Short of the threshold: back to where it was, from wherever the finger let
     // go, so the gesture resolves rather than snapping.
+    const axis = state.axis === 'x' ? 'X' : 'Y';
     figure.animate(
-      [{ transform: `translateX(${state.dx * DRAG_DAMPING}px)` }, { transform: 'none' }],
+      [
+        { transform: `translate${axis}(${travelled * DRAG_DAMPING}px)` },
+        { transform: 'none' },
+      ],
       { duration: 200, easing: EASE },
     );
   };
 
   if (!photo) return null;
 
-  const caption = [photo.camera, summarizeSettings(photo.settings)].filter(Boolean).join(' · ');
+  const caption = [
+    photo.camera,
+    summarizeSettings(photo.settings),
+    photo.takenAt ? formatTakenAt(photo.takenAt) : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
     <div
@@ -272,7 +354,10 @@ export function Lightbox({ photos, index, originFor, onClose, onNavigate }: Ligh
             portrait frame instead of spanning the viewport. */}
         <figure
           ref={figureRef}
-          className="flex cursor-default flex-col rounded-sm bg-mat p-3 pb-2.5 shadow-[0_18px_50px_rgba(0,0,0,0.6)]"
+          // touch-none because the mat now owns both axes: without it Safari
+          // claims the vertical drag for its own overscroll bounce and the
+          // dismiss never fires.
+          className="flex touch-none cursor-default flex-col rounded-sm bg-mat p-3 pb-2.5 shadow-[0_18px_50px_rgba(0,0,0,0.6)]"
           // Clicks on the photo itself shouldn't dismiss — only the backdrop.
           onClick={(event) => event.stopPropagation()}
           onTouchStart={onTouchStart}
@@ -282,6 +367,7 @@ export function Lightbox({ photos, index, originFor, onClose, onNavigate }: Ligh
         >
           <Image
             key={photo.id}
+            ref={imageRef}
             src={photo.imageUrl}
             alt={photo.location}
             // Intrinsic dimensions rather than `fill`: the mat has to take its
@@ -295,16 +381,16 @@ export function Lightbox({ photos, index, originFor, onClose, onNavigate }: Ligh
             draggable={false}
             className="lightbox-photo"
           />
-          <figcaption className="mt-3 mb-1 px-1 text-center">
-            <div className="flex items-baseline justify-center gap-2">
-              <span className="text-sm font-bold tracking-[0.04em] text-matink uppercase">
-                {photo.location}
-              </span>
-              {photo.takenAt ? (
-                <span className="font-mono text-xs tracking-[0.05em] text-matmeta">
-                  {formatTakenAt(photo.takenAt)}
-                </span>
-              ) : null}
+          {/* Capped to the photo's own rendered width (captionWidth, tracked above),
+              not the other way around — the mat sizes itself to its widest child, and
+              without this a long caption on a narrow portrait photo would stretch the
+              whole mat out to fit it on one line instead of wrapping under the photo. */}
+          <figcaption
+            className="mt-3 mb-1 px-1 text-center"
+            style={{ maxWidth: captionWidth }}
+          >
+            <div className="text-sm font-bold tracking-[0.04em] text-matink uppercase">
+              {photo.location}
             </div>
             {caption ? (
               <div className="mt-1 font-mono text-[0.7rem] tracking-[0.05em] text-matmeta uppercase">
@@ -314,6 +400,19 @@ export function Lightbox({ photos, index, originFor, onClose, onNavigate }: Ligh
           </figcaption>
         </figure>
         <NavButton side="right" disabled={photos.length < 2} onClick={() => step(1)} />
+
+        {/* The phone's replacement for the arrows: say what the gestures are,
+            once, then get out of the way. Positioned over the backdrop below the
+            mat rather than inside it — this is a note about the interface, not
+            part of the print. */}
+        <p
+          aria-hidden
+          className={`pointer-events-none absolute inset-x-0 bottom-1 text-center font-mono text-[0.65rem] tracking-[0.08em] text-ash/70 uppercase transition-opacity duration-500 sm:hidden ${
+            hint ? 'opacity-100' : 'opacity-0'
+          }`}
+        >
+          {photos.length > 1 ? 'Swipe to browse · ' : ''}Swipe down to close
+        </p>
       </div>
       <Prefetch photos={photos} index={index} />
     </div>
@@ -397,7 +496,10 @@ function NavButton({
         event.stopPropagation();
         onClick();
       }}
-      className={`absolute ${side === 'left' ? 'left-2' : 'right-2'} z-10 flex h-12 w-12 items-center justify-center rounded-full bg-frame/70 text-2xl text-ash transition hover:bg-frame hover:text-gold`}
+      // Hidden on a phone, where they had nowhere to sit but on top of the
+      // photograph and the swipe already does the job better. A pointer has no
+      // swipe, so from sm up they stay.
+      className={`absolute ${side === 'left' ? 'left-2' : 'right-2'} z-10 hidden h-12 w-12 items-center justify-center rounded-full bg-frame/70 text-2xl text-ash transition hover:bg-frame hover:text-gold sm:flex`}
     >
       {side === 'left' ? '‹' : '›'}
     </button>

@@ -49,7 +49,13 @@ interface PolaroidProps {
 
 export function Polaroid({ photo, height, width, priority = false }: PolaroidProps) {
   const ratio = photo.height > 0 ? photo.width / photo.height : 1;
-  const caption = [photo.camera, summarizeSettings(photo.settings)].filter(Boolean).join(' · ');
+  const caption = [
+    photo.camera,
+    summarizeSettings(photo.settings),
+    photo.takenAt ? formatTakenAt(photo.takenAt) : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   // Falls back to the photo's natural size at the target height, which is what
   // server-rendered markup and the first paint use.
@@ -84,14 +90,7 @@ export function Polaroid({ photo, height, width, priority = false }: PolaroidPro
         />
       </div>
       <div className="mt-2.5 px-0.5">
-        <div className="flex items-baseline gap-2">
-          <span className="text-xs font-bold tracking-[0.04em] uppercase">{photo.location}</span>
-          {photo.takenAt ? (
-            <span className="shrink-0 font-mono text-[0.6rem] tracking-[0.05em] text-ash">
-              {formatTakenAt(photo.takenAt)}
-            </span>
-          ) : null}
-        </div>
+        <div className="text-xs font-bold tracking-[0.04em] uppercase">{photo.location}</div>
         {caption ? (
           <div className="mt-0.5 truncate font-mono text-[0.65rem] leading-tight tracking-[0.05em] text-gold uppercase">
             {caption}
