@@ -1,5 +1,7 @@
 import Link from 'next/link';
 import { db } from '@/lib/db';
+import { listTagNames } from '@/lib/tags';
+import { listPhotoLocations } from '@/lib/photo/facets';
 import { PhotoForm } from '@/components/admin/PhotoForm';
 import { LABEL } from '@/components/admin/fields';
 import { summarizeSettings, toSettings } from '@/lib/photo/settings';
@@ -7,16 +9,20 @@ import { summarizeSettings, toSettings } from '@/lib/photo/settings';
 export const dynamic = 'force-dynamic';
 
 export default async function AdminPhotosPage() {
-  const photos = await db.photo.findMany({
-    orderBy: { createdAt: 'desc' },
-    include: { tags: { include: { tag: true } } },
-  });
+  const [photos, tagOptions, locationOptions] = await Promise.all([
+    db.photo.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: { tags: { include: { tag: true } } },
+    }),
+    listTagNames(),
+    listPhotoLocations(),
+  ]);
 
   return (
     <div className="flex flex-col gap-10">
       <section>
         <h2 className={`mb-4 ${LABEL}`}>Add a photo</h2>
-        <PhotoForm />
+        <PhotoForm tagOptions={tagOptions} locationOptions={locationOptions} />
       </section>
 
       <section>

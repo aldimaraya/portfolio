@@ -57,14 +57,19 @@ export function Header() {
   }, [underline, slides]);
 
   return (
-    <header className="mb-8 flex flex-wrap items-end justify-between gap-4 border-b border-hairline pb-5">
+    // Tighter on a phone: the masthead and tabs were spending 129px of a 659px
+    // screen before the filters even began, so the first photograph started
+    // two-thirds of the way down the first view of a photography site.
+    <header className="mb-5 flex flex-wrap items-end justify-between gap-3 border-b border-hairline pb-4 sm:mb-8 sm:gap-4 sm:pb-5">
       {/* The wordmark doubles as the way home, which is what people try first. */}
       <Link href="/stills" className="block">
-        <h1 className="text-2xl font-semibold tracking-tight uppercase">{SITE_NAME}</h1>
-        <p className="mt-1 text-sm text-ash uppercase">{SITE_TAGLINE}</p>
+        <h1 className="text-xl font-semibold tracking-tight uppercase sm:text-2xl">
+          {SITE_NAME}
+        </h1>
+        <p className="mt-0.5 text-xs text-ash uppercase sm:mt-1 sm:text-sm">{SITE_TAGLINE}</p>
       </Link>
 
-      <nav ref={navRef} className="relative flex gap-6">
+      <nav ref={navRef} className="relative flex gap-5 sm:gap-6">
         {NAV_TABS.map((tab) => (
           <Link
             key={tab.href}
@@ -74,7 +79,7 @@ export function Header() {
               else tabRefs.current.delete(tab.href);
             }}
             aria-current={tab.href === activeHref ? 'page' : undefined}
-            className={`py-2 text-sm font-medium tracking-wider uppercase transition-colors ${
+            className={`py-1.5 text-sm font-medium tracking-wider uppercase transition-colors sm:py-2 ${
               tab.href === activeHref ? 'text-gold' : 'text-ash hover:text-gold'
             }`}
           >
@@ -90,7 +95,7 @@ export function Header() {
           <span
             aria-hidden
             data-testid="tab-underline"
-            className={`absolute -bottom-5 left-0 h-0.5 bg-gold ${
+            className={`absolute -bottom-4 left-0 h-0.5 bg-gold sm:-bottom-5 ${
               slides
                 ? 'motion-safe:transition-[transform,width] motion-safe:duration-300 motion-safe:ease-out'
                 : ''

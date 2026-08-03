@@ -169,6 +169,28 @@ body {
   opacity: 0;
 }
 
+/* The phone's filter sheet. It rises from the edge it is anchored to, so the
+   gesture that opens it and the motion that follows agree. Both are behind
+   motion-safe: at the call site, so reduced motion gets the sheet already in
+   place rather than a shortened slide. */
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 /* Lightbox. The photo scales up very slightly as it fades, which reads as the
    image coming forward rather than being switched on. */
 @keyframes lightbox-in {
@@ -212,6 +234,14 @@ body {
   width: auto;
   height: auto;
   object-fit: contain;
+  /* The mat (figure) is a flex column with no width of its own, so by default
+     this stretches to fill whatever cross size the mat resolves to — which,
+     for a shrink-to-fit container, is circular: the photo's own rendered width
+     would depend on the mat's width at the same time the mat is trying to size
+     itself from the photo. Pinning this to its own aspect-ratio-derived size
+     breaks that loop, which is what the caption's width measurement below
+     depends on being stable. */
+  align-self: center;
 }
 
 /* On a phone the side budget goes to the picture: the nav arrows already float

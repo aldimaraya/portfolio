@@ -1,4 +1,5 @@
 import { db } from '@/lib/db';
+import { listTagNames } from '@/lib/tags';
 import { VideoForm } from '@/components/admin/VideoForm';
 import { VideoList } from '@/components/admin/VideoList';
 import { LABEL } from '@/components/admin/fields';
@@ -6,16 +7,19 @@ import { LABEL } from '@/components/admin/fields';
 export const dynamic = 'force-dynamic';
 
 export default async function AdminVideosPage() {
-  const videos = await db.video.findMany({
-    orderBy: { sortOrder: 'asc' },
-    include: { tags: { include: { tag: true } } },
-  });
+  const [videos, tagOptions] = await Promise.all([
+    db.video.findMany({
+      orderBy: { sortOrder: 'asc' },
+      include: { tags: { include: { tag: true } } },
+    }),
+    listTagNames(),
+  ]);
 
   return (
     <div className="flex flex-col gap-10">
       <section>
         <h2 className={`mb-4 ${LABEL}`}>Add a video</h2>
-        <VideoForm />
+        <VideoForm tagOptions={tagOptions} />
       </section>
 
       <section>

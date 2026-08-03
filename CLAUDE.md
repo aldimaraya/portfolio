@@ -18,6 +18,7 @@ npm run db:studio
 npm run check:r2         # scripts/check-r2.mjs — verify R2 credentials/bucket
 npm run backfill:photos  # re-compress + backfill stored photos
 npm run backfill:settings
+npm run recolor:photos   # scripts/recolor-photos.mjs — re-derive OKLab colour stats
 ```
 
 Single test: `npx vitest run tests/unit/photo/border.test.ts`, or `-t "name"` to filter by test name.
@@ -50,9 +51,19 @@ Load-bearing constraints — these are why the code is shaped this way:
   is served straight from R2/CDN; only photos take the `next/image` hop. The one exception is
   `app/api/admin/photo-source` — an admin-only, same-origin read so the border trimmer can get untainted
   canvas pixels; it is session-gated and restricted to keys inside our own bucket.
-- **Wall order is fully derived from colour.** Photos have no manual sort column: `lib/color/sort.ts`
-  produces a monochrome band dark→light followed by a hue sweep, and `lib/photo/justify.ts` packs that
-  order into justified rows. Videos, by contrast, do have a manual `sortOrder`.
+- **Wall order is fully derived from colour, in OKLab.** Photos have no manual sort column:
+  `lib/color/sort.ts` produces a monochrome band dark→light followed by a cool→warm sweep, and
+  `lib/photo/justify.ts` packs that order into justified rows. It sorts on `warmth` — the average colour
+  projected onto one cool↔warm axis — **not** on hue: measured across this library, half to two-thirds of
+  a typical frame's colour cancels out (sky against land), so a dominant hue is the winner of a very close
+  election and orders the wall by noise. Warmth stays meaningful when nothing dominates. `isMonochrome` is
+  deliberately measured differently, from per-pixel RMS chroma before any cancellation, so a red car
+  against a cyan sky is not filed as black-and-white. Videos, by contrast, do have a manual `sortOrder`.
+- **A photo's EXIF never reaches the stored copy, on purpose.** `prepareUpload` (`lib/photo/trim-client.ts`)
+  always re-encodes a file that carries EXIF through a canvas before it reaches R2, so a photo's GPS
+  coordinates are never published — see `keepsOriginal`. That means `Photo.takenAt` (`lib/photo/date.ts`),
+  prefilled from `DateTimeOriginal` at upload, cannot be recovered later from anything already stored: once a
+  photo is uploaded without it, the date is gone for good and has to be typed in by hand.
 - **Filters are OR within a type, AND across types**, and live in the URL query string
   (`lib/filters/parse.ts` ↔ `where.ts`) so filtered views are shareable.
 - **`prefers-reduced-motion: reduce` disables sprite animation entirely**, not just softens it.

@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { db } from '@/lib/db';
 import { isAuthenticated } from '@/lib/auth/guard';
-import { tagConnections } from '@/lib/tags';
+import { pruneUnusedTags, tagConnections } from '@/lib/tags';
 import { deleteObjectsByUrl } from '@/lib/storage/r2';
 
 const videoSchema = z.object({
@@ -62,6 +62,9 @@ export async function saveVideo(input: VideoInput): Promise<{ error?: string }> 
     });
   }
 
+  // An edit that drops the last clip carrying a tag leaves it behind.
+  await pruneUnusedTags();
+
   revalidatePath('/admin/videos');
   revalidatePath('/motion');
   return {};
@@ -108,6 +111,7 @@ export async function deleteVideo(id: string): Promise<{ error?: string }> {
   }
 
   await db.video.delete({ where: { id } });
+  await pruneUnusedTags();
 
   revalidatePath('/admin/videos');
   revalidatePath('/motion');

@@ -104,7 +104,9 @@ export function BorderTrimmer({ id, imageUrl }: Props) {
         width: trimmed.width,
         height: trimmed.height,
         avgHue: colour.avgHue,
+        avgChroma: colour.avgChroma,
         avgLightness: colour.avgLightness,
+        warmth: colour.warmth,
         isMonochrome: colour.isMonochrome,
       });
       if (result.error) throw new Error(result.error);

@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import { db } from '@/lib/db';
+import { listTagNames } from '@/lib/tags';
 import { VideoForm } from '@/components/admin/VideoForm';
 import { DeleteButton } from '@/components/admin/DeleteButton';
 import { LABEL } from '@/components/admin/fields';
@@ -9,16 +10,20 @@ export const dynamic = 'force-dynamic';
 
 export default async function EditVideoPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const video = await db.video.findUnique({
-    where: { id },
-    include: { tags: { include: { tag: true } } },
-  });
+  const [video, tagOptions] = await Promise.all([
+    db.video.findUnique({
+      where: { id },
+      include: { tags: { include: { tag: true } } },
+    }),
+    listTagNames(),
+  ]);
   if (!video) notFound();
 
   return (
     <div className="flex flex-col gap-6">
       <h2 className={LABEL}>Edit video</h2>
       <VideoForm
+        tagOptions={tagOptions}
         initial={{
           id: video.id,
           videoUrl: video.videoUrl,

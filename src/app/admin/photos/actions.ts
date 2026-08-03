@@ -4,8 +4,9 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { db } from '@/lib/db';
 import { isAuthenticated } from '@/lib/auth/guard';
-import { tagConnections } from '@/lib/tags';
+import { pruneUnusedTags, tagConnections } from '@/lib/tags';
 import { photoSettingsSchema } from '@/lib/photo/settings';
+import { inputValueToTakenAt } from '@/lib/photo/date';
 import { deleteObjectsByUrl } from '@/lib/storage/r2';
 
 const photoSchema = z.object({
@@ -21,8 +22,15 @@ const photoSchema = z.object({
   // carry no EXIF at all, and none of it is worth blocking a save over.
   settings: photoSettingsSchema,
   avgHue: z.number(),
+  avgChroma: z.number(),
   avgLightness: z.number(),
+  warmth: z.number(),
   isMonochrome: z.boolean(),
+  // A date input's `"yyyy-mm-dd"` value, or '' for unknown — never required, since
+  // most of the library has no recoverable capture date. Converted to the stored
+  // Date below rather than by a zod transform, so this type stays the same string
+  // the form itself binds to its <input type="date">.
+  takenAt: z.string(),
   tags: z.string(),
 });
 
@@ -38,19 +46,23 @@ export async function savePhoto(input: PhotoInput): Promise<{ error?: string }> 
     return { error: parsed.error.issues[0].message };
   }
 
-  const { id, tags, ...data } = parsed.data;
+  const { id, tags, takenAt, ...data } = parsed.data;
   const connections = await tagConnections(tags);
+  const write = { ...data, takenAt: inputValueToTakenAt(takenAt) };
 
   if (id) {
     // Replace the tag set wholesale rather than diffing it.
     await db.photoTag.deleteMany({ where: { photoId: id } });
     await db.photo.update({
       where: { id },
-      data: { ...data, tags: { create: connections } },
+      data: { ...write, tags: { create: connections } },
     });
   } else {
-    await db.photo.create({ data: { ...data, tags: { create: connections } } });
+    await db.photo.create({ data: { ...write, tags: { create: connections } } });
   }
+
+  // An edit that drops the last photo carrying a tag leaves it behind.
+  await pruneUnusedTags();
 
   revalidatePath('/admin/photos');
   revalidatePath('/stills');
@@ -63,7 +75,9 @@ const retouchSchema = z.object({
   width: z.number().int().positive(),
   height: z.number().int().positive(),
   avgHue: z.number(),
+  avgChroma: z.number(),
   avgLightness: z.number(),
+  warmth: z.number(),
   isMonochrome: z.boolean(),
 });
 
@@ -124,6 +138,7 @@ export async function deletePhoto(id: string): Promise<{ error?: string }> {
   }
 
   await db.photo.delete({ where: { id } });
+  await pruneUnusedTags();
 
   revalidatePath('/admin/photos');
   revalidatePath('/stills');

@@ -30,8 +30,22 @@ const STAGGER_STEP_MS = 45;
  */
 const STAGGER_MAX_MS = 450;
 
-/** How far up from the bottom edge a frame must come before it reveals. */
-const REVEAL_MARGIN = '0px 0px -8% 0px';
+/**
+ * How close a frame must come before it reveals. Deliberately *ahead* of the
+ * viewport rather than inside it: a frame is not mounted until it reveals, and
+ * next/image cannot start fetching a frame that has not mounted. Revealing at
+ * the bottom edge meant every image began downloading at the moment it became
+ * visible, so the empty frame was always on screen first. This buys roughly a
+ * screenful of head start.
+ */
+const REVEAL_MARGIN = '0px 0px 300px 0px';
+
+/**
+ * Frames loaded eagerly instead of lazily. Covers the first row or two at most
+ * viewport widths — the images already on screen at first paint, which should
+ * never be waiting on an intersection callback.
+ */
+const EAGER_FRAMES = 8;
 
 /** Time a surviving frame takes to slide to its new place after a filter change. */
 const REFLOW_MS = 320;
@@ -215,6 +229,7 @@ export function PolaroidWall({ photos }: { photos: PolaroidPhoto[] }) {
               photo={photo}
               height={placement.get(photo.id)?.height}
               width={placement.get(photo.id)?.width}
+              priority={index < EAGER_FRAMES}
             />
           </button>
         ))}
