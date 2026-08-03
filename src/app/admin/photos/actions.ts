@@ -21,7 +21,9 @@ const photoSchema = z.object({
   // carry no EXIF at all, and none of it is worth blocking a save over.
   settings: photoSettingsSchema,
   avgHue: z.number(),
+  avgChroma: z.number(),
   avgLightness: z.number(),
+  warmth: z.number(),
   isMonochrome: z.boolean(),
   tags: z.string(),
 });
@@ -66,7 +68,9 @@ const retouchSchema = z.object({
   width: z.number().int().positive(),
   height: z.number().int().positive(),
   avgHue: z.number(),
+  avgChroma: z.number(),
   avgLightness: z.number(),
+  warmth: z.number(),
   isMonochrome: z.boolean(),
 });
 

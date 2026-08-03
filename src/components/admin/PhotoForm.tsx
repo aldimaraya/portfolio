@@ -40,7 +40,9 @@ function buildForm(initial?: Initial): PhotoInput {
     camera: initial?.camera ?? '',
     settings: initial?.settings ?? EMPTY_SETTINGS,
     avgHue: initial?.avgHue ?? 0,
+    avgChroma: initial?.avgChroma ?? 0,
     avgLightness: initial?.avgLightness ?? 0,
+    warmth: initial?.warmth ?? 0,
     isMonochrome: initial?.isMonochrome ?? false,
     tags: initial?.tags ?? '',
   };
@@ -156,7 +158,9 @@ export function PhotoForm({
           width: prepared.width,
           height: prepared.height,
           avgHue: colour.avgHue,
+          avgChroma: colour.avgChroma,
           avgLightness: colour.avgLightness,
+          warmth: colour.warmth,
           isMonochrome: colour.isMonochrome,
         }));
       })
@@ -356,7 +360,11 @@ export function PhotoForm({
           {form.width ? (
             <p className="font-mono text-xs text-ash">
               {form.width}×{form.height} · hue {Math.round(form.avgHue)}° ·{' '}
-              {form.isMonochrome ? 'black & white' : 'colour'}
+              {form.isMonochrome
+                ? 'black & white'
+                : // Where this lands in the cool→warm sweep, which is the only
+                  // thing about the colour stats worth eyeballing at upload time.
+                  `${form.warmth >= 0 ? 'warm' : 'cool'} ${Math.abs(form.warmth).toFixed(3)}`}
             </p>
           ) : null}
 

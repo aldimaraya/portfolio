@@ -27,7 +27,9 @@ export default async function StillsPage() {
       camera: true,
       settings: true,
       avgHue: true,
+      avgChroma: true,
       avgLightness: true,
+      warmth: true,
       isMonochrome: true,
       tags: { select: { tag: { select: { name: true } } } },
     },
@@ -45,7 +47,9 @@ export default async function StillsPage() {
     // Already selected for the wall order; the frame reuses them for its
     // load-time placeholder colour.
     avgHue: photo.avgHue,
+    avgChroma: photo.avgChroma,
     avgLightness: photo.avgLightness,
+    warmth: photo.warmth,
     isMonochrome: photo.isMonochrome,
     tags: photo.tags.map((entry) => entry.tag.name),
   }));

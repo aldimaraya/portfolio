@@ -29,16 +29,30 @@ model Photo {
 
   // Computed once at upload from a downsampled copy of the image, never
   // recomputed per page load. See src/lib/color/analyze.ts.
+  // warmth is the sort key for the colour band: net cool→warm, which stays
+  // meaningful on frames where no single hue dominates. avgHue and avgChroma
+  // describe the average colour and exist only to paint the load-time
+  // placeholder. Defaults cover rows written before OKLab analysis —
+  // scripts/recolor-photos.mjs backfills them, and until it runs those rows sort
+  // as perfectly neutral.
   avgHue       Float
+  avgChroma    Float   @default(0)
   avgLightness Float
+  warmth       Float   @default(0)
   isMonochrome Boolean
+
+  // Dead column. Held a hue-confidence score from a short-lived attempt to sort
+  // the wall by dominant hue; warmth replaced it. Declared only so `db push`
+  // stays additive — dropping it needs --accept-data-loss against the live
+  // database, which is not worth it for one derived float. Safe to drop by hand.
+  hueStrength Float @default(0)
 
   createdAt DateTime   @default(now())
   tags      PhotoTag[]
 
   // Photos carry no manual sort order — wall order is derived entirely from
   // colour, and this index serves that query.
-  @@index([isMonochrome, avgHue])
+  @@index([isMonochrome, warmth])
 }
 
 model Video {

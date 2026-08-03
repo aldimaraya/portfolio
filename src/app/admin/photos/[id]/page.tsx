@@ -40,7 +40,9 @@ export default async function EditPhotoPage({ params }: { params: Promise<{ id: 
           // reaches the form.
           settings: toSettings(photo.settings),
           avgHue: photo.avgHue,
+          avgChroma: photo.avgChroma,
           avgLightness: photo.avgLightness,
+          warmth: photo.warmth,
           isMonochrome: photo.isMonochrome,
           tags: photo.tags.map((entry) => entry.tag.name).join(', '),
         }}

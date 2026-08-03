@@ -12,7 +12,9 @@ export interface PolaroidPhoto {
   settings: PhotoSettings;
   /** Colour stats from upload — the wall sorts by them, the frame paints with them. */
   avgHue: number;
+  avgChroma: number;
   avgLightness: number;
+  warmth: number;
   isMonochrome: boolean;
 }
 
