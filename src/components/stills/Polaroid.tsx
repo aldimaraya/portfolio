@@ -45,9 +45,16 @@ interface PolaroidProps {
    * fetching the one image the visitor is already looking at.
    */
   priority?: boolean;
+  /**
+   * Called once this frame's image has landed — or failed. The wall counts these
+   * to decide when its cascade may start; see useAssetsReady. Wired to the error
+   * case as well on purpose: a frame that will never load has still finished
+   * being waited for, and the wall must not sit behind a loader for a 404.
+   */
+  onSettled?: () => void;
 }
 
-export function Polaroid({ photo, height, width, priority = false }: PolaroidProps) {
+export function Polaroid({ photo, height, width, priority = false, onSettled }: PolaroidProps) {
   const ratio = photo.height > 0 ? photo.width / photo.height : 1;
   const caption = [
     photo.camera,
@@ -86,6 +93,8 @@ export function Polaroid({ photo, height, width, priority = false }: PolaroidPro
           fill
           sizes={`${frameWidth}px`}
           priority={priority}
+          onLoad={onSettled}
+          onError={onSettled}
           className="object-cover"
         />
       </div>

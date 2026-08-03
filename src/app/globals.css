@@ -132,7 +132,10 @@ body {
 }
 
 .page-enter {
-  animation: page-enter 280ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  /* Short on purpose: this sits on the critical path of every navigation, and a
+     dissolve that carries no information should not be the reason a prefetched
+     page takes a third of a second to become readable. */
+  animation: page-enter 150ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
 /* Shared by the stills wall and the film strip's frames: each item arrives just
@@ -167,6 +170,54 @@ body {
 .stagger-in[data-pending='true'] {
   animation: none;
   opacity: 0;
+}
+
+/* The same hold, applied to a whole surface while its images are still arriving
+   (see useAssetsReady). Dropping the animation rather than hiding the container
+   is what makes the cascade run *after* the wait instead of during it: the items
+   keep their staggered delays and start them from zero the moment the attribute
+   goes, so a slow load ends in the same top-down assembly a fast one begins with.
+
+   The frames still occupy their space while held, so the row packing, the
+   below-the-fold reveal and the scroll position are all measured against the
+   real layout rather than against an empty page that reflows on arrival. */
+[data-assets-loading='true'] .stagger-in {
+  animation: none;
+  opacity: 0;
+}
+
+/* --- The stills wall's loading state -------------------------------------- */
+
+/* A frame's worth of light moving across the tray. Deliberately a sweep rather
+   than a spinner: the wall arrives left-to-right and top-down, so the wait
+   should travel the same way the content will. */
+@keyframes develop-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}
+
+.develop-sweep {
+  animation: develop-sweep 1100ms cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* --- The film reel's loading state ---------------------------------------- */
+
+/* The spool runs under its own power until the reel is ready, at which point the
+   class comes off and FilmStrip's scroll handler takes the rotation back. A CSS
+   animation outranks the inline transform that handler writes, so the two never
+   need to coordinate — whichever is meant to be in charge simply is. */
+@keyframes spool-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spool-spin {
+  animation: spool-spin 900ms linear infinite;
 }
 
 /* The phone's filter sheet. It rises from the edge it is anchored to, so the
@@ -298,6 +349,21 @@ body {
     animation-name: page-fade;
     animation-duration: 120ms;
     animation-delay: 0ms !important;
+  }
+
+  /* The loading states stop moving but do not stop existing: whether the page is
+     still fetching is information, and a reduced-motion visitor waiting on a slow
+     connection needs it more than anyone. The indicators stay on screen, held
+     still, and still disappear on arrival. */
+  .develop-sweep,
+  .spool-spin {
+    animation: none !important;
+  }
+
+  /* Without the spin the ring alone reads as decoration, so the wait is carried
+     by opacity instead — the one cue left that something is still happening. */
+  .spool-spin {
+    opacity: 0.45;
   }
 
   /* Scale is the part to drop; the fade stays so the overlay does not blink in

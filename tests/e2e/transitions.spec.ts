@@ -17,11 +17,25 @@ function animationOf(page: Page) {
   });
 }
 
+/**
+ * The entry cascade is held until the surface's images have landed (see
+ * useAssetsReady), and while it is held the animation is removed outright —
+ * which resets animation-delay to 0s. Any assertion about the stagger therefore
+ * has to wait for the gate to open, or it is racing the CDN and will read the
+ * held values on a slow run.
+ */
+async function waitForAssets(page: Page) {
+  await expect(page.locator('[data-assets-loading="true"]')).toHaveCount(0, { timeout: 15000 });
+}
+
 test('public pages animate in', async ({ page }) => {
   await page.goto('/stills');
   expect(await animationOf(page)).toMatchObject({
     name: 'page-enter',
-    duration: '0.28s',
+    // Kept short deliberately — this animation is on the critical path of every
+    // navigation, so a regression that lengthens it is a regression in how fast
+    // the site feels, not a cosmetic change.
+    duration: '0.15s',
   });
 });
 
@@ -90,6 +104,7 @@ test.describe('the stills wall', () => {
     const items = page.locator('.stagger-in');
     const count = await items.count();
     if (count === 0) test.skip(true, 'No photos on the wall');
+    await waitForAssets(page);
 
     const delays = await items.evaluateAll((nodes) =>
       nodes.map((node) => getComputedStyle(node).animationDelay),
@@ -100,7 +115,7 @@ test.describe('the stills wall', () => {
 
     // Nothing waits longer than the cap, however many photos are on the wall.
     for (const delay of delays) {
-      expect(Number.parseFloat(delay)).toBeLessThanOrEqual(0.45);
+      expect(Number.parseFloat(delay)).toBeLessThanOrEqual(0.22);
     }
   });
 
@@ -108,6 +123,7 @@ test.describe('the stills wall', () => {
     await page.goto('/stills');
     const items = page.locator('.stagger-in');
     if ((await items.count()) === 0) test.skip(true, 'No photos on the wall');
+    await waitForAssets(page);
 
     await page.waitForTimeout(1200);
     const transforms = await items.evaluateAll((nodes) =>
@@ -250,6 +266,7 @@ test.describe('the film strip', () => {
     const frames = page.locator('.stagger-in');
     const count = await frames.count();
     if (count === 0) test.skip(true, 'No clips');
+    await waitForAssets(page);
 
     const delays = await frames.evaluateAll((nodes) =>
       nodes.map((node) => getComputedStyle(node).animationDelay),

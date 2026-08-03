@@ -3,7 +3,9 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { CARD_PADDING, FRAME_HEIGHT, Polaroid, type PolaroidPhoto } from './Polaroid';
 import { Lightbox } from './Lightbox';
+import { WallLoader } from './WallLoader';
 import { justifyRows } from '@/lib/photo/justify';
+import { useAssetsReady } from '@/components/site/useAssetsReady';
 
 /**
  * Justified rows: justifyRows packs the photos into rows that span the measured
@@ -27,8 +29,12 @@ const STAGGER_STEP_MS = 45;
  * count, and a wall of sixty would leave the last frames arriving four seconds
  * after the first — long past the point where it reads as staging rather than a
  * page still loading. Past the cap the remaining frames arrive together.
+ *
+ * Held to ~200ms: measured across a navigation the stagger was the last thing
+ * still moving, ~650ms after the click, which reads as staging at 200 and as a
+ * slow page at 450.
  */
-const STAGGER_MAX_MS = 450;
+const STAGGER_MAX_MS = 220;
 
 /**
  * How close a frame must come before it reveals. Deliberately *ahead* of the
@@ -47,6 +53,16 @@ const REVEAL_MARGIN = '0px 0px 300px 0px';
  */
 const EAGER_FRAMES = 8;
 
+/**
+ * How many frames the cascade waits for. Fewer than are loaded eagerly, and
+ * deliberately so: the gate costs whatever the *slowest* image in it costs, so
+ * counting all eight put first paint 560ms later on a 5 Mbps line while the two
+ * stragglers finished. One row is enough to make the cascade look like a wall
+ * arriving rather than a row arriving; the rest land underneath it, behind their
+ * own placeholder colours, while the visitor is looking at the top of the page.
+ */
+const GATE_FRAMES = 4;
+
 /** Time a surviving frame takes to slide to its new place after a filter change. */
 const REFLOW_MS = 320;
 
@@ -58,6 +74,15 @@ function prefersReducedMotion(): boolean {
 
 export function PolaroidWall({ photos }: { photos: PolaroidPhoto[] }) {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
+  /**
+   * The wall waits on the top row only — never on the whole wall. Everything
+   * past EAGER_FRAMES is lazy and reveals on scroll, so counting it would hold
+   * the cascade behind images that have not been asked for yet and, on a long
+   * wall, never resolve at all.
+   */
+  const { ready, showLoader, noteSettled } = useAssetsReady(
+    Math.min(GATE_FRAMES, photos.length),
+  );
   const wallRef = useRef<HTMLDivElement>(null);
   /** Where each frame sat before this render, for the re-flow below. */
   const lastRects = useRef(new Map<string, DOMRect>());
@@ -186,7 +211,14 @@ export function PolaroidWall({ photos }: { photos: PolaroidPhoto[] }) {
         for (const entry of entries) {
           if (!entry.isIntersecting) continue;
           const item = entry.target as HTMLElement;
-          item.style.setProperty('--stagger', `${order * STAGGER_STEP_MS}ms`);
+          // Capped like the initial load. A batch large enough to pass the cap
+          // is exactly the case the cap exists for, and this path can produce
+          // one: the observer's margin reaches 300px past the fold, so several
+          // rows can reveal in a single callback.
+          item.style.setProperty(
+            '--stagger',
+            `${Math.min(order * STAGGER_STEP_MS, STAGGER_MAX_MS)}ms`,
+          );
           order += 1;
           delete item.dataset.pending;
           observer.unobserve(item);
@@ -205,7 +237,12 @@ export function PolaroidWall({ photos }: { photos: PolaroidPhoto[] }) {
 
   return (
     <>
-      <div ref={wallRef} className="flex flex-wrap gap-5">
+      {showLoader ? <WallLoader /> : null}
+      <div
+        ref={wallRef}
+        data-assets-loading={ready ? undefined : 'true'}
+        className="flex flex-wrap gap-5"
+      >
         {photos.map((photo, index) => (
           <button
             key={photo.id}
@@ -230,6 +267,7 @@ export function PolaroidWall({ photos }: { photos: PolaroidPhoto[] }) {
               height={placement.get(photo.id)?.height}
               width={placement.get(photo.id)?.width}
               priority={index < EAGER_FRAMES}
+              onSettled={index < GATE_FRAMES ? noteSettled : undefined}
             />
           </button>
         ))}
