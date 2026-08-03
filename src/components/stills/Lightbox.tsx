@@ -220,13 +220,7 @@ export function Lightbox({ photos, index, originFor, onClose, onNavigate }: Ligh
 
   if (!photo) return null;
 
-  const caption = [
-    photo.camera,
-    summarizeSettings(photo.settings),
-    photo.takenAt ? formatTakenAt(photo.takenAt) : '',
-  ]
-    .filter(Boolean)
-    .join(' · ');
+  const caption = [photo.camera, summarizeSettings(photo.settings)].filter(Boolean).join(' · ');
 
   return (
     <div
@@ -302,8 +296,15 @@ export function Lightbox({ photos, index, originFor, onClose, onNavigate }: Ligh
             className="lightbox-photo"
           />
           <figcaption className="mt-3 mb-1 px-1 text-center">
-            <div className="text-sm font-bold tracking-[0.04em] text-matink uppercase">
-              {photo.location}
+            <div className="flex items-baseline justify-center gap-2">
+              <span className="text-sm font-bold tracking-[0.04em] text-matink uppercase">
+                {photo.location}
+              </span>
+              {photo.takenAt ? (
+                <span className="font-mono text-xs tracking-[0.05em] text-matmeta">
+                  {formatTakenAt(photo.takenAt)}
+                </span>
+              ) : null}
             </div>
             {caption ? (
               <div className="mt-1 font-mono text-[0.7rem] tracking-[0.05em] text-matmeta uppercase">
