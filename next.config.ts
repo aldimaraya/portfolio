@@ -25,6 +25,12 @@ const nextConfig: NextConfig = {
       ? [{ protocol: 'https', hostname: mediaHostname }]
       : [],
   },
+  // The same hostname, inlined into the client bundle. A journal post can carry
+  // an image URL from anywhere — the editor accepts whatever Markdown is typed —
+  // and next/image *throws* on a host that is not allow-listed above, taking the
+  // whole page down rather than showing a broken image. PostMarkdown checks this
+  // to decide which images it may hand to the optimiser.
+  env: { NEXT_PUBLIC_MEDIA_HOST: mediaHostname ?? '' },
 };
 
 export default nextConfig;

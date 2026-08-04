@@ -19,7 +19,15 @@
   --color-matmeta: #7a6323;
   --color-hairline: rgba(255, 255, 255, 0.1);
   --color-goldline: rgba(212, 175, 55, 0.2);
+  /* The journal's ruled lines. Faint enough to read as paper texture rather than
+     as underlines — at any more it competes with the prose it sits behind. */
+  --color-ruling: rgba(255, 255, 255, 0.055);
   --font-mono: "SF Mono", ui-monospace, "Cascadia Mono", Menlo, monospace;
+  /* The journal's reading face. --font-reading is set on <html> by next/font in
+     layout.tsx; the fallbacks matter because it is swapped in, so the first
+     paint of a post is set in whatever local serif is closest. Named apart from
+     Tailwind's own --font-serif so the two do not overwrite each other. */
+  --font-journal: var(--font-reading), "Iowan Old Style", Georgia, ui-serif, serif;
 
   /* Mockup breakpoints, so the layout collapse points carry over. */
   --breakpoint-wall: 1200px;
@@ -396,28 +404,53 @@ body {
 /* Rendered Markdown, shared by the admin preview and the public journal pages so
    a post cannot look one way while writing and another once published. */
 .prose-portfolio {
+  /* Every vertical measure in here is a multiple of --line, so the ruled lines
+     drawn behind the paragraphs land under the words rather than near them. A
+     stray margin in em anywhere below breaks the whole grid. */
+  --line: 1.8125rem; /* 29px */
   color: var(--color-bone);
-  line-height: 1.75;
+  font-family: var(--font-journal);
+  font-size: 1.0625rem;
+  line-height: var(--line);
 }
 .prose-portfolio h1,
 .prose-portfolio h2,
 .prose-portfolio h3 {
   color: var(--color-bone);
   font-weight: 600;
-  margin: 1.5em 0 0.5em;
+  line-height: var(--line);
+  /* Top margin only, and a whole line of it: the following paragraph brings its
+     own bottom margin, so the pair still sums to a multiple of the grid. */
+  margin: var(--line) 0 0;
 }
-.prose-portfolio h1 { font-size: 1.6rem; }
-.prose-portfolio h2 { font-size: 1.3rem; }
-.prose-portfolio h3 { font-size: 1.1rem; }
-.prose-portfolio p { margin: 0 0 1em; }
+.prose-portfolio h1 { font-size: 1.5rem; }
+.prose-portfolio h2 { font-size: 1.25rem; }
+.prose-portfolio h3 { font-size: 1.0625rem; }
+/* First heading of a post has the title's margin above it already. */
+.prose-portfolio > :first-child { margin-top: 0; }
+.prose-portfolio p {
+  margin: 0 0 var(--line);
+  /* The ruling, drawn from each paragraph's own top edge rather than across the
+     block. Anything of an unpredictable height in the flow — a photo, an embed —
+     would otherwise push every line after it off the baseline, which is the
+     usual way ruled-paper layouts end up looking broken. */
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent calc(var(--line) - 1px),
+    var(--color-ruling) calc(var(--line) - 1px),
+    var(--color-ruling) var(--line)
+  );
+}
 .prose-portfolio a { color: var(--color-gold); text-decoration: underline; }
-.prose-portfolio ul { list-style: disc; padding-left: 1.25em; margin: 0 0 1em; }
-.prose-portfolio ol { list-style: decimal; padding-left: 1.25em; margin: 0 0 1em; }
+.prose-portfolio ul { list-style: disc; padding-left: 1.25em; margin: 0 0 var(--line); }
+.prose-portfolio ol { list-style: decimal; padding-left: 1.25em; margin: 0 0 var(--line); }
 .prose-portfolio blockquote {
   border-left: 2px solid var(--color-gold);
   padding-left: 1em;
   color: var(--color-ash);
-  margin: 0 0 1em;
+  font-style: italic;
+  margin: 0 0 var(--line);
 }
 .prose-portfolio code {
   font-family: var(--font-mono);
@@ -435,7 +468,128 @@ body {
 }
 .prose-portfolio pre code { background: none; padding: 0; }
 .prose-portfolio img { max-width: 100%; border-radius: 3px; }
-.prose-portfolio hr { border: 0; border-top: 1px solid var(--color-hairline); margin: 2em 0; }
+/* Media inserted by the editor, mounted on the same warm mat the lightbox prints
+   a photo on — bg-mat, p-3 pb-2.5, matmeta caption. A picture in a post is the
+   same object as a picture on the wall, and should be framed like one. */
+.prose-portfolio figure {
+  background: var(--color-mat);
+  border-radius: 2px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+  margin: 0 0 calc(var(--line) * 2);
+  padding: 0.75rem 0.75rem 0.625rem;
+}
+.prose-portfolio figcaption {
+  color: var(--color-matmeta);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+  line-height: 1.4;
+  margin-top: 0.625rem;
+  text-transform: uppercase;
+}
+/* Square corners inside the mat: a rounded print in a paper frame reads as a UI
+   card, which is the one thing the mat exists to stop it looking like. */
+.prose-portfolio figure img,
+.prose-portfolio figure video { border-radius: 0; }
+.prose-portfolio video { display: block; max-width: 100%; border-radius: 3px; }
+/* A YouTube iframe has no intrinsic size, so the ratio has to be imposed from
+   outside or it renders at the HTML default 300×150. */
+.prose-portfolio .embed-frame {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  margin: 1.5em 0;
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--color-film);
+}
+.prose-portfolio .embed-frame iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+.prose-portfolio hr {
+  border: 0;
+  border-top: 1px solid var(--color-hairline);
+  margin: 0 0 var(--line);
+}
+
+/* The sheet a journal post is written on.
+ *
+ * The reading column was 42rem pinned to the left of a 1300px container, which
+ * left the right-hand third of the page structurally empty. This spends that
+ * width as a margin instead: the date sets into it, a rule runs the height of
+ * the sheet, and the prose gets a page to sit on rather than an edge to hang
+ * off. Post pages only — the admin preview renders the prose without it. */
+.journal-sheet {
+  --sheet-pad-x: 4rem;
+  --margin-col: 7rem;
+  --margin-gap: 2.75rem;
+  background: var(--color-film);
+  border: 1px solid var(--color-hairline);
+  border-radius: 3px;
+  padding: 3.5rem var(--sheet-pad-x) 4rem;
+  position: relative;
+}
+
+/* Full-bleed to the sheet's edges, as on a ruled pad, which a border on either
+   grid column could not do — that would stop at the content. */
+.journal-sheet::before {
+  background: var(--color-goldline);
+  bottom: 0;
+  content: "";
+  left: calc(var(--sheet-pad-x) + var(--margin-col) + (var(--margin-gap) / 2));
+  position: absolute;
+  top: 0;
+  width: 1px;
+}
+
+.journal-grid {
+  display: grid;
+  gap: 0 var(--margin-gap);
+  grid-template-columns: var(--margin-col) minmax(0, 1fr);
+}
+
+.journal-margin {
+  color: var(--color-gold);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  line-height: 1.7;
+  text-align: right;
+  text-transform: uppercase;
+}
+
+/* One row of the journal index, on the same grid as a post so the list reads as
+   the contents page of the notebook the posts are written in. The rule above
+   spans the sheet's full width, margin included — these are entries ruled off
+   from each other, not cards. */
+.journal-entry + .journal-entry {
+  border-top: 1px solid var(--color-hairline);
+}
+.journal-entry > a {
+  display: grid;
+  gap: 0 var(--margin-gap);
+  grid-template-columns: var(--margin-col) minmax(0, 1fr);
+  padding: 1.75rem 0;
+}
+.journal-entry:first-child > a { padding-top: 0; }
+.journal-entry:last-child > a { padding-bottom: 0; }
+
+/* Below the sheet's comfortable width the margin has nowhere to go: the column
+   would squeeze the measure to nothing long before the viewport ran out. The
+   date returns to the top of the post and the rule is dropped entirely. */
+@media (max-width: 56rem) {
+  .journal-sheet {
+    --sheet-pad-x: 1.5rem;
+    padding: 2rem var(--sheet-pad-x) 2.5rem;
+  }
+  .journal-sheet::before { display: none; }
+  .journal-grid,
+  .journal-entry > a { grid-template-columns: minmax(0, 1fr); gap: 0.75rem; }
+  .journal-margin { text-align: left; }
+}
 /* GFM tables come from remark-gfm; without a scroll container a wide one pushes
    the whole page sideways. */
 .prose-portfolio table { width: 100%; border-collapse: collapse; margin: 0 0 1em; display: block; overflow-x: auto; }

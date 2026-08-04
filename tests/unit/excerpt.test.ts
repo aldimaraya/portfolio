@@ -54,4 +54,16 @@ describe('buildExcerpt', () => {
   it('does not leave a dangling space before the ellipsis', () => {
     expect(buildExcerpt('aaaa bbbb cccc dddd', 10)).toBe('aaaa bbbb…');
   });
+
+  it('drops a lone URL, which is an embed rather than prose', () => {
+    expect(buildExcerpt('https://youtu.be/dQw4w9WgXcQ\n\nThen the day began.')).toBe(
+      'Then the day began.',
+    );
+  });
+
+  it('keeps a URL that is part of a sentence', () => {
+    expect(buildExcerpt('See https://example.com for more.')).toBe(
+      'See https://example.com for more.',
+    );
+  });
 });

@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import { PostMarkdown } from '@/components/markdown/PostMarkdown';
 import { AdminEditLink } from '@/components/site/AdminEditLink';
 import { db } from '@/lib/db';
 import { buildExcerpt } from '@/lib/excerpt';
@@ -52,7 +51,10 @@ export default async function JournalPostPage({ params }: Params) {
   if (!post) notFound();
 
   return (
-    <main className="max-w-2xl">
+    // Capped and centred rather than left-aligned across the full container: at
+    // 1300px the prose column inside the sheet would run well past a readable
+    // measure, which is the opposite of the problem this layout solves.
+    <main className="mx-auto max-w-[62rem]">
       <div className="flex items-center justify-between gap-4">
         <Link
           href="/journal"
@@ -63,16 +65,21 @@ export default async function JournalPostPage({ params }: Params) {
         <AdminEditLink href={`/admin/posts/${post.id}`} label="Edit post" />
       </div>
 
-      <article className="mt-6">
-        <time
-          dateTime={post.publishedAt.toISOString()}
-          className="font-mono text-xs tracking-[0.1em] text-gold uppercase"
-        >
-          {formatPostDate(post.publishedAt)}
-        </time>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight">{post.title}</h1>
-        <div className="prose-portfolio mt-8">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{post.markdownContent}</ReactMarkdown>
+      <article className="journal-sheet mt-6">
+        <div className="journal-grid">
+          {/* The margin. Everything about the post that is not the post. */}
+          <div className="journal-margin">
+            <time dateTime={post.publishedAt.toISOString()}>{formatPostDate(post.publishedAt)}</time>
+          </div>
+
+          <div>
+            <h1 className="font-journal text-[2rem] leading-[2.75rem] font-semibold tracking-tight text-balance">
+              {post.title}
+            </h1>
+            <div className="prose-portfolio mt-[1.8125rem]">
+              <PostMarkdown>{post.markdownContent}</PostMarkdown>
+            </div>
+          </div>
         </div>
       </article>
     </main>
