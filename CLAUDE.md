@@ -97,6 +97,8 @@ Load-bearing constraints — these are why the code is shaped this way:
 
 ## Docs
 
-Design spec, implementation plan, and the visual mockup live in `docs/superpowers/{specs,plans}/`. The plan
-is written for task-by-task TDD. Note the README's "what's built vs stubbed" table is stale — most of it has
-since been implemented; trust the code.
+`docs/architecture.md` describes the site as built — surfaces, features, data model, invariants, ops, and
+the known gaps — and is the document to trust when the others disagree with it. The design spec and the
+task-by-task implementation plan in `docs/superpowers/{specs,plans}/` are history: every task is done, and
+both are flagged as historical at the top. `docs/code-review-findings.md` tracks open defects, ranked by
+cost, with fixed ones struck through rather than deleted.

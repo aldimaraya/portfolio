@@ -7,6 +7,11 @@ back; the feature-by-feature notes are in the appendix.
 
 Delete a finding when it is fixed, or mark it `WONTFIX` with a reason.
 
+Reviewed against the code on 2026-08-04. Findings that describe code which no
+longer exists have been struck through and annotated rather than deleted, so the
+reasoning stays traceable. The open ones here are the same list summarised under
+[Known gaps](architecture.md#known-gaps).
+
 ---
 
 ## Tier 0 — Privacy, security, and money
@@ -44,14 +49,14 @@ Wrong output, wrong order, or a dead end for the person using it.
 | Rank | # | Finding | File |
 | --- | --- | --- | --- |
 | 15 | 5.1 | Camera and location are matched exactly against free text that is never normalised on write, so "Leica M6" and "leica m6 " become two permanent, separate filter chips. Tags are lower-cased on the way in; these two are not. (Filtering moved to the client with #5, but the matching rule is unchanged — it is still exact.) | `lib/filters/apply.ts:33` |
-| 16 | 3.2 | Wall order uses the hue of the *averaged* RGB. For complementary-colour photos that average is near-grey, where hue is numerical noise — and per-pixel saturation keeps them out of the monochrome band, so they sort to an arbitrary spot. `analyzePixels` already contains this exact insight for `isMonochrome`; the ordering hue walks into the trap the comment warns about. | `lib/color/analyze.ts:68` |
+| ~~16~~ | ~~3.2~~ | **FIXED.** Wall order no longer uses hue at all. It sorts on `warmth` — the average colour projected onto one cool↔warm axis in OKLab — which stays meaningful on the complementary-colour frames where a dominant hue is the winner of a very close election. `isMonochrome` is measured separately from per-pixel RMS chroma, before any cancellation. | `lib/color/analyze.ts`, `lib/color/sort.ts` |
 | ~~17~~ | ~~4.1~~ | **FIXED** alongside #5. The stills query now orders by `createdAt desc`, so `sortPhotosForWall` — which is stable — has a deterministic input and photos that tie on hue keep their relative order between renders. | `app/(site)/stills/page.tsx` |
 | 18 | 4.3 | The lightbox declares `role="dialog"` and `aria-modal` but never moves focus into itself, traps nothing, and restores nothing — Tab walks the wall behind the overlay while the visitor sees only the photo. | `components/stills/Lightbox.tsx:225` |
-| 19 | 3.4 | `capturedAt` and `coordinates` are parsed and never consumed. `coordinates` is the obvious prefill for `location` — a required field typed by hand on every upload — and `capturedAt` has no column, so everything orders by upload time rather than capture time. | `lib/photo/exif.ts:96` |
+| 19 | 3.4 | **Half fixed.** `capturedAt` now has a column — `Photo.takenAt`, prefilled from EXIF at upload — so capture date is no longer lost. `coordinates` is still parsed and never consumed, and remains the obvious prefill for `location`, a required field typed by hand on every upload. | `lib/photo/exif.ts:96` |
 | 20 | 3.6 | Every keystroke in a trim input re-runs `prepareUpload`: a full-resolution crop plus a WebP encode of a 2560px image, on the main thread, undebounced. A three-digit inset queues three full encodes. | `components/admin/PhotoForm.tsx:120` |
 | 21 | 2.4 | `postJson` discards the JSON `error` body the upload routes carefully return, so a mid-upload session expiry — the single most likely failure on a long upload — surfaces as "failed with status 401". | `lib/storage/upload-client.ts:38` |
 | 22 | 2.3 | Part size is pinned at the 5 MiB minimum with one `POST /api/upload/part-url` per part, so a 1 GB video costs 200 sequential serverless round-trips. Scale part size with file size and sign all part URLs in the `create` response. | `lib/storage/upload-client.ts:74` |
-| 23 | 3.3 | `isMonochrome` thresholds the *mean* per-pixel saturation, so a mostly-grey frame with one vivid subject is filed as black-and-white. A high percentile is more robust than a mean. | `lib/color/analyze.ts:73` |
+| ~~23~~ | ~~3.3~~ | **SUPERSEDED** by the `warmth` rework. `isMonochrome` now thresholds RMS per-pixel chroma rather than a mean, which is what stops a mostly-grey frame with one vivid subject being filed as black-and-white. A percentile would still be more robust than an RMS; reopen if it misfiles anything in practice. | `lib/color/analyze.ts:153` |
 | 24 | 4.4 | Frames below the fold get `data-pending` and depend on an IntersectionObserver to clear it. Any path where the observer never fires leaves a frame permanently invisible; there is no timeout or fallback. | `components/stills/PolaroidWall.tsx:160` |
 | 25 | 2.7 | Media cannot be replaced, only deleted and re-created — losing the row's id, tags and `createdAt`. `deleteObjectsByUrl` is retry-safe, so upload-new → save → delete-old is achievable. Product decision worth revisiting. | `components/admin/UploadField.tsx:24` |
 | 26 | 1.6 | No `try`/`catch` around `fetch` in the login submit: a network failure leaves the button stuck on "Signing in…" with no error. The 5xx path is handled carefully; the transport path is not. | `components/site/LoginForm.tsx:17` |

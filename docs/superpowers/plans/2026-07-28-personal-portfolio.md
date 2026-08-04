@@ -1,5 +1,14 @@
 # Personal Portfolio Implementation Plan
 
+> ## ⚠ Historical document
+>
+> Every task in this plan is done, and the site has since moved on from parts of
+> it — most visibly the Motion page, which is no longer a scrolling film reel.
+> **For what the code does today, read [`docs/architecture.md`](../../architecture.md).**
+>
+> This file is kept for the reasoning behind decisions and for the record of
+> deviations below. Do not treat its code snippets as current.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build a personal photography/film portfolio site with a color-sorted photo wall, a scrolling film-strip video page with animated sprite previews, a Markdown blog, and a password-protected admin area for managing all content.
@@ -12,9 +21,11 @@
 
 ---
 
-## Status and deviations (updated 2026-07-31)
+## Status and deviations (updated 2026-08-04)
 
-**Done:** Tasks 1–19. **Next:** the deployment checklist at the end of this file.
+**Done:** Tasks 1–19, plus the post-plan work recorded at the end of this
+section. **Next:** the deployment checklist at the end of this file, starting
+with removing the auth bypass.
 
 Six of the admin e2e tests skip while `DEV_SKIP_AUTH=true` and
 `ADMIN_PASSWORD_HASH` is still the placeholder — see the note under *Temporary*.
@@ -85,6 +96,33 @@ admin panel is finished** — grep `DEV_SKIP_AUTH`.
   `src/lib/db.ts` keeps a Prisma singleton in the dev process, and a stale one
   fails with `The column (not available) does not exist in the current database`.
 - This project uses `prisma db push`; there is no migrations directory.
+
+### Work done after the plan finished
+
+Summarised here so this file's task list is not mistaken for the whole story.
+All of it is described properly in [`docs/architecture.md`](../../architecture.md).
+
+- **The Motion page was rebuilt.** Task 17's scrolling film reel is gone: it
+  mapped `window.scrollY` onto a `translateY` inside a sticky viewport, which
+  competed with the browser's own scrolling and behaved badly on a phone. The
+  roll is now a list on a perforated rail, and each clip has its own page at
+  `/motion/[id]`. `FilmStrip`, `FilmFrame`, `RollIndex` and `ReelLoader` were
+  deleted. The projector survives as decoration driven by scroll rather than
+  driving it.
+- **`Video.durationSeconds`** added, captured in the browser at upload from the
+  metadata read that already builds the sprite sheet, with
+  `scripts/backfill-durations.mjs` recovering it for older clips over HTTP range
+  requests.
+- **Wall order moved from hue to `warmth`** (`Photo.warmth`), and `isMonochrome`
+  moved to per-pixel RMS chroma. `Photo.hueStrength` is the dead column left
+  behind; see the schema notes above.
+- **`Photo.takenAt`** added, prefilled from EXIF `DateTimeOriginal`.
+- **Every public route made static or SSG**, which moved the admin bar and the
+  stills filtering into the client.
+- **Session hardening** — HKDF-derived signing key, pinned algorithm, issuer and
+  audience, and `safeNextPath`.
+- **The journal editor** gained a Markdown toolbar and a media picker, and posts
+  gained a page of their own to sit on.
 
 ---
 

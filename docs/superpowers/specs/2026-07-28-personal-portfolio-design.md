@@ -2,6 +2,15 @@
 
 Date: 2026-07-28
 
+> ## ⚠ Historical document
+>
+> This is the brief the site was built from, kept for the reasoning behind its
+> goals and constraints. It does not describe the site as it stands — most
+> notably, Motion is no longer "a scrolling film-reel viewer": it is a list of
+> clips, each with a page of its own.
+>
+> **For what the site actually does, read [`docs/architecture.md`](../../architecture.md).**
+
 ## Overview
 
 A personal website to showcase photography and film work, plus a lightweight

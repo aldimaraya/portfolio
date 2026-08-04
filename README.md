@@ -1,15 +1,19 @@
 # Portfolio
 
 Personal photography and film site: a colour-sorted photo wall (**Stills**), a
-scrolling film-reel video viewer (**Motion**), a Markdown blog (**Journal**), and
-a password-protected admin area for managing all content without touching code.
+roll of clips each with its own page (**Motion**), a Markdown blog
+(**Journal**), and a password-protected admin area for managing all content
+without touching code.
 
-This repository is currently **scaffolding**. The stack is wired up, the schema
-is defined, and every route exists, but the feature logic is stubbed. See
-[what's built vs stubbed](#whats-built-vs-stubbed) below.
+All four are **built and working** — there are no stubs left in the codebase.
+What remains before a production launch is listed under
+[Known gaps](docs/architecture.md#known-gaps), the first item of which is
+deleting the development auth bypass.
 
-- Design spec: [docs/superpowers/specs/2026-07-28-personal-portfolio-design.md](docs/superpowers/specs/2026-07-28-personal-portfolio-design.md)
-- Implementation plan: [docs/superpowers/plans/2026-07-28-personal-portfolio.md](docs/superpowers/plans/2026-07-28-personal-portfolio.md)
+- **Architecture and features, as built:** [docs/architecture.md](docs/architecture.md) — start here
+- Original design spec: [docs/superpowers/specs/2026-07-28-personal-portfolio-design.md](docs/superpowers/specs/2026-07-28-personal-portfolio-design.md) (history)
+- Implementation plan: [docs/superpowers/plans/2026-07-28-personal-portfolio.md](docs/superpowers/plans/2026-07-28-personal-portfolio.md) (history)
+- Open defects: [docs/code-review-findings.md](docs/code-review-findings.md)
 - Visual mockup: [docs/superpowers/specs/assets/2026-07-28-mockup-reference.html](docs/superpowers/specs/assets/2026-07-28-mockup-reference.html)
 
 ## Stack
@@ -95,8 +99,15 @@ npm run dev
 | `npm test` | Vitest unit tests |
 | `npm run test:e2e` | Playwright E2E (needs `npx playwright install` once) |
 | `npm run db:push` | Push `prisma/schema.prisma` to the database |
-| `npm run db:generate` | Regenerate the Prisma client |
+| `npm run db:generate` | Regenerate the Prisma client (also runs on install) |
 | `npm run db:studio` | Prisma Studio |
+| `npm run check:r2` | Verify R2 credentials and bucket access |
+| `npm run backfill:photos` | Re-compress and backfill stored photos |
+| `npm run backfill:settings` | Populate `Photo.settings` on older rows |
+| `npm run backfill:durations` | Recover `Video.durationSeconds` for clips predating the column |
+| `npm run recolor:photos` | Re-derive OKLab colour stats |
+
+The four backfills are dry runs by default; pass `-- --apply` to write.
 
 ## Architecture notes
 
@@ -112,14 +123,24 @@ These constraints are load-bearing — they are why the code is shaped this way.
   `next/image` hop for resizing and lazy-loading.
 - **Video encoding is a manual pre-upload step.** Clips are encoded locally to
   1080p H.264 at ~5–8 Mbps before upload. 4K masters stay offline.
-- **Wall order is fully derived from colour.** Photos have no manual sort order: a
-  monochrome band sorted dark-to-light, then a hue sweep, packed into justified
-  rows in that order.
+- **A photo's EXIF never reaches the stored copy.** Files carrying metadata are
+  re-encoded through a canvas before upload, so GPS coordinates are never
+  published — which also means a capture date missed at upload is gone for good.
+- **Wall order is fully derived from colour**, in OKLab. Photos have no manual
+  sort order: a monochrome band dark-to-light, then a cool→warm sweep, packed
+  into justified rows in that order. It sorts on *warmth* rather than hue,
+  because on a typical frame most colour cancels out and a dominant hue is the
+  winner of a very close election.
+- **The motion page's projector reports scrolling; it never drives it.** The
+  perforations and the spool are read off `window.scrollY`, but deleting that
+  effect changes nothing about how the page scrolls.
 - **Filters combine as OR within a type, AND across types**, and live in the URL
   query string so filtered views are shareable.
-- **`prefers-reduced-motion: reduce` disables sprite animation entirely.** Not
-  optional — a page of looping previews is exactly what that setting exists to
-  suppress.
+- **`prefers-reduced-motion: reduce` means off, not gentler.** Sprite previews
+  stop dead, the projector parks, and a clip does not autoplay.
+- **Every public route is static or SSG**, so the `revalidatePath` calls in the
+  admin actions are the only thing that updates a public page after an edit.
+  `next build` therefore needs `DATABASE_URL`.
 - **Next 16 specifics:** the auth gate is `src/proxy.ts` exporting `proxy`
   (`middleware.ts` is deprecated), and `cookies()`, `headers()`, `params` and
   `searchParams` are all async and must be awaited.
@@ -127,31 +148,22 @@ These constraints are load-bearing — they are why the code is shaped this way.
   connection string lives in `prisma.config.ts`, and the runtime client requires
   the Neon driver adapter.
 
-## What's built vs stubbed
+## What's built
 
-Working now:
+| Surface | State |
+| --- | --- |
+| **Stills** | Colour-sorted justified wall, shareable URL filters (camera / location / tags), lightbox with swipe, keyboard nav and a FLIP expand, average-colour placeholders |
+| **Motion** | The roll as a list on a perforated film rail, a page per clip at `/motion/[id]` with autoplay, running times, and prev/next along the roll |
+| **Journal** | Markdown posts with drafts, a toolbar-and-media-picker editor, generated slugs, excerpts |
+| **Admin** | Photo upload with EXIF extraction, compression, border trimming and tagging; video upload generating poster, sprite sheet, dimensions and duration; drag-to-reorder clips; post editing |
+| **Platform** | Single-admin auth checked twice over, presigned multipart uploads direct to R2, every public route static or SSG, 357 unit tests and three Playwright specs |
 
-- Next.js + Tailwind v4 + TypeScript build, lint, and typecheck
-- Cinematic gold theme tokens translated from the mockup (`bg-ink`, `text-gold`,
-  `bg-frame`, `border-hairline`, …)
-- Prisma schema: `Photo`, `Video`, `BlogPost`, `Tag`, `PhotoTag`, `VideoTag`
-- Validated env (`src/lib/env.ts`) and the Prisma client singleton (`src/lib/db.ts`)
-- Site branding constants, header with active-tab underline, page shell
-- Every route reachable, Vitest and Playwright harnesses green
+For how any of it works and why, read
+[docs/architecture.md](docs/architecture.md). For what is still wrong with it,
+read [Known gaps](docs/architecture.md#known-gaps) and
+[docs/code-review-findings.md](docs/code-review-findings.md).
 
-Stubbed, with typed signatures and a pointer to the owning plan task:
-
-| Area | Files | Plan task |
-| --- | --- | --- |
-| Colour analysis & wall order | `src/lib/color/*` | 3, 4, 11 |
-| Sprite timestamps & generation | `src/lib/video/*` | 5, 12 |
-| Filter parsing & queries | `src/lib/filters/*` | 6 |
-| R2 keys & multipart upload | `src/lib/storage/*`, `src/app/api/upload/*` | 7, 8 |
-| Auth | `src/lib/auth/*`, `src/proxy.ts`, `src/app/api/auth/*` | 9 |
-| Tag upserts | `src/lib/tags.ts` | 11 |
-| Admin screens | `src/app/admin/**` | 10–13 |
-| Public pages | `src/app/stills`, `motion`, `journal` | 14–18 |
-
-Every stub throws a message naming the plan task that implements it, so nothing
-fails silently. The plan is written for task-by-task TDD — each task writes its
-tests first.
+> **Not production-ready yet.** `DEV_SKIP_AUTH` and `src/lib/auth/dev-bypass.ts`
+> disable the admin gate outside production and must be deleted before launch,
+> and the login has no rate limiting. Note that development points at the *live*
+> Neon database and R2 bucket.
