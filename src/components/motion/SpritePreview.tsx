@@ -15,6 +15,7 @@ export function SpritePreview({
   active,
   alt,
   boxStyle,
+  onSettled,
 }: {
   spriteUrl: string;
   frames: number;
@@ -22,6 +23,8 @@ export function SpritePreview({
   alt: string;
   /** Shapes the window to the clip — see frameBoxStyle in FilmFrame. */
   boxStyle: React.CSSProperties;
+  /** Reports the sheet as landed or failed, so the reel knows when to unwind. */
+  onSettled?: () => void;
 }) {
   return (
     <div
@@ -42,6 +45,8 @@ export function SpritePreview({
       <img
         src={spriteUrl}
         alt={alt}
+        onLoad={onSettled}
+        onError={onSettled}
         loading="lazy"
         className="sprite-strip"
         style={{ width: `${frames * 100}%` }}

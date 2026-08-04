@@ -43,7 +43,7 @@ export function frameBoxStyle(video: Pick<FrameVideo, 'width' | 'height'>): Reac
 
 /** Matches the stills wall, so the two pages assemble at the same rhythm. */
 const STAGGER_STEP_MS = 45;
-const STAGGER_MAX_MS = 450;
+const STAGGER_MAX_MS = 220;
 
 /** `01A`, `02A`, … — the frame numbering printed along a real strip. */
 function frameCode(index: number): string {
@@ -56,6 +56,7 @@ export function FilmFrame({
   active,
   playing,
   onPlay,
+  onSettled,
 }: {
   video: FrameVideo;
   index: number;
@@ -63,6 +64,8 @@ export function FilmFrame({
   /** Owned by FilmStrip: one clip plays at a time, so this cannot be local state. */
   playing: boolean;
   onPlay: () => void;
+  /** Reports this frame's sprite sheet as landed — see FilmStrip's reel gate. */
+  onSettled?: () => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   // Sticky: once a clip has been started it keeps its element, so switching away
@@ -137,6 +140,7 @@ export function FilmFrame({
             active={active}
             alt={video.title}
             boxStyle={frameBoxStyle(video)}
+            onSettled={onSettled}
           />
           <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
             <span className="rounded-full border border-gold/70 bg-ink/60 px-4 py-2 font-mono text-xs tracking-[0.1em] text-gold uppercase opacity-0 transition group-hover:opacity-100">

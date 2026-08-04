@@ -18,10 +18,25 @@ export function Header() {
   // Held back one frame so the bar appears under the current tab on first paint
   // rather than sliding in from the nav's left edge.
   const [slides, setSlides] = useState(false);
+  // The tab that has been clicked but not yet arrived. A prefetched route still
+  // costs 130–580ms between the click and the URL changing, because the router
+  // will not commit the navigation until the incoming page has rendered — and
+  // `pathname` only moves at that commit. Driving the underline from the
+  // pathname alone therefore leaves it parked on the old tab for that whole
+  // window, which is what makes a click read as ignored. This is presentational
+  // only: it moves the highlight, never the route.
+  //
+  // The pathname the click was made from is stored alongside it so the guess
+  // expires on its own: once the router commits, `from` no longer matches and
+  // the tab below falls back to the real one. That covers a navigation that
+  // never lands as well as one that does, with no effect and no timer — there is
+  // no state here that can be left stale, because none of it is ever cleared.
+  const [pending, setPending] = useState<{ href: string; from: string } | null>(null);
 
-  const activeHref =
+  const settledHref =
     NAV_TABS.find((tab) => pathname === tab.href || pathname.startsWith(`${tab.href}/`))
       ?.href ?? null;
+  const activeHref = pending?.from === pathname ? pending.href : settledHref;
 
   const measure = useCallback(() => {
     const nav = navRef.current;
@@ -62,7 +77,7 @@ export function Header() {
     // two-thirds of the way down the first view of a photography site.
     <header className="mb-5 flex flex-wrap items-end justify-between gap-3 border-b border-hairline pb-4 sm:mb-8 sm:gap-4 sm:pb-5">
       {/* The wordmark doubles as the way home, which is what people try first. */}
-      <Link href="/stills" className="block">
+      <Link href="/stills" className="block" onClick={() => setPending({ href: '/stills', from: pathname })}>
         <h1 className="text-xl font-semibold tracking-tight uppercase sm:text-2xl">
           {SITE_NAME}
         </h1>
@@ -78,7 +93,11 @@ export function Header() {
               if (node) tabRefs.current.set(tab.href, node);
               else tabRefs.current.delete(tab.href);
             }}
-            aria-current={tab.href === activeHref ? 'page' : undefined}
+            // aria-current follows the settled route, not the optimistic one: a
+            // screen reader announcing the page as current before it exists is a
+            // worse lie than a late highlight is a delay.
+            aria-current={tab.href === settledHref ? 'page' : undefined}
+            onClick={() => setPending({ href: tab.href, from: pathname })}
             className={`py-1.5 text-sm font-medium tracking-wider uppercase transition-colors sm:py-2 ${
               tab.href === activeHref ? 'text-gold' : 'text-ash hover:text-gold'
             }`}

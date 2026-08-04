@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { FilmFrame, type FrameVideo } from './FilmFrame';
 import { RollIndex } from './RollIndex';
+import { ReelLoader } from './ReelLoader';
+import { useAssetsReady } from '@/components/site/useAssetsReady';
 
 /**
  * The reel transports on page scroll: a tall track holds a sticky viewport, and
@@ -55,6 +57,12 @@ export function FilmStrip({ videos }: { videos: FrameVideo[] }) {
   const [playingId, setPlayingId] = useState<string | null>(null);
   // Null until measured on the client; the fallback below covers first paint.
   const [trackHeight, setTrackHeight] = useState<number | null>(null);
+  // The reel threads up before it runs: the frames are held until their sprite
+  // sheets have landed, then released into the same staggered unwind they would
+  // have had. One sheet per clip, and every clip's sheet mounts at first render
+  // (a frame only drops its preview once it has been opened), so the count is
+  // simply the clip count.
+  const { ready, showLoader, noteSettled } = useAssetsReady(videos.length);
 
   /** Distance the frames must travel for the last one to clear the window. */
   const travel = useCallback(() => {
@@ -162,10 +170,21 @@ export function FilmStrip({ videos }: { videos: FrameVideo[] }) {
           : `${videos.length * FALLBACK_VH_PER_VIDEO}vh`,
       }}
     >
-      <div className="sticky top-5 flex h-[85vh] w-full gap-6 max-strip:h-auto max-strip:flex-col">
-        <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
+      {/* The 85vh must survive the stack: `framesRef` is absolute, so it lends the
+          strip no height of its own, and an auto-height wrapper collapses the whole
+          column to nothing. Stacked, the strip takes what the roll index leaves. */}
+      <div className="sticky top-5 flex h-[85vh] w-full gap-6 max-strip:flex-col max-strip:gap-3">
+        <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden max-strip:h-auto max-strip:min-h-0">
           <div className="mb-3 flex items-center gap-3 font-mono text-xs tracking-[0.1em] text-gold uppercase">
-            <div ref={spoolRef} className="relative h-6 w-6 rounded-full border-2 border-gold">
+            {/* Turning under its own power until the reel is ready, after which
+                the scroll handler's inline transform takes the rotation back —
+                see the spool-spin rule for why no handover is needed. */}
+            <div
+              ref={spoolRef}
+              className={`relative h-6 w-6 rounded-full border-2 border-gold ${
+                ready ? '' : 'spool-spin'
+              }`}
+            >
               <span className="absolute top-1/2 left-0 h-0.5 w-full -translate-y-1/2 bg-gold" />
               <span className="absolute top-0 left-1/2 h-full w-0.5 -translate-x-1/2 bg-gold" />
             </div>
@@ -185,7 +204,11 @@ export function FilmStrip({ videos }: { videos: FrameVideo[] }) {
               backgroundRepeat: 'repeat-y',
             }}
           >
-            <div ref={framesRef} className="absolute inset-x-0 top-0 pt-10 will-change-transform">
+            <div
+              ref={framesRef}
+              data-assets-loading={ready ? undefined : 'true'}
+              className="absolute inset-x-0 top-0 pt-10 will-change-transform"
+            >
               {videos.map((video, index) => (
                 <FilmFrame
                   key={video.id}
@@ -194,9 +217,12 @@ export function FilmStrip({ videos }: { videos: FrameVideo[] }) {
                   active={index === activeIndex}
                   playing={video.id === playingId}
                   onPlay={() => setPlayingId(video.id)}
+                  onSettled={noteSettled}
                 />
               ))}
             </div>
+
+            {showLoader ? <ReelLoader /> : null}
           </div>
         </div>
 
