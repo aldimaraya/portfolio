@@ -76,25 +76,81 @@ test('it settles to no transform, leaving sticky positioning intact', async ({ p
   expect(transform).toBe('none');
 });
 
-test('the film strip still sticks while the roll scrolls', async ({ page }) => {
+/**
+ * The roll's transport is driven by the page's own scrolling, so a roll short
+ * enough to fit the window has nothing to report and correctly holds still. That
+ * is the design, not a break — but it also makes every assertion below pass
+ * vacuously, so these tests say so out loud rather than quietly proving nothing.
+ * A viewport short enough to force the scroll is the honest way to test it.
+ */
+async function openScrollableRoll(page: import('@playwright/test').Page) {
+  await page.setViewportSize({ width: 900, height: 400 });
   await page.goto('/motion');
 
-  const sticky = page.locator('.sticky').first();
-  if ((await sticky.count()) === 0) test.skip(true, 'No film strip on the page');
+  if ((await page.locator('.spool-head').count()) === 0) test.skip(true, 'No clips on the roll');
+
+  const scrollable = await page.evaluate(
+    () => document.documentElement.scrollHeight > window.innerHeight + 100,
+  );
+  if (!scrollable) test.skip(true, 'The roll fits the window, so nothing transports');
+}
+
+test('the projector head stays with the roll as it scrolls', async ({ page }) => {
+  await openScrollableRoll(page);
+  const head = page.locator('.spool-head');
 
   // Scroll once to engage it: measuring from the top of the page would only
   // catch it travelling from its natural position into its stuck one, which is
   // the behaviour rather than a break.
   await page.mouse.wheel(0, 800);
   await page.waitForTimeout(300);
-  const stuck = await sticky.boundingBox();
+  const stuck = await head.boundingBox();
 
   await page.mouse.wheel(0, 800);
   await page.waitForTimeout(300);
-  const stillStuck = await sticky.boundingBox();
+  const stillStuck = await head.boundingBox();
 
-  // Now it must hold its place in the viewport as the page scrolls on past.
+  // It must hold its place in the viewport as the film runs on past.
   expect(Math.abs((stillStuck?.y ?? 0) - (stuck?.y ?? 0))).toBeLessThan(4);
+});
+
+test('the transport turns with the scroll rather than under its own power', async ({ page }) => {
+  // Stated rather than inherited: under `reduce` the transport is deliberately
+  // dead, so on a machine with the preference set this would otherwise fail for
+  // the one reason that is not a bug. The reduced case is covered below.
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await openScrollableRoll(page);
+
+  const head = page.locator('.spool-head');
+  const turn = () => head.evaluate((node) => getComputedStyle(node).transform);
+
+  // Parked while the page is: the whole point of driving this from scrollY
+  // rather than a keyframe loop is that a page nobody is reading holds still.
+  const atRest = await turn();
+  await page.waitForTimeout(400);
+  expect(await turn()).toBe(atRest);
+
+  await page.mouse.wheel(0, 600);
+  await page.waitForTimeout(300);
+  expect(await turn()).not.toBe(atRest);
+});
+
+test('the roll scrolls the page itself, and does not drive it', async ({ page }) => {
+  // The regression this guards is the old strip's: scroll was mapped onto a
+  // translateY inside a sticky viewport, so a wheel gesture moved the film
+  // instead of the page — which is what read as broken on a phone.
+  await openScrollableRoll(page);
+
+  const rows = page.locator('ul a[href^="/motion/"]');
+  const before = await rows.first().boundingBox();
+  await page.mouse.wheel(0, 400);
+  await page.waitForTimeout(300);
+  const after = await rows.first().boundingBox();
+
+  // The first row travels with the page, one wheel-pixel per page-pixel.
+  const travelled = (before?.y ?? 0) - (after?.y ?? 0);
+  const scrolled = await page.evaluate(() => window.scrollY);
+  expect(Math.abs(travelled - scrolled)).toBeLessThan(4);
 });
 
 test.describe('the stills wall', () => {
@@ -380,6 +436,19 @@ test.describe('reduced motion', () => {
       .getByTestId('tab-underline')
       .evaluate((node) => getComputedStyle(node).transitionDuration);
     expect(['0s', '']).toContain(barTransition);
+  });
+
+  test('parks the projector instead of slowing it', async ({ page }) => {
+    // The site's rule for this preference is off, not gentler. The transport
+    // keeps writing its properties — a preference toggled mid-session must not
+    // leave a half-turned spool behind — so the CSS has to beat them.
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await openScrollableRoll(page);
+
+    const head = page.locator('.spool-head');
+    await page.mouse.wheel(0, 600);
+    await page.waitForTimeout(300);
+    expect(await head.evaluate((node) => getComputedStyle(node).transform)).toBe('none');
   });
 
   test('still suppresses the looping sprite previews', async ({ page }) => {

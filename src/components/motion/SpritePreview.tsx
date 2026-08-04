@@ -15,20 +15,27 @@ export function SpritePreview({
   active,
   alt,
   boxStyle,
+  className = '',
   onSettled,
 }: {
   spriteUrl: string;
   frames: number;
   active: boolean;
   alt: string;
-  /** Shapes the window to the clip — see frameBoxStyle in FilmFrame. */
+  /** Shapes the window to the clip — see lib/video/frame.ts. */
   boxStyle: React.CSSProperties;
-  /** Reports the sheet as landed or failed, so the reel knows when to unwind. */
+  /**
+   * The two surfaces size this differently — the roll gives it an explicit
+   * width and height, the clip page lets it fill the column — so sizing is the
+   * caller's, and no default width is imposed here.
+   */
+  className?: string;
+  /** Reports the sheet as landed or failed, so a caller can gate on it. */
   onSettled?: () => void;
 }) {
   return (
     <div
-      className="sprite-window mx-auto w-full"
+      className={`sprite-window ${className}`}
       data-active={active ? 'true' : 'false'}
       style={
         {

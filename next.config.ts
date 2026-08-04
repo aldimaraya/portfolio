@@ -19,7 +19,13 @@ const nextConfig: NextConfig = {
   // symptom of a stale entry here is a page that looks fine and does nothing,
   // which is a bad thing to have to re-diagnose. Reaching it by hostname
   // (*.local) survives the address changing at all.
-  allowedDevOrigins: ['192.168.*.*', '10.*.*.*', '172.16.*.*', '*.local'],
+  //
+  // 100.* is the Tailscale range, which is the way in when the Wi-Fi itself
+  // refuses to carry device-to-device traffic — guest and travel networks
+  // routinely isolate clients, and no amount of correct config here helps with
+  // that. Reaching the laptop over the tailnet sidesteps the LAN entirely, and
+  // survives changing networks without the address changing at all.
+  allowedDevOrigins: ['192.168.*.*', '10.*.*.*', '172.16.*.*', '100.*.*.*', '*.local'],
   images: {
     remotePatterns: mediaHostname
       ? [{ protocol: 'https', hostname: mediaHostname }]

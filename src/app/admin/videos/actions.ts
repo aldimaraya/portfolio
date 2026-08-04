@@ -17,6 +17,10 @@ const videoSchema = z.object({
   // stretched into 16:9.
   width: z.number().int().positive('The clip dimensions could not be read'),
   height: z.number().int().positive('The clip dimensions could not be read'),
+  // Not `positive`: an edit to a clip stored before this column existed submits
+  // the 0 it already carries, and refusing that would make every old clip
+  // unsaveable until someone re-uploaded it. 0 means unknown — see the schema.
+  durationSeconds: z.number().nonnegative('The clip duration could not be read'),
   // Trimmed before the length check, so a lone space cannot pass as a value.
   title: z.string().trim().min(1, 'Title is required'),
   // Optional — not every clip needs a blurb.
@@ -66,7 +70,11 @@ export async function saveVideo(input: VideoInput): Promise<{ error?: string }> 
   await pruneUnusedTags();
 
   revalidatePath('/admin/videos');
-  revalidatePath('/motion');
+  // 'layout' rather than the default, so the clip pages under /motion go too.
+  // Every one of them carries its own position on the roll — the frame code and
+  // the prev/next pager — so a change to any clip can invalidate all of them,
+  // and a reorder always does.
+  revalidatePath('/motion', 'layout');
   return {};
 }
 
@@ -88,7 +96,11 @@ export async function reorderVideos(ids: string[]): Promise<{ error?: string }> 
   );
 
   revalidatePath('/admin/videos');
-  revalidatePath('/motion');
+  // 'layout' rather than the default, so the clip pages under /motion go too.
+  // Every one of them carries its own position on the roll — the frame code and
+  // the prev/next pager — so a change to any clip can invalidate all of them,
+  // and a reorder always does.
+  revalidatePath('/motion', 'layout');
   return {};
 }
 
@@ -114,6 +126,10 @@ export async function deleteVideo(id: string): Promise<{ error?: string }> {
   await pruneUnusedTags();
 
   revalidatePath('/admin/videos');
-  revalidatePath('/motion');
+  // 'layout' rather than the default, so the clip pages under /motion go too.
+  // Every one of them carries its own position on the roll — the frame code and
+  // the prev/next pager — so a change to any clip can invalidate all of them,
+  // and a reorder always does.
+  revalidatePath('/motion', 'layout');
   return {};
 }
