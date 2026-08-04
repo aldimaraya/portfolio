@@ -3,23 +3,17 @@ import { test, expect, type Page } from '@playwright/test';
 /**
  * Auth and admin-shell smoke tests.
  *
- * Two things can make these unrunnable, and each is detected and reported rather
- * than skipped silently — a suite that quietly runs nothing looks identical to
- * one that passes:
+ * The gate is unconditional now — the `DEV_SKIP_AUTH` bypass these tests used to
+ * detect and skip around is gone — so everything below always runs and always
+ * asserts, except the signed-in block.
  *
- * - `DEV_SKIP_AUTH=true` leaves /admin ungated, so there is no redirect to
- *   assert. Detected live, because the flag lives in the server's environment.
- * - `E2E_ADMIN_PASSWORD` unset, or not matching `ADMIN_PASSWORD_HASH`, means no
- *   session can be established.
+ * That one still depends on `E2E_ADMIN_PASSWORD` being set and matching
+ * `ADMIN_PASSWORD_HASH`, without which no session can be established. It reports
+ * itself as skipped rather than passing quietly: a suite that runs nothing looks
+ * identical to one that succeeds.
  */
 
 const PASSWORD = process.env.E2E_ADMIN_PASSWORD ?? '';
-
-/** True when the server is letting /admin through without a session. */
-async function authBypassed(page: Page): Promise<boolean> {
-  const response = await page.request.get('/admin', { maxRedirects: 0 });
-  return response.status() < 300 || response.status() >= 400;
-}
 
 /** The admin chrome's own nav, as opposed to links in the page body. */
 function adminNav(page: Page) {
@@ -64,16 +58,12 @@ test('an empty password never reaches the server', async ({ page }) => {
 });
 
 test('unauthenticated visitors are redirected to login', async ({ page }) => {
-  test.skip(await authBypassed(page), 'DEV_SKIP_AUTH is on — /admin is ungated');
-
   await page.goto('/admin');
   await expect(page).toHaveURL(/\/login/);
   await expect(page.getByLabel('Password')).toBeVisible();
 });
 
 test('the requested admin path is carried through the login redirect', async ({ page }) => {
-  test.skip(await authBypassed(page), 'DEV_SKIP_AUTH is on — /admin is ungated');
-
   await page.goto('/admin/videos');
   await expect(page).toHaveURL(/\/login\?next=%2Fadmin%2Fvideos/);
 });
@@ -125,8 +115,7 @@ test.describe('signed in', () => {
     await page.getByRole('button', { name: 'Sign out' }).click();
     await expect(page).toHaveURL(/\/login/);
 
-    // The cookie is gone, so the gate applies again — unless it was never on.
-    test.skip(await authBypassed(page), 'DEV_SKIP_AUTH is on — /admin is ungated');
+    // The cookie is gone, so the gate applies again.
     await page.goto('/admin');
     await expect(page).toHaveURL(/\/login/);
   });

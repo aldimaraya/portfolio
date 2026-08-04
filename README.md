@@ -163,7 +163,7 @@ For how any of it works and why, read
 read [Known gaps](docs/architecture.md#known-gaps) and
 [docs/code-review-findings.md](docs/code-review-findings.md).
 
-> **Not production-ready yet.** `DEV_SKIP_AUTH` and `src/lib/auth/dev-bypass.ts`
-> disable the admin gate outside production and must be deleted before launch,
-> and the login has no rate limiting. Note that development points at the *live*
-> Neon database and R2 bucket.
+> **Before launch:** the login has no rate limiting or lockout — one static
+> password, unlimited attempts, each burning a full-CPU serverless invocation.
+> With the development auth bypass now removed, that password is the whole of
+> the defence, and development points at the *live* Neon database and R2 bucket.

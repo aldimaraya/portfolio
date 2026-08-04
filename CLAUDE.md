@@ -87,9 +87,10 @@ Load-bearing constraints — these are why the code is shaped this way:
 - **Auth is checked twice.** `proxy.ts` gates `/admin/*` pages, and every server action and route handler
   re-checks with `isAuthenticated()` / `requireSession()` (`lib/auth/guard.ts`), because server actions are
   publicly reachable endpoints regardless of which page rendered the form.
-- **`lib/auth/dev-bypass.ts` is temporary.** `DEV_SKIP_AUTH=true` outside production disables the admin
-  gate. Development points at the *live* Neon DB and R2 bucket. Delete the file and its call sites
-  (`proxy.ts`, `guard.ts` — grep `DEV_SKIP_AUTH`) once the admin panel is finished.
+- **There is no development auth bypass, and there should not be one again.** `DEV_SKIP_AUTH` and
+  `lib/auth/dev-bypass.ts` were removed before launch; `/admin` needs a real session in every
+  environment. Local development therefore needs a working `ADMIN_PASSWORD_HASH` and `SESSION_SECRET`
+  — which is the right trade, because development points at the *live* Neon DB and R2 bucket.
 - **Env is validated in slices** (`lib/env.ts`): `authEnv()` and `storageEnv()` are memoised and parsed
   lazily, so a half-configured environment only fails where it is actually missing something. Both are
   server-only — never import them from a client component.

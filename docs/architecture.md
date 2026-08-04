@@ -342,20 +342,24 @@ Ranked roughly by what they cost. The full list, with file references, is in
 
 **Before this is genuinely production-ready:**
 
-1. **`DEV_SKIP_AUTH` and `lib/auth/dev-bypass.ts` are temporary** and must be
-   deleted along with their call sites in `proxy.ts` and `guard.ts` (grep
-   `DEV_SKIP_AUTH`). Outside production it disables the admin gate entirely.
-   Note that development points at the *live* Neon database and R2 bucket.
-2. **No rate limiting or lockout on login.** One static password, unlimited
+1. **No rate limiting or lockout on login.** One static password, unlimited
    attempts. bcrypt(12) throttles a serial attacker but not concurrent ones, and
    each attempt burns a full-CPU serverless invocation — a credential risk and a
    billing amplifier at once. Needs a decision: in-memory counter (free,
-   per-instance, resets on cold start) vs. durable KV.
-3. **A failed update silently strips every tag** from a photo or video:
+   per-instance, resets on cold start) vs. durable KV. **This is now the only
+   thing standing between the admin area and the open internet**, since the
+   development bypass is gone and the password is the whole of the defence.
+2. **A failed update silently strips every tag** from a photo or video:
    `deleteMany` then `update`, unwrapped, so a failed update leaves the delete
    committed. Both need one transaction.
-4. **One failed upload part discards the whole upload** — the exact failure
+3. **One failed upload part discards the whole upload** — the exact failure
    multipart was adopted to prevent. Nothing retries a part.
+
+Removed rather than fixed: the `DEV_SKIP_AUTH` development bypass and
+`lib/auth/dev-bypass.ts`, deleted before launch. `/admin` now requires a real
+session in every environment, which means local development needs a working
+`ADMIN_PASSWORD_HASH` and `SESSION_SECRET` like anywhere else — a fair price,
+given development points at the *live* Neon database and R2 bucket.
 
 **Known rough edges, none blocking:**
 

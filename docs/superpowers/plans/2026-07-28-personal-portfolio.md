@@ -24,11 +24,13 @@
 ## Status and deviations (updated 2026-08-04)
 
 **Done:** Tasks 1–19, plus the post-plan work recorded at the end of this
-section. **Next:** the deployment checklist at the end of this file, starting
-with removing the auth bypass.
+section, plus removing the auth bypass. **Next:** the rest of the deployment
+checklist at the end of this file — login rate limiting is the open item that
+matters.
 
-Six of the admin e2e tests skip while `DEV_SKIP_AUTH=true` and
-`ADMIN_PASSWORD_HASH` is still the placeholder — see the note under *Temporary*.
+The admin e2e tests no longer skip: the gate is unconditional. The signed-in
+block still needs `E2E_ADMIN_PASSWORD` set and matching `ADMIN_PASSWORD_HASH`,
+and reports itself as skipped when it is not.
 
 `Placeholder` is gone — Task 18 was its last caller, so the component was deleted
 rather than left as dead code.
@@ -83,12 +85,13 @@ had nothing to narrow. The motion page is one flat, drag-ordered list.
 alone. That function and its tests were removed in Task 15 rather than left as
 dead code.)
 
-### Temporary
+### Temporary — since removed
 
-`DEV_SKIP_AUTH` (`src/lib/auth/dev-bypass.ts`) skips the `/admin` login while the
-panel is being built. It is inert unless `NODE_ENV` is development, so a deployed
-instance cannot enable it. **Delete the file and its three call sites when the
-admin panel is finished** — grep `DEV_SKIP_AUTH`.
+`DEV_SKIP_AUTH` (`src/lib/auth/dev-bypass.ts`) skipped the `/admin` login while
+the panel was being built. **Deleted on 2026-08-04**, along with its call sites
+in `proxy.ts` and `guard.ts` and the e2e skips that detected it. `/admin` now
+requires a real session in every environment, so local development needs a
+working `ADMIN_PASSWORD_HASH` and `SESSION_SECRET`.
 
 ### Operational notes
 
