@@ -32,6 +32,7 @@ export default async function EditVideoPage({ params }: { params: Promise<{ id: 
           spriteFrames: video.spriteFrames,
           width: video.width,
           height: video.height,
+          durationSeconds: video.durationSeconds,
           title: video.title,
           description: video.description,
           tags: video.tags.map((entry) => entry.tag.name).join(', '),

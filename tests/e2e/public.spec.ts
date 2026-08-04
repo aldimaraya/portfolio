@@ -44,6 +44,35 @@ test('the admin area is not linked from the public site', async ({ page }) => {
   }
 });
 
+test('a clip on the roll opens its own page, and comes back', async ({ page }) => {
+  await page.goto('/motion');
+
+  const rows = page.locator('ul a[href^="/motion/"]');
+  if ((await rows.count()) === 0) test.skip(true, 'No clips on the roll');
+
+  await rows.first().click();
+  await expect(page).toHaveURL(/\/motion\/[^/]+$/);
+
+  // The clip is there and addressable. Whether it is *running* is deliberately
+  // not asserted: autoplay is a request every browser is free to refuse, and
+  // headless Chromium does refuse it, so a test that demanded playback would be
+  // testing the runner's policy rather than the page. What must hold either way
+  // is that the visitor can start it — the control is there when it was refused
+  // and gone once it is running.
+  await expect(page.locator('video')).toHaveCount(1);
+  const stage = page.locator('.clip-stage');
+  const playing = (await stage.getAttribute('data-playing')) === 'true';
+  await expect(page.getByRole('button', { name: /^Play / })).toHaveCount(playing ? 0 : 1);
+
+  await page.getByRole('link', { name: /Back to the roll/ }).click();
+  await expect(page).toHaveURL(/\/motion$/);
+});
+
+test('an unknown clip id is a 404', async ({ page }) => {
+  const response = await page.goto('/motion/no-such-clip-exists');
+  expect(response?.status()).toBe(404);
+});
+
 test('an unknown journal slug is a 404', async ({ page }) => {
   const response = await page.goto('/journal/no-such-post-exists');
   expect(response?.status()).toBe(404);

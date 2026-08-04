@@ -26,6 +26,7 @@ function buildForm(initial?: Initial): VideoInput {
     spriteFrames: initial?.spriteFrames ?? 0,
     width: initial?.width ?? 0,
     height: initial?.height ?? 0,
+    durationSeconds: initial?.durationSeconds ?? 0,
     title: initial?.title ?? '',
     description: initial?.description ?? '',
     tags: initial?.tags ?? '',
@@ -102,6 +103,10 @@ export function VideoForm({ initial, tagOptions }: { initial?: Initial; tagOptio
         spriteFrames: result.frameCount,
         width: result.videoWidth,
         height: result.videoHeight,
+        // The one chance to capture it: this metadata read happens in the
+        // browser, on the picked file, and nothing server-side ever opens the
+        // stored copy again.
+        durationSeconds: result.durationSeconds,
       }));
     } catch (cause) {
       // Leaves sprite null, which keeps the save button disabled rather than

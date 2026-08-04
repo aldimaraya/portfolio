@@ -78,6 +78,19 @@ model Video {
   width  Int @default(0)
   height Int @default(0)
 
+  // How long the clip runs. Measured in the browser at upload time from the same
+  // metadata read that drives the sprite sheet (see lib/video/sprite.ts), because
+  // there is no server-side video processing anywhere in this pipeline to read it
+  // later — and the stored file is never opened again after it reaches R2.
+  //
+  // Float, not Int: a 90-frame clip at 30fps is 3.0s but a 91-frame one is not,
+  // and rounding on the way in would make the roll's running total drift.
+  // Defaulted to 0 for clips stored before this column existed, which the UI
+  // reads as unknown and simply omits — it cannot be backfilled from anything on
+  // the server, so an old clip's length has to be re-derived by re-uploading it
+  // or left blank. See scripts/backfill-durations.mjs.
+  durationSeconds Float @default(0)
+
   title String
 
   // No camera/format/fps/iso here on purpose. Capture settings carry real meaning

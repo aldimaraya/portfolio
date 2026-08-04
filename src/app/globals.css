@@ -212,18 +212,104 @@ body {
   animation: develop-sweep 1100ms cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
-/* --- The film reel's loading state ---------------------------------------- */
+/* --- The projector -------------------------------------------------------- */
 
-/* The spool runs under its own power until the reel is ready, at which point the
-   class comes off and FilmStrip's scroll handler takes the rotation back. A CSS
-   animation outranks the inline transform that handler writes, so the two never
-   need to coordinate — whichever is meant to be in charge simply is. */
+/* The film, reduced to a perforated margin down the left of the roll. The
+   offset is a custom property with a default rather than an inline style so the
+   rail is correct before any script has run — and stays correct if the
+   transport in MotionRoll never gets to run at all. */
+.film-rail {
+  background-image: radial-gradient(circle, var(--color-ink) 40%, transparent 45%);
+  background-position: 50% var(--perforation-offset, 0px);
+  background-repeat: repeat-y;
+}
+
 @keyframes spool-spin {
   to {
     transform: rotate(360deg);
   }
 }
 
+/* The head of the roll. This one is *driven*, not animated: MotionRoll writes a
+   rotation read off window.scrollY, so it turns with the film the reader is
+   moving and stops the instant they do. Nothing here loops on its own — an
+   ornament spinning at the top of a page nobody is scrolling is the version of
+   this that becomes wallpaper. */
+.spool-head {
+  position: sticky;
+  transform: rotate(var(--spool-turn, 0deg));
+}
+
+/* The gate on a clip page, tied to the one thing there that is really moving.
+   Far slower than the loader below: this is a projector running at speed, not a
+   mechanism searching for film. */
+.spool-gate {
+  animation: spool-spin 2.4s linear infinite;
+  animation-play-state: paused;
+}
+
+.clip-stage[data-playing='true'] .spool-gate {
+  animation-play-state: running;
+}
+
+/* The gate's size, budgeted against the window rather than a fixed figure.
+   A clip is meant to be watchable without scrolling — the frame, its title and
+   its place on the roll in one view — and a cap written in pixels cannot promise
+   that, because it does not know how tall the window is.
+
+   `svh`, not `vh`: on a phone `vh` is the viewport with the browser's chrome
+   *retracted*, so a frame sized to it is cut off by the URL bar for as long as
+   that bar is showing — which is exactly when the page has just loaded.
+
+   The reserved 23rem is everything the page puts around the frame — the site
+   header and its rule, the back row, the slate, the title block under it — plus
+   enough over that for the title to sit clear of the bottom edge rather than
+   flush against it, which reads as cut off even when all of it is showing.
+   The floor matters more than the cap — on a short window the frame gives up
+   height until it reaches 14rem, below which it would be too small to be worth
+   the space it is still taking, and the page scrolls instead. */
+.clip-gate {
+  --gate-height: min(40rem, max(14rem, 100svh - 23rem));
+  /* calc() of a bare number by a length, which is why --frame-ratio must be set
+     as a number and not a string. Falls back to 16:9 if it is ever missing.
+
+     Applied to the panel rather than the frame inside it, so the gate closes
+     around the clip instead of leaving a wide empty surround on either side of a
+     frame that has given up height. The extra 1.5rem is the panel's own padding,
+     which sits outside the frame but inside this width. */
+  max-width: calc(var(--frame-ratio, 1.7778) * var(--gate-height) + 1.5rem);
+}
+
+/* A phone spends more of its window on the page's own chrome — the wordmark and
+   the tabs stack instead of sitting on one line — and the title and its
+   identifiers wrap onto two lines rather than one. Both come out of the same
+   budget, so the reserve is larger and the floor lower: on a screen this size a
+   frame that has given up its height is still worth more than one that has
+   pushed its own title out of view. */
+@media (max-width: 800px) {
+  .clip-gate {
+    --gate-height: min(40rem, max(12rem, 100svh - 26rem));
+  }
+}
+
+/* Light spilling from the gate, so a running clip sits in projection rather
+   than on a flat panel. Deliberately not a flicker: an authentic gate flutter
+   is the detail that is charming for one clip and unbearable by the third. */
+.clip-stage {
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);
+  transition: box-shadow 400ms ease;
+}
+
+.clip-stage[data-playing='true'] {
+  box-shadow:
+    0 20px 50px rgba(0, 0, 0, 0.7),
+    0 0 70px -20px rgba(212, 175, 55, 0.35);
+}
+
+/* --- Loading states ------------------------------------------------------- */
+
+/* Spinning under its own power because there is genuinely nothing else to
+   report yet — this is the only spool on the site that loops unprompted. */
 .spool-spin {
   animation: spool-spin 900ms linear infinite;
 }
@@ -372,6 +458,32 @@ body {
      by opacity instead — the one cue left that something is still happening. */
   .spool-spin {
     opacity: 0.45;
+  }
+
+  /* The projector stops entirely, the same way the sprite previews do. The gate
+     spool has no loading state to stand in for, so unlike .spool-spin above it
+     simply holds still and keeps its opacity. */
+  .spool-gate {
+    animation: none !important;
+  }
+
+  /* The transport is decoration driven by scroll, which under this preference is
+     exactly the kind of motion to drop: the film parks at frame one and the head
+     spool holds its mark, both beating the inline properties MotionRoll writes.
+     The effect keeps writing them — there is nothing to unsubscribe from, and a
+     preference toggled mid-session must not leave a half-turned spool behind. */
+  .film-rail {
+    background-position: 50% 0 !important;
+  }
+
+  .spool-head {
+    transform: none !important;
+  }
+
+  /* Fading the gate's light in and out is motion too, at the exact moment the
+     visitor's attention is on the frame. It still appears — it just appears. */
+  .clip-stage {
+    transition: none;
   }
 
   /* Scale is the part to drop; the fade stays so the overlay does not blink in

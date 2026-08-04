@@ -35,8 +35,8 @@ media · `bcryptjs` + `jose` for the single-admin session · Zod 4 · Vitest + P
 
 ## Architecture
 
-Three public surfaces under `src/app/(site)`: **stills** (colour-sorted photo wall), **motion** (film-reel
-video viewer), **journal** (Markdown blog). One password-protected `src/app/admin` area manages all of it.
+Three public surfaces under `src/app/(site)`: **stills** (colour-sorted photo wall), **motion** (a list of
+clips, each with its own page at `/motion/[id]`), **journal** (Markdown blog). One password-protected `src/app/admin` area manages all of it.
 Shared domain logic lives in `src/lib/<concern>/`, and every pure module there has a mirrored suite in
 `tests/unit/<concern>/`.
 
@@ -67,6 +67,13 @@ Load-bearing constraints — these are why the code is shaped this way:
 - **Filters are OR within a type, AND across types**, and live in the URL query string
   (`lib/filters/parse.ts` ↔ `where.ts`) so filtered views are shareable.
 - **`prefers-reduced-motion: reduce` disables sprite animation entirely**, not just softens it.
+- **The motion page's projector reports scrolling; it never drives it.** The roll used to be a sticky
+  viewport with a `translateY` mapped off `window.scrollY`, which is what made it scroll strangely on a
+  phone. What survives is decoration only: `MotionRoll` writes `--perforation-offset` and `--spool-turn`
+  from that same `scrollY`, and deleting its effect changes nothing about how the page scrolls. Keep it
+  that way — the perforation pitch and the spool's gearing are two readings of one number, so a change to
+  `PERFORATION_PITCH` must stay in step with `.film-rail`'s `background-size`. The gate spool on a clip
+  page is the exception that loops, and only while `data-playing` is true.
 - **Video encoding is a manual pre-upload step** (local 1080p H.264, ~5–8 Mbps). 4K masters stay offline.
 
 ## Conventions that bite
