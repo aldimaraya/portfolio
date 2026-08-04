@@ -11,6 +11,9 @@ export function buildExcerpt(markdown: string, maxLength = 180): string {
     // Images first: an embed is also a link, so the link rule would otherwise
     // reduce it to its alt text and leave a stray "!" behind.
     .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
+    // A URL alone on a line is an embed, not prose — a post that opens with one
+    // would otherwise get a raw youtu.be link as its meta description.
+    .replace(/^\s*<?https?:\/\/\S+>?\s*$/gm, '')
     .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
     .replace(/`{1,3}[^`]*`{1,3}/g, '')
     .replace(/^\s{0,3}#{1,6}\s+/gm, '')

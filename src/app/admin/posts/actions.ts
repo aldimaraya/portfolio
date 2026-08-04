@@ -82,6 +82,34 @@ export async function savePost(input: PostInput): Promise<{ error?: string }> {
   return {};
 }
 
+export interface PostMediaLibrary {
+  photos: { id: string; imageUrl: string; width: number; height: number; location: string }[];
+  videos: { id: string; videoUrl: string; posterImageUrl: string; title: string }[];
+}
+
+/**
+ * What the editor's media picker offers from the existing library, so a post can
+ * reuse a photo or a clip already on the site rather than uploading a second
+ * copy of it. Fetched when the picker first opens rather than with the page —
+ * most edits never touch media, and this is every row in both tables.
+ */
+export async function listPostMedia(): Promise<PostMediaLibrary> {
+  if (!(await isAuthenticated())) return { photos: [], videos: [] };
+
+  const [photos, videos] = await Promise.all([
+    db.photo.findMany({
+      select: { id: true, imageUrl: true, width: true, height: true, location: true },
+      orderBy: { createdAt: 'desc' },
+    }),
+    db.video.findMany({
+      select: { id: true, videoUrl: true, posterImageUrl: true, title: true },
+      orderBy: { sortOrder: 'asc' },
+    }),
+  ]);
+
+  return { photos, videos };
+}
+
 export async function deletePost(id: string): Promise<{ error?: string }> {
   if (!(await isAuthenticated())) return { error: 'Unauthorized' };
 

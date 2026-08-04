@@ -9,7 +9,7 @@ export const runtime = 'nodejs';
 const body = z.object({
   filename: z.string().min(1),
   contentType: z.string().min(1),
-  prefix: z.enum(['photos', 'videos', 'posters', 'sprites']),
+  prefix: z.enum(['photos', 'videos', 'posters', 'sprites', 'journal']),
 });
 
 export async function POST(request: Request) {
