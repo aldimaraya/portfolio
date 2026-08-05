@@ -1,4 +1,10 @@
-import { computeFrameTimestamps, DEFAULT_SPRITE_FRAMES } from './timestamps';
+import {
+  computeFrameTimestamps,
+  DEFAULT_SPRITE_FRAMES,
+  PREVIEW_WINDOW_SECONDS,
+  windowSpan,
+  windowStart,
+} from './timestamps';
 
 /**
  * Browser-only sprite-sheet generation. The browser already holds the video file
@@ -19,6 +25,24 @@ export interface SpriteResult {
   videoWidth: number;
   videoHeight: number;
   durationSeconds: number;
+  /**
+   * Where in the clip the frames were taken from, after clamping. Reported so the
+   * admin's window control can start from where the grab actually landed rather
+   * than from where it was asked to.
+   */
+  startSeconds: number;
+  /** How much of the clip those frames span. */
+  windowSeconds: number;
+}
+
+export interface SpriteOptions {
+  frameCount?: number;
+  frameWidth?: number;
+  /**
+   * Where the preview window opens. Left out, it falls to the default guess a
+   * fifth of the way in — see windowStart.
+   */
+  startSeconds?: number;
 }
 
 /**
@@ -72,8 +96,11 @@ function toBlob(canvas: HTMLCanvasElement, type: string, quality: number): Promi
 
 export async function generateSpriteSheet(
   file: File,
-  frameCount: number = DEFAULT_SPRITE_FRAMES,
-  frameWidth: number = DEFAULT_SPRITE_FRAME_WIDTH,
+  {
+    frameCount = DEFAULT_SPRITE_FRAMES,
+    frameWidth = DEFAULT_SPRITE_FRAME_WIDTH,
+    startSeconds,
+  }: SpriteOptions = {},
 ): Promise<SpriteResult> {
   const objectUrl = URL.createObjectURL(file);
   const video = document.createElement('video');
@@ -88,7 +115,12 @@ export async function generateSpriteSheet(
   try {
     await once(video, 'loadedmetadata', 'Could not read video metadata');
 
-    const timestamps = computeFrameTimestamps(video.duration, frameCount);
+    const timestamps = computeFrameTimestamps(
+      video.duration,
+      frameCount,
+      PREVIEW_WINDOW_SECONDS,
+      startSeconds,
+    );
     if (timestamps.length === 0) {
       throw new Error('Video duration could not be determined');
     }
@@ -143,6 +175,8 @@ export async function generateSpriteSheet(
       videoWidth: video.videoWidth,
       videoHeight: video.videoHeight,
       durationSeconds: video.duration,
+      startSeconds: windowStart(video.duration, PREVIEW_WINDOW_SECONDS, startSeconds),
+      windowSeconds: windowSpan(video.duration),
     };
   } finally {
     // Releases the decoder and the object URL even when a seek throws; leaking

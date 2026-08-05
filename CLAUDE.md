@@ -48,9 +48,10 @@ Load-bearing constraints — these are why the code is shaped this way:
   server-side image or video processing. Rendering a public page is a plain database read.
 - **Media never passes through the app server.** Browser → R2 over presigned *multipart* URLs
   (`lib/storage/multipart.ts`, `app/api/upload/*`), so a 1 GB upload failing at 90% does not restart. Video
-  is served straight from R2/CDN; only photos take the `next/image` hop. The one exception is
-  `app/api/admin/photo-source` — an admin-only, same-origin read so the border trimmer can get untainted
-  canvas pixels; it is session-gated and restricted to keys inside our own bucket.
+  is served straight from R2/CDN; only photos take the `next/image` hop. The exceptions are the two
+  admin-only same-origin reads sharing `lib/storage/media-source.ts` — `app/api/admin/photo-source`, so
+  the border trimmer can get untainted canvas pixels, and `app/api/admin/video-source`, so a stored clip's
+  scrub preview can be regenerated. Both are session-gated and restricted to keys inside our own bucket.
 - **Wall order is fully derived from colour, in OKLab.** Photos have no manual sort column:
   `lib/color/sort.ts` produces a monochrome band dark→light followed by a cool→warm sweep, and
   `lib/photo/justify.ts` packs that order into justified rows. It sorts on `warmth` — the average colour

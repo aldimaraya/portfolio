@@ -77,10 +77,15 @@ Uploads go browser → R2 over presigned **multipart** URLs
 does not restart from zero. Video is served straight from R2/CDN; only photos
 take the `next/image` hop.
 
-The single exception is
-[`app/api/admin/photo-source`](../src/app/api/admin/photo-source/route.ts), an
-admin-only same-origin read that lets the border trimmer get untainted canvas
-pixels. It is session-gated and restricted to keys inside our own bucket.
+The exceptions are the two admin-only same-origin reads that share
+[`lib/storage/media-source.ts`](../src/lib/storage/media-source.ts):
+[`photo-source`](../src/app/api/admin/photo-source/route.ts), which lets the
+border trimmer get untainted canvas pixels, and
+[`video-source`](../src/app/api/admin/video-source/route.ts), which pulls a
+stored clip back so its scrub preview can be regenerated. Both are session-gated
+and restricted to keys inside our own bucket. `video-source` is the one place a
+whole clip passes through the app server; it is rare, manual, and the alternative
+is CORS configuration on the bucket, which does not live in this repo.
 
 ### A photo's EXIF never reaches the stored copy
 
@@ -200,7 +205,15 @@ One password, one session. Photos, videos and posts each get a list and a form.
   border trimmer, tag input with suggestions, and colour analysis — all before
   anything reaches R2.
 - **Video upload** generating a poster and an 18-frame sprite sheet locally,
-  capturing dimensions and duration in the same metadata read.
+  capturing dimensions and duration in the same metadata read. The frames come
+  from a 1.5s window, not the whole clip — spread across a 28s clip they read as
+  a slideshow rather than as motion. Where that window opens is guessed at a
+  fifth of the way in and can then be dragged
+  ([`lib/video/timestamps.ts`](../src/lib/video/timestamps.ts)); the source file
+  stays in memory, so moving it costs a re-grab and not a re-download.
+- **Regenerate preview frames** on a clip's edit page pulls the stored clip back
+  through `video-source` and re-grabs, which is how a preview is changed after
+  upload and how a legacy row's missing dimensions get filled in.
 - **Drag-to-reorder** for videos, persisted as a whole ordering in one
   transaction rather than a moved pair, so the result cannot drift from what is
   on screen.
@@ -373,6 +386,9 @@ given development points at the *live* Neon database and R2 bucket.
 - Upload progress counts parts, not bytes, so any file under 5 MiB jumps 0 → 100.
 - Part size is pinned at the 5 MiB minimum with one signing round-trip per part,
   so a 1 GB video costs 200 sequential calls.
-- One clip (`Alaska Preview`) still has `width`/`height` of 0. The player
-  recovers the true ratio from the file at runtime, so it looks right, but the
-  row is wrong. The same box-walking parser could recover it from `tkhd`.
+- Clips stored before the dimension columns existed carry `width`/`height` of 0
+  and are drawn 16:9 on the roll, which is the wrong shape. The player recovers
+  the true ratio from the file at runtime, so the clip page looks right either
+  way. **Regenerate preview frames** on the clip's admin page fixes the row —
+  it re-grabs the frames from the stored copy and writes the real dimensions and
+  duration. Run it on any clip whose thumbnail looks the wrong shape.
