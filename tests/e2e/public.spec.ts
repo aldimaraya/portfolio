@@ -14,8 +14,8 @@ test('the root redirects to the stills wall', async ({ page }) => {
 test('the three public tabs are navigable, and back again', async ({ page }) => {
   await page.goto('/stills');
 
-  // exact, because the wordmark's accessible name is "Aldi Motion and Stills" —
-  // a substring match on a tab label finds it too.
+  // exact, because the wordmark link's accessible name is the site name plus the
+  // tagline, and a substring match on a tab label can find that too.
   await page.getByRole('link', { name: 'Motion', exact: true }).click();
   await expect(page).toHaveURL(/\/motion$/);
 
@@ -28,7 +28,8 @@ test('the three public tabs are navigable, and back again', async ({ page }) => 
 
 test('the wordmark returns home from a sub-page', async ({ page }) => {
   await page.goto('/journal');
-  await page.getByRole('heading', { name: 'Aldi', level: 1 }).click();
+  // The wordmark's text is SITE_NAME in src/lib/site.ts.
+  await page.getByRole('heading', { name: 'Aldi Maraya', level: 1 }).click();
   await expect(page).toHaveURL(/\/stills$/);
 });
 

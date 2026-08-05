@@ -2,8 +2,8 @@
  * Single source of truth for header branding. Never hardcode the name or
  * tagline anywhere else. (The mockup's "Alex Morgan" was a placeholder.)
  */
-export const SITE_NAME = 'Aldi';
-export const SITE_TAGLINE = 'Motion and Stills';
+export const SITE_NAME = 'Aldi Maraya';
+export const SITE_TAGLINE = 'A life, documented';
 
 export const NAV_TABS = [
   { href: '/stills', label: 'Stills' },
