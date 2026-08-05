@@ -129,8 +129,15 @@ export function toggleLinePrefix(sel: Selection, prefix: string): Edit {
 
   const lines = value.slice(from, to).split('\n');
   // Blank lines are skipped, so prefixing a paragraph that ends in a newline
-  // does not leave a bare "- " behind on the empty line.
-  const meaningful = lines.filter((line) => line.trim());
+  // does not leave a bare "- " behind on the empty line. That only holds for a
+  // block of several lines: clicking H1 with the caret on its own empty line is
+  // the opposite intent — "start a heading here" — and skipping it made the
+  // button do nothing at all, so a heading could only be made by typing the text
+  // first and selecting it.
+  const single = lines.length === 1;
+  const affects = (line: string) => single || Boolean(line.trim());
+
+  const meaningful = lines.filter(affects);
   const removing =
     meaningful.length > 0 &&
     meaningful.every((line) => {
@@ -140,7 +147,7 @@ export function toggleLinePrefix(sel: Selection, prefix: string): Edit {
 
   let counter = 1;
   const rewritten = lines.map((line) => {
-    if (!line.trim()) return line;
+    if (!affects(line)) return line;
     const existing = currentPrefix(line, family);
     const bare = existing ? line.slice(existing.length) : line;
     if (removing) return bare;
@@ -149,7 +156,48 @@ export function toggleLinePrefix(sel: Selection, prefix: string): Edit {
   });
 
   const replacement = rewritten.join('\n');
-  return { value: splice(value, from, to, replacement), start: from, end: from + replacement.length };
+  const edited = splice(value, from, to, replacement);
+
+  // A collapsed caret keeps its place in the text rather than being handed back a
+  // selection of the whole line: selecting it means the next keystroke wipes the
+  // line that was just formatted, which is exactly what typing after clicking H1
+  // is meant to do.
+  if (start === end) {
+    const caret = shiftCaret(lines, rewritten, from, start);
+    return { value: edited, start: caret, end: caret };
+  }
+
+  return { value: edited, start: from, end: from + replacement.length };
+}
+
+/**
+ * Maps an offset in the original block to the same spot in the rewritten one,
+ * moving with the prefix that was added to or removed from its own line and
+ * clamping into that line so a removal cannot push the caret off the front.
+ */
+function shiftCaret(
+  lines: string[],
+  rewritten: string[],
+  blockStart: number,
+  caret: number,
+): number {
+  let originalLineStart = blockStart;
+  let newLineStart = blockStart;
+
+  for (const [index, line] of lines.entries()) {
+    const isLast = index === lines.length - 1;
+    // +1 for the newline joining this line to the next.
+    if (isLast || caret <= originalLineStart + line.length) {
+      const column = caret - originalLineStart;
+      const delta = rewritten[index].length - line.length;
+      const shifted = Math.min(Math.max(column + delta, 0), rewritten[index].length);
+      return newLineStart + shifted;
+    }
+    originalLineStart += line.length + 1;
+    newLineStart += rewritten[index].length + 1;
+  }
+
+  return newLineStart;
 }
 
 /**

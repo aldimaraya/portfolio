@@ -13,6 +13,12 @@ function select(marked: string) {
   return { value: marked.replace(/\|/g, ''), start, end };
 }
 
+/** A collapsed caret — no selection at all, which is the common case in use. */
+function caret(marked: string) {
+  const at = marked.indexOf('|');
+  return { value: marked.replace('|', ''), start: at, end: at };
+}
+
 describe('toggleWrap', () => {
   it('wraps the selection and keeps it selected inside the markers', () => {
     const edit = toggleWrap(select('the |light| was thin'), '**');
@@ -93,6 +99,49 @@ describe('toggleLinePrefix', () => {
   it('selects the rewritten block so a second click can toggle it back', () => {
     const edit = toggleLinePrefix(select('|one\ntwo|'), '- ');
     expect(edit.value.slice(edit.start, edit.end)).toBe('- one\n- two');
+  });
+
+  it('starts a heading on an empty line, with the caret ready to type after it', () => {
+    const edit = toggleLinePrefix(caret('|'), '# ');
+    expect(edit.value).toBe('# ');
+    expect(edit.start).toBe(2);
+    expect(edit.end).toBe(2);
+  });
+
+  it('starts a heading on an empty line between paragraphs', () => {
+    const edit = toggleLinePrefix(caret('one\n|\ntwo'), '## ');
+    expect(edit.value).toBe('one\n## \ntwo');
+    expect(edit.start).toBe(7);
+  });
+
+  it('toggles an empty heading back off', () => {
+    const edit = toggleLinePrefix(caret('# |'), '# ');
+    expect(edit.value).toBe('');
+    expect(edit.start).toBe(0);
+  });
+
+  it('keeps a collapsed caret on its word rather than selecting the line', () => {
+    const edit = toggleLinePrefix(caret('on|e'), '# ');
+    expect(edit.value).toBe('# one');
+    expect(edit.start).toBe(4);
+    expect(edit.end).toBe(4);
+  });
+
+  it('keeps the caret in place when swapping heading levels', () => {
+    const edit = toggleLinePrefix(caret('# on|e'), '## ');
+    expect(edit.value).toBe('## one');
+    expect(edit.start).toBe(5);
+  });
+
+  it('keeps the caret in place when removing a prefix', () => {
+    const edit = toggleLinePrefix(caret('- on|e'), '- ');
+    expect(edit.value).toBe('one');
+    expect(edit.start).toBe(2);
+  });
+
+  it('still skips blank lines inside a multi-line block', () => {
+    const edit = toggleLinePrefix(select('|one\n\ntwo|'), '- ');
+    expect(edit.value).toBe('- one\n\n- two');
   });
 });
 
