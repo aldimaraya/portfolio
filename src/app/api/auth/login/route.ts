@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { authEnv } from '@/lib/env';
 import { verifyPassword } from '@/lib/auth/password';
+import { checkRateLimit, clearFailures, clientKey, recordFailure } from '@/lib/auth/rate-limit';
 import { createSessionToken, SESSION_COOKIE, SESSION_MAX_AGE_SECONDS } from '@/lib/auth/session';
 
 // bcrypt is Node-only, so this route stays pinned to the Node runtime.
@@ -10,6 +11,17 @@ export const runtime = 'nodejs';
 const body = z.object({ password: z.string().min(1) });
 
 export async function POST(request: Request) {
+  // Checked before the body is even parsed, and long before bcrypt: the point of
+  // the limit is that a locked-out caller costs nothing to turn away.
+  const key = clientKey(request.headers);
+  const verdict = checkRateLimit(key);
+  if (!verdict.allowed) {
+    return NextResponse.json(
+      { error: 'Too many attempts. Try again later.' },
+      { status: 429, headers: { 'Retry-After': String(verdict.retryAfterSeconds) } },
+    );
+  }
+
   const json = await request.json().catch(() => null);
   const parsed = body.safeParse(json);
   if (!parsed.success) {
@@ -18,8 +30,13 @@ export async function POST(request: Request) {
 
   const ok = await verifyPassword(parsed.data.password, authEnv().ADMIN_PASSWORD_HASH);
   if (!ok) {
+    // Counted only for a password that was actually wrong — a malformed body
+    // never reaches here, so a broken client cannot lock its owner out.
+    recordFailure(key);
     return NextResponse.json({ error: 'That password is incorrect' }, { status: 401 });
   }
+
+  clearFailures(key);
 
   const response = NextResponse.json({ ok: true });
   response.cookies.set(SESSION_COOKIE, await createSessionToken(), {
