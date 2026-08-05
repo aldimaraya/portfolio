@@ -13,20 +13,28 @@ const videoSchema = z.object({
   posterImageUrl: z.url('The poster image failed to generate'),
   spriteUrl: z.url('The preview sprite failed to generate'),
   spriteFrames: z.number().int().positive(),
-  // Shapes the frame on the motion page; a clip saved without them would be
-  // stretched into 16:9.
-  width: z.number().int().positive('The clip dimensions could not be read'),
-  height: z.number().int().positive('The clip dimensions could not be read'),
-  // Not `positive`: an edit to a clip stored before this column existed submits
-  // the 0 it already carries, and refusing that would make every old clip
-  // unsaveable until someone re-uploaded it. 0 means unknown — see the schema.
+  // Shape the frame on the motion page; without them a clip is drawn 16:9. Not
+  // `positive` here for the same reason as durationSeconds below: a clip stored
+  // before these columns existed submits the 0 it already carries, and refusing
+  // that made an unrelated edit — retitling, fixing a description — impossible
+  // on exactly the rows that most needed fixing. 0 means unknown; the check
+  // below still holds the line where it can actually be met.
+  width: z.number().int().nonnegative('The clip dimensions could not be read'),
+  height: z.number().int().nonnegative('The clip dimensions could not be read'),
   durationSeconds: z.number().nonnegative('The clip duration could not be read'),
   // Trimmed before the length check, so a lone space cannot pass as a value.
   title: z.string().trim().min(1, 'Title is required'),
   // Optional — not every clip needs a blurb.
   description: z.string().trim(),
   tags: z.string(),
-});
+})
+  // A *new* clip has just had its frames grabbed in the browser, which cannot
+  // succeed without dimensions — so a 0 arriving on a create is a real fault
+  // worth refusing, where a 0 arriving on an edit is only history.
+  .refine((input) => Boolean(input.id) || (input.width > 0 && input.height > 0), {
+    message: 'The clip dimensions could not be read',
+    path: ['width'],
+  });
 
 export type VideoInput = z.infer<typeof videoSchema>;
 
@@ -44,6 +52,21 @@ export async function saveVideo(input: VideoInput): Promise<{ error?: string }> 
   const connections = await tagConnections(tags);
 
   if (id) {
+    // Regenerating a preview uploads a fresh poster and strip under new keys, so
+    // the ones this row used to point at become unreachable the moment the row
+    // is updated. Dropped before the write for the same reason deleteVideo does
+    // it in that order: a delete that is already gone is not an error in S3, so
+    // failing here leaves the row intact and the operation safe to retry.
+    const stored = await db.video.findUnique({
+      where: { id },
+      select: { posterImageUrl: true, spriteUrl: true },
+    });
+    const replaced = [
+      stored?.posterImageUrl !== data.posterImageUrl ? stored?.posterImageUrl : null,
+      stored?.spriteUrl !== data.spriteUrl ? stored?.spriteUrl : null,
+    ].filter((url): url is string => Boolean(url));
+    if (replaced.length) await deleteObjectsByUrl(replaced);
+
     // Replace the tag set wholesale rather than diffing it.
     await db.videoTag.deleteMany({ where: { videoId: id } });
     await db.video.update({
