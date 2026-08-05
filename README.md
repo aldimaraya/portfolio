@@ -6,9 +6,8 @@ roll of clips each with its own page (**Motion**), a Markdown blog
 without touching code.
 
 All four are **built and working** — there are no stubs left in the codebase.
-What remains before a production launch is listed under
-[Known gaps](docs/architecture.md#known-gaps), the first item of which is
-deleting the development auth bypass.
+What remains is listed under [Known gaps](docs/architecture.md#known-gaps); one
+item is left there that blocks nothing unrecoverable.
 
 - **Architecture and features, as built:** [docs/architecture.md](docs/architecture.md) — start here
 - Original design spec: [docs/superpowers/specs/2026-07-28-personal-portfolio-design.md](docs/superpowers/specs/2026-07-28-personal-portfolio-design.md) (history)

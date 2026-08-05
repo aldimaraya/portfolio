@@ -259,6 +259,18 @@ which changes the key, which invalidates every token issued under the old
 password — so changing the password is a complete response to a leaked one, with
 no second secret to remember to rotate.
 
+**Failed logins are throttled** by
+[`lib/auth/rate-limit.ts`](../src/lib/auth/rate-limit.ts): eight wrong passwords
+from one address inside fifteen minutes locks it out for fifteen more, checked
+before the body is parsed and long before bcrypt runs, so a locked-out caller
+costs nothing to serve. The window re-arms on every failure, so a slow trickle
+cannot sit under the limit indefinitely. The counter is an in-memory `Map`, not
+KV — state is per serverless instance and lost on a cold start, which means a
+sufficiently distributed attacker gets more than eight attempts in total. That is
+the accepted trade: it costs nothing, adds no dependency, and stops the attack
+that actually happens, which is one source firing a dictionary at one warm
+instance. Swap the map for Upstash if that stops being true.
+
 Tokens pin `HS256` explicitly and carry an issuer and audience. Redirects after
 login go through `safeNextPath`
 ([`lib/auth/next-path.ts`](../src/lib/auth/next-path.ts)), which resolves against
@@ -334,6 +346,24 @@ kilobytes and no frame is ever decoded. The parser is
 rows that predate the column — every clip uploaded since carries its duration
 from the browser.
 
+### Search, sharing, and the canonical origin
+
+Everything a crawler or a link preview needs is generated, never checked in:
+`app/icon.svg`, `app/opengraph-image.tsx` (an `ImageResponse` built at build time,
+typographic rather than photographic so it cannot misrepresent a wall whose
+contents change), `app/robots.ts`, and `app/sitemap.ts`. The sitemap reads the
+database and excludes drafts in the query, matching `/journal`; it is static and
+refreshed by the same `revalidatePath` calls that rebuild the pages it lists.
+
+All four resolve their absolute URLs through
+[`lib/site-url.ts`](../src/lib/site-url.ts), which prefers `NEXT_PUBLIC_SITE_URL`,
+falls back to Vercel's `VERCEL_PROJECT_PRODUCTION_URL`, and finally to localhost.
+It deliberately ignores `VERCEL_URL` — that one is unique per deployment, so a
+sitemap built from it would advertise a hostname that stops being the site as
+soon as the next deploy lands. The same value feeds `metadataBase` in the root
+layout, without which Next drops every relative Open Graph URL and a shared link
+unfurls as bare text.
+
 ### Bucket setup no code here can do for you
 
 - **`ExposeHeaders: ["ETag"]` in the CORS policy.** Multipart uploads cannot be
@@ -355,18 +385,16 @@ Ranked roughly by what they cost. The full list, with file references, is in
 
 **Before this is genuinely production-ready:**
 
-1. **No rate limiting or lockout on login.** One static password, unlimited
-   attempts. bcrypt(12) throttles a serial attacker but not concurrent ones, and
-   each attempt burns a full-CPU serverless invocation — a credential risk and a
-   billing amplifier at once. Needs a decision: in-memory counter (free,
-   per-instance, resets on cold start) vs. durable KV. **This is now the only
-   thing standing between the admin area and the open internet**, since the
-   development bypass is gone and the password is the whole of the defence.
-2. **A failed update silently strips every tag** from a photo or video:
-   `deleteMany` then `update`, unwrapped, so a failed update leaves the delete
-   committed. Both need one transaction.
-3. **One failed upload part discards the whole upload** — the exact failure
-   multipart was adopted to prevent. Nothing retries a part.
+1. **One failed upload part discards the whole upload** — the exact failure
+   multipart was adopted to prevent. Nothing retries a part. This is the last of
+   the three launch blockers still open, and it costs a re-upload rather than
+   anything unrecoverable.
+
+Closed in the pre-deploy pass (2026-08-05): login now rate-limits — 8 wrong
+passwords locks an address out for 15 minutes, in-memory and per-instance, see
+`lib/auth/rate-limit.ts` — and both tag-set replacements are wrapped in one
+`db.$transaction`, so a failed update can no longer leave the delete committed
+and the item stripped of every tag.
 
 Removed rather than fixed: the `DEV_SKIP_AUTH` development bypass and
 `lib/auth/dev-bypass.ts`, deleted before launch. `/admin` now requires a real
