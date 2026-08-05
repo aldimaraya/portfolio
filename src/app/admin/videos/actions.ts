@@ -67,12 +67,17 @@ export async function saveVideo(input: VideoInput): Promise<{ error?: string }> 
     ].filter((url): url is string => Boolean(url));
     if (replaced.length) await deleteObjectsByUrl(replaced);
 
-    // Replace the tag set wholesale rather than diffing it.
-    await db.videoTag.deleteMany({ where: { videoId: id } });
-    await db.video.update({
-      where: { id },
-      data: { ...data, tags: { create: connections } },
-    });
+    // Replace the tag set wholesale rather than diffing it — but as one
+    // transaction, because the two halves are not independently useful: a delete
+    // that commits while the update fails leaves the clip with no tags at all,
+    // silently, and the admin has no way to tell that happened.
+    await db.$transaction([
+      db.videoTag.deleteMany({ where: { videoId: id } }),
+      db.video.update({
+        where: { id },
+        data: { ...data, tags: { create: connections } },
+      }),
+    ]);
   } else {
     // New clips land at the end of the wall. Sort order is never typed in — it is
     // rearranged by dragging rows in the admin list.

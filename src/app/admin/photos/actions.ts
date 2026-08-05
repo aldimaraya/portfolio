@@ -51,12 +51,17 @@ export async function savePhoto(input: PhotoInput): Promise<{ error?: string }> 
   const write = { ...data, takenAt: inputValueToTakenAt(takenAt) };
 
   if (id) {
-    // Replace the tag set wholesale rather than diffing it.
-    await db.photoTag.deleteMany({ where: { photoId: id } });
-    await db.photo.update({
-      where: { id },
-      data: { ...write, tags: { create: connections } },
-    });
+    // Replace the tag set wholesale rather than diffing it — but as one
+    // transaction, because the two halves are not independently useful: a delete
+    // that commits while the update fails leaves the photo with no tags at all,
+    // silently, and the admin has no way to tell that happened.
+    await db.$transaction([
+      db.photoTag.deleteMany({ where: { photoId: id } }),
+      db.photo.update({
+        where: { id },
+        data: { ...write, tags: { create: connections } },
+      }),
+    ]);
   } else {
     await db.photo.create({ data: { ...write, tags: { create: connections } } });
   }
