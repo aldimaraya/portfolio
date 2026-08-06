@@ -18,6 +18,20 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
+
+    # Job-scoped rather than step-scoped, because `prisma generate` needs
+    # DATABASE_URL too: prisma.config.ts resolves it through `env()`, which
+    # throws when unset, and generate runs from postinstall during `npm ci` —
+    # long before the build step that obviously needs a database.
+    env:
+      # Must be *reachable*, not merely present: prerendering runs the page
+      # queries, so a placeholder string fails the build. Points at a
+      # long-lived Neon branch cut from production — reset it from parent
+      # after any `db:push`, or CI starts validating against a schema
+      # production no longer has.
+      DATABASE_URL: ${{ secrets.CI_DATABASE_URL }}
+      R2_PUBLIC_BASE_URL: https://media.example.com
+
     steps:
       - uses: actions/checkout@v5
 
@@ -37,19 +51,6 @@ jobs:
       - run: npm test
 
       - run: npm run build
-        env:
-          # Must be *reachable*, not merely present: prerendering runs the page
-          # queries, so a placeholder string fails the build. Points at a
-          # long-lived Neon branch cut from production — reset it from parent
-          # after any `db:push`, or CI starts validating against a schema
-          # production no longer has.
-          DATABASE_URL: ${{ secrets.CI_DATABASE_URL }}
-          # Read in next.config.ts to build images.remotePatterns and inline
-          # NEXT_PUBLIC_MEDIA_HOST. Missing, the build *succeeds* with an empty
-          # allowlist — worse than failing, because CI would then greenlight a
-          # build whose image config does not match production. Nothing here
-          # fetches it, so a literal is enough.
-          R2_PUBLIC_BASE_URL: https://media.example.com
 
       # The R2 credentials, ADMIN_PASSWORD_HASH and SESSION_SECRET are
       # deliberately absent. authEnv() and storageEnv() are lazy and memoised
