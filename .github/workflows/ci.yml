@@ -1,0 +1,58 @@
+name: CI
+
+# The gate on `main`. Everything here has to pass before a pull request can
+# merge, so it is deliberately the four checks that are fast and deterministic —
+# see "Release flow" in docs/architecture.md for why E2E is not among them.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# A second push to the same branch makes the first run irrelevant. Cancelling it
+# is the difference between paying for every commit and paying for every review.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # Read the version from .nvmrc rather than pinning it here, so CI and a
+      # laptop cannot drift apart silently.
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      # postinstall runs `prisma generate`, so there is no separate generate
+      # step — and that is also what makes typecheck work below.
+      - run: npm ci
+
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+
+      - run: npm run build
+        env:
+          # Must be *reachable*, not merely present: prerendering runs the page
+          # queries, so a placeholder string fails the build. Points at a
+          # long-lived Neon branch cut from production — reset it from parent
+          # after any `db:push`, or CI starts validating against a schema
+          # production no longer has.
+          DATABASE_URL: ${{ secrets.CI_DATABASE_URL }}
+          # Read in next.config.ts to build images.remotePatterns and inline
+          # NEXT_PUBLIC_MEDIA_HOST. Missing, the build *succeeds* with an empty
+          # allowlist — worse than failing, because CI would then greenlight a
+          # build whose image config does not match production. Nothing here
+          # fetches it, so a literal is enough.
+          R2_PUBLIC_BASE_URL: https://media.example.com
+
+      # The R2 credentials, ADMIN_PASSWORD_HASH and SESSION_SECRET are
+      # deliberately absent. authEnv() and storageEnv() are lazy and memoised
+      # (lib/env.ts), so a build never parses them. If a change makes one
+      # evaluate at module scope, this job failing is the correct signal —
+      # do not pre-empt it with fake secrets.
