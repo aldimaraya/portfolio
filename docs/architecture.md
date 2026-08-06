@@ -376,6 +376,80 @@ unfurls as bare text.
 
 `npm run check:r2` verifies credentials and bucket access.
 
+### Release flow
+
+**Planned, not yet in place.** Recorded here so the setup is done once and the
+same way; nothing below is enforced by anything in the repo today.
+
+Production is `main`. Work happens on `feature/*` and reaches production only
+through a pull request — there is no integration branch, because with one author
+a long-lived `preview` adds a promotion step without adding a gate that the PR
+does not already provide.
+
+What has to exist for that to mean anything:
+
+- **A CI workflow on pull requests to `main`** — `lint`, `typecheck`, `test`,
+  `build` — because a branch ruleset can only require checks that already exist.
+  Note that `next build` needs a reachable `DATABASE_URL` (prerendering runs the
+  page queries, see [Conventions that bite](#conventions-that-bite)), so CI needs
+  a real connection string rather than a placeholder. E2E stays out
+  of the required set: Playwright needs its own server and a seeded database, and
+  a check that flakes gets bypassed, which trains the habit that defeats the
+  ruleset.
+- **A ruleset on `main`**: require a pull request, require those checks, block
+  force pushes and deletion. Enable *do not allow bypassing* — a solo owner is an
+  admin, and an unenforced ruleset is decoration.
+
+**Vercel builds a preview for every branch push whether or not one is wanted.**
+Each gets its own URL and its own live `/admin` — there is no development auth
+bypass, but nothing makes a preview's *session* less powerful than a production
+one either, and with environment variables left at Vercel's "All Environments"
+default a preview reads and writes the live database and the production R2
+bucket. That is the same trade local development already makes deliberately, so
+it is accepted rather than fixed; what it means is that a preview URL is a
+production admin console, and Deployment Protection should be on so it is not a
+publicly reachable one. Vercel sends `x-robots-tag: noindex` on previews, but
+that stops indexing, not visitors.
+
+**The free tier is the live constraint, and image optimisation is what will
+break it first.** Photos are the only media that takes the `next/image` hop —
+video is served straight from R2, which keeps the largest bytes off Vercel's
+bandwidth entirely — but a photo wall is a lot of distinct source images, and
+Hobby meters *transformations*, not requests. Each preview deployment has its own
+optimisation cache, so opening the wall on a preview re-transforms the same
+photos that production already paid for. Two or three previews of a page that
+renders the whole wall is the failure mode, not traffic.
+
+Levers, cheapest first:
+
+- **Watch the Usage tab, and set the usage notification.** Hobby has no spend
+  cap; exceeding a limit pauses the project, so the notification is the only
+  warning. Check the current limits there rather than trusting a number written
+  here — Vercel changes them.
+- **Skip preview builds you do not need**, via Settings → Git → Ignored Build
+  Step. `[ "$VERCEL_GIT_COMMIT_REF" = "main" ]` builds only production; a
+  `git commit -m '[skip ci] …'`-style opt-out per branch is the softer version.
+  This saves build minutes, not transformations.
+- **Do not browse the full wall on a preview** when the change under review is
+  not about the wall. This sounds like advice rather than infrastructure, and it
+  is, but it is the single biggest lever on the metric that actually binds.
+
+`NEXT_PUBLIC_SITE_URL` should stay **unset** on Preview: with it set, every
+preview claims to be the canonical origin in its metadata and sitemap. Note the
+fallback in [`lib/site-url.ts`](../src/lib/site-url.ts) is
+`VERCEL_PROJECT_PRODUCTION_URL`, the production host — deliberately, since
+`VERCEL_URL` is per-deployment and would advertise a hostname that dies with the
+next deploy. So a preview's link previews point at production. That is correct
+for canonicalisation and confusing exactly once, when you share a preview link.
+
+**Schema changes are not carried by the merge.** There is no migration history
+in the repo — `npm run db:push` is the only path, and it is destructive-capable.
+Merging a pull request promotes code, not schema, so a merge can ship code that
+expects a column production does not have. Until this moves to `prisma migrate`
+with committed migrations run as a deploy step, the rule is: **push the schema to
+production before merging the code that needs it**, and keep the change additive
+so the currently-deployed code survives the gap between the two.
+
 ---
 
 ## Known gaps

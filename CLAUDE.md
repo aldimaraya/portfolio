@@ -95,6 +95,12 @@ Load-bearing constraints — these are why the code is shaped this way:
 - **Env is validated in slices** (`lib/env.ts`): `authEnv()` and `storageEnv()` are memoised and parsed
   lazily, so a half-configured environment only fails where it is actually missing something. Both are
   server-only — never import them from a client component.
+- **Schema changes are not carried by a merge.** Production is `main`; work reaches it by PR from
+  `feature/*`. There is no migration history — `db:push` is the only path — so merging promotes code, not
+  schema. Push the schema to production *before* merging the code that needs it, and keep the change
+  additive so the deployed code survives the gap. See *Release flow* in `docs/architecture.md`, which also
+  covers preview deployments — they share production's data, and each has its own `next/image` cache, which
+  is what puts the Hobby tier's transformation limit at risk.
 - Comments here explain *why*, not what, and are dense. Match that register when editing.
 
 ## Docs
