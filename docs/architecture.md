@@ -470,6 +470,13 @@ passwords locks an address out for 15 minutes, in-memory and per-instance, see
 `db.$transaction`, so a failed update can no longer leave the delete committed
 and the item stripped of every tag.
 
+Closed 2026-08-07: every media write now orders the row before the R2 object.
+Nothing spans both stores transactionally, so the only choice is which half-done
+state to accept, and an object nothing points at beats a public page serving a
+404 — the orphan is invisible and costs pennies, and its URL is logged. Tag
+upserts also went sequential, closing a unique-violation race between two saves
+in flight.
+
 Removed rather than fixed: the `DEV_SKIP_AUTH` development bypass and
 `lib/auth/dev-bypass.ts`, deleted before launch. `/admin` now requires a real
 session in every environment, which means local development needs a working

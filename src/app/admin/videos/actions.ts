@@ -54,9 +54,10 @@ export async function saveVideo(input: VideoInput): Promise<{ error?: string }> 
   if (id) {
     // Regenerating a preview uploads a fresh poster and strip under new keys, so
     // the ones this row used to point at become unreachable the moment the row
-    // is updated. Dropped before the write for the same reason deleteVideo does
-    // it in that order: a delete that is already gone is not an error in S3, so
-    // failing here leaves the row intact and the operation safe to retry.
+    // is updated — but only once it is. Dropped *after* the write, the way
+    // retouchPhoto handles a replaced image: doing it first and then failing the
+    // update leaves the row naming a poster that no longer exists, and /motion
+    // renders the gap.
     const stored = await db.video.findUnique({
       where: { id },
       select: { posterImageUrl: true, spriteUrl: true },
@@ -65,7 +66,6 @@ export async function saveVideo(input: VideoInput): Promise<{ error?: string }> 
       stored?.posterImageUrl !== data.posterImageUrl ? stored?.posterImageUrl : null,
       stored?.spriteUrl !== data.spriteUrl ? stored?.spriteUrl : null,
     ].filter((url): url is string => Boolean(url));
-    if (replaced.length) await deleteObjectsByUrl(replaced);
 
     // Replace the tag set wholesale rather than diffing it — but as one
     // transaction, because the two halves are not independently useful: a delete
@@ -78,6 +78,16 @@ export async function saveVideo(input: VideoInput): Promise<{ error?: string }> 
         data: { ...data, tags: { create: connections } },
       }),
     ]);
+
+    if (replaced.length) {
+      try {
+        await deleteObjectsByUrl(replaced);
+      } catch (cause) {
+        // The save landed; one orphaned poster or strip is not worth reporting
+        // as a failed edit.
+        console.error('Could not remove the replaced preview files for video', id, replaced, cause);
+      }
+    }
   } else {
     // New clips land at the end of the wall. Sort order is never typed in — it is
     // rearranged by dragging rows in the admin list.
@@ -141,16 +151,19 @@ export async function deleteVideo(id: string): Promise<{ error?: string }> {
   });
   if (!video) return { error: 'That video no longer exists' };
 
-  // A clip owns three objects, so leaving these behind costs considerably more
-  // than a stray photo. R2 first for the same reason as deletePhoto.
+  // The row first, then the objects — see deletePhoto for the reasoning. A clip
+  // owns three objects, so an orphan here costs more than a stray photo does,
+  // which is an argument for sweeping the log, not for leaving /motion pointing
+  // at a clip that will not play.
+  const objects = [video.videoUrl, video.posterImageUrl, video.spriteUrl];
+  await db.video.delete({ where: { id } });
+
   try {
-    await deleteObjectsByUrl([video.videoUrl, video.posterImageUrl, video.spriteUrl]);
+    await deleteObjectsByUrl(objects);
   } catch (cause) {
-    console.error('R2 cleanup failed for video', id, cause);
-    return { error: 'Could not remove the files from storage — nothing was deleted' };
+    console.error('R2 cleanup failed for deleted video', id, objects, cause);
   }
 
-  await db.video.delete({ where: { id } });
   await pruneUnusedTags();
 
   revalidatePath('/admin/videos');

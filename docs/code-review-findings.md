@@ -39,9 +39,9 @@ Things that destroy or corrupt content that cannot be recovered from the UI.
 | --- | --- | --- | --- |
 | ~~10~~ | ~~8.2~~ | **FIXED.** Both tag-set replacements are now a single `db.$transaction([deleteMany, update])` — the array form rather than an interactive callback, since the two statements need nothing from each other and a batch transaction is the cheaper round-trip. | `app/admin/photos/actions.ts`, `app/admin/videos/actions.ts` |
 | 11 | 2.1 | **One failed part discards the entire upload** — the exact failure multipart was adopted to prevent. The module header promises parts "can be retried"; nothing retries them. All of the complexity, none of the payoff. A bounded retry with backoff around the PUT is ~15 lines. | `lib/storage/upload-client.ts:70` |
-| 12 | 8.3 | `deletePhoto` removes the R2 object before the row. The stated reasoning is sound, but the accepted failure — row delete fails after the object is gone — leaves a live row pointing at a 404 on the public wall. Only one of the two risks is named in the comment. | `app/admin/photos/actions.ts:118` |
+| ~~12~~ | ~~8.3~~ | **FIXED.** Every media delete now writes the row first and cleans up R2 after, best-effort. Neither order is atomic, so the choice is only which half-done state to accept, and an object nothing points at is strictly cheaper than a public page serving a 404 — it is invisible, costs pennies, and the failing URLs are logged so it can be swept by hand. `deleteVideo` carried the same ordering (its comment cited `deletePhoto`), and so did `saveVideo`'s cleanup of a replaced poster/sprite, which could strand a row pointing at a poster it had just deleted. All three now match `retouchPhoto`, which already reasoned this way. | `app/admin/photos/actions.ts`, `app/admin/videos/actions.ts` |
 | 13 | 6.1 | `once()` never times out, so a video the browser accepts but cannot seek hangs `generateSpriteSheet` forever with the form stuck busy and no error. The admin's only recovery is a reload, losing the filled-in form. | `lib/video/sprite.ts:34` |
-| 14 | 8.4 | `tagConnections` fires concurrent upserts via `Promise.all` — a classic unique-violation race in Postgres. Will not bite with one admin; sequential is free. | `lib/tags.ts:19` |
+| ~~14~~ | ~~8.4~~ | **FIXED.** `tagConnections` upserts sequentially. Two tags of one name cannot collide inside a single call — `parseTagNames` dedupes — but two saves overlapping in flight can, and one admin still has two tabs. A handful of names per save makes the extra round-trips unmeasurable. | `lib/tags/index.ts` |
 
 ## Tier 2 — Correctness and user-facing behaviour
 
@@ -129,6 +129,7 @@ slugs still track the title; `publishedAt` is stamped at publish time.
 
 **8. Admin CRUD** (`app/admin/*/actions.ts`, `lib/tags.ts`, `AdminBar`) — every
 action re-checks auth; `reorderVideos` takes the whole ordering in one
-transaction rather than a moved pair; the opposite delete/update orderings in
-`deletePhoto` and `retouchPhoto` are each individually correct and each explain
-why they differ.
+transaction rather than a moved pair. The delete/update orderings in
+`deletePhoto` and `retouchPhoto` used to be opposite and each argued its own
+case; #8.3 settled them on one rule — row first, R2 after, best-effort — since
+only one of the two half-done states is visible to a visitor.
