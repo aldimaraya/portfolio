@@ -6,6 +6,7 @@ import { db } from '@/lib/db';
 import { isAuthenticated } from '@/lib/auth/guard';
 import { pruneUnusedTags, tagConnections } from '@/lib/tags';
 import { deleteObjectsByUrl } from '@/lib/storage/r2';
+import { attempt } from '@/lib/actions/errors';
 
 const videoSchema = z.object({
   id: z.string().optional(),
@@ -39,81 +40,85 @@ const videoSchema = z.object({
 export type VideoInput = z.infer<typeof videoSchema>;
 
 export async function saveVideo(input: VideoInput): Promise<{ error?: string }> {
-  // Server actions are publicly reachable endpoints — re-check auth here rather
-  // than trusting that the proxy gate covered the page that rendered the form.
-  if (!(await isAuthenticated())) return { error: 'Unauthorized' };
+  // Wrapped so a failure past validation still arrives as `{ error }` rather
+  // than as a rejected promise the form cannot see — see lib/actions/errors.
+  return attempt('saveVideo', async () => {
+    // Server actions are publicly reachable endpoints — re-check auth here rather
+    // than trusting that the proxy gate covered the page that rendered the form.
+    if (!(await isAuthenticated())) return { error: 'Unauthorized' };
 
-  const parsed = videoSchema.safeParse(input);
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0].message };
-  }
-
-  const { id, tags, ...data } = parsed.data;
-  const connections = await tagConnections(tags);
-
-  if (id) {
-    // Regenerating a preview uploads a fresh poster and strip under new keys, so
-    // the ones this row used to point at become unreachable the moment the row
-    // is updated — but only once it is. Dropped *after* the write, the way
-    // retouchPhoto handles a replaced image: doing it first and then failing the
-    // update leaves the row naming a poster that no longer exists, and /motion
-    // renders the gap.
-    const stored = await db.video.findUnique({
-      where: { id },
-      select: { posterImageUrl: true, spriteUrl: true },
-    });
-    const replaced = [
-      stored?.posterImageUrl !== data.posterImageUrl ? stored?.posterImageUrl : null,
-      stored?.spriteUrl !== data.spriteUrl ? stored?.spriteUrl : null,
-    ].filter((url): url is string => Boolean(url));
-
-    // Replace the tag set wholesale rather than diffing it — but as one
-    // transaction, because the two halves are not independently useful: a delete
-    // that commits while the update fails leaves the clip with no tags at all,
-    // silently, and the admin has no way to tell that happened.
-    await db.$transaction([
-      db.videoTag.deleteMany({ where: { videoId: id } }),
-      db.video.update({
-        where: { id },
-        data: { ...data, tags: { create: connections } },
-      }),
-    ]);
-
-    if (replaced.length) {
-      try {
-        await deleteObjectsByUrl(replaced);
-      } catch (cause) {
-        // The save landed; one orphaned poster or strip is not worth reporting
-        // as a failed edit.
-        console.error('Could not remove the replaced preview files for video', id, replaced, cause);
-      }
+    const parsed = videoSchema.safeParse(input);
+    if (!parsed.success) {
+      return { error: parsed.error.issues[0].message };
     }
-  } else {
-    // New clips land at the end of the wall. Sort order is never typed in — it is
-    // rearranged by dragging rows in the admin list.
-    const last = await db.video.findFirst({
-      orderBy: { sortOrder: 'desc' },
-      select: { sortOrder: true },
-    });
-    await db.video.create({
-      data: {
-        ...data,
-        sortOrder: (last?.sortOrder ?? -1) + 1,
-        tags: { create: connections },
-      },
-    });
-  }
 
-  // An edit that drops the last clip carrying a tag leaves it behind.
-  await pruneUnusedTags();
+    const { id, tags, ...data } = parsed.data;
+    const connections = await tagConnections(tags);
 
-  revalidatePath('/admin/videos');
-  // 'layout' rather than the default, so the clip pages under /motion go too.
-  // Every one of them carries its own position on the roll — the frame code and
-  // the prev/next pager — so a change to any clip can invalidate all of them,
-  // and a reorder always does.
-  revalidatePath('/motion', 'layout');
-  return {};
+    if (id) {
+      // Regenerating a preview uploads a fresh poster and strip under new keys, so
+      // the ones this row used to point at become unreachable the moment the row
+      // is updated — but only once it is. Dropped *after* the write, the way
+      // retouchPhoto handles a replaced image: doing it first and then failing the
+      // update leaves the row naming a poster that no longer exists, and /motion
+      // renders the gap.
+      const stored = await db.video.findUnique({
+        where: { id },
+        select: { posterImageUrl: true, spriteUrl: true },
+      });
+      const replaced = [
+        stored?.posterImageUrl !== data.posterImageUrl ? stored?.posterImageUrl : null,
+        stored?.spriteUrl !== data.spriteUrl ? stored?.spriteUrl : null,
+      ].filter((url): url is string => Boolean(url));
+
+      // Replace the tag set wholesale rather than diffing it — but as one
+      // transaction, because the two halves are not independently useful: a delete
+      // that commits while the update fails leaves the clip with no tags at all,
+      // silently, and the admin has no way to tell that happened.
+      await db.$transaction([
+        db.videoTag.deleteMany({ where: { videoId: id } }),
+        db.video.update({
+          where: { id },
+          data: { ...data, tags: { create: connections } },
+        }),
+      ]);
+
+      if (replaced.length) {
+        try {
+          await deleteObjectsByUrl(replaced);
+        } catch (cause) {
+          // The save landed; one orphaned poster or strip is not worth reporting
+          // as a failed edit.
+          console.error('Could not remove the replaced preview files for video', id, replaced, cause);
+        }
+      }
+    } else {
+      // New clips land at the end of the wall. Sort order is never typed in — it is
+      // rearranged by dragging rows in the admin list.
+      const last = await db.video.findFirst({
+        orderBy: { sortOrder: 'desc' },
+        select: { sortOrder: true },
+      });
+      await db.video.create({
+        data: {
+          ...data,
+          sortOrder: (last?.sortOrder ?? -1) + 1,
+          tags: { create: connections },
+        },
+      });
+    }
+
+    // An edit that drops the last clip carrying a tag leaves it behind.
+    await pruneUnusedTags();
+
+    revalidatePath('/admin/videos');
+    // 'layout' rather than the default, so the clip pages under /motion go too.
+    // Every one of them carries its own position on the roll — the frame code and
+    // the prev/next pager — so a change to any clip can invalidate all of them,
+    // and a reorder always does.
+    revalidatePath('/motion', 'layout');
+    return {};
+  });
 }
 
 /**
@@ -122,55 +127,62 @@ export async function saveVideo(input: VideoInput): Promise<{ error?: string }> 
  * writes it in one transaction so a partial failure cannot leave gaps.
  */
 export async function reorderVideos(ids: string[]): Promise<{ error?: string }> {
-  if (!(await isAuthenticated())) return { error: 'Unauthorized' };
+  // The sharpest case for the wrapper: this takes whatever ids the list on
+  // screen holds, so a drag against a row deleted in another tab throws P2025
+  // out of the transaction and the reorder silently does nothing.
+  return attempt('reorderVideos', async () => {
+    if (!(await isAuthenticated())) return { error: 'Unauthorized' };
 
-  const parsed = z.array(z.string().min(1)).safeParse(ids);
-  if (!parsed.success) return { error: 'Invalid ordering' };
+    const parsed = z.array(z.string().min(1)).safeParse(ids);
+    if (!parsed.success) return { error: 'Invalid ordering' };
 
-  await db.$transaction(
-    parsed.data.map((id, index) =>
-      db.video.update({ where: { id }, data: { sortOrder: index } }),
-    ),
-  );
+    await db.$transaction(
+      parsed.data.map((id, index) =>
+        db.video.update({ where: { id }, data: { sortOrder: index } }),
+      ),
+    );
 
-  revalidatePath('/admin/videos');
-  // 'layout' rather than the default, so the clip pages under /motion go too.
-  // Every one of them carries its own position on the roll — the frame code and
-  // the prev/next pager — so a change to any clip can invalidate all of them,
-  // and a reorder always does.
-  revalidatePath('/motion', 'layout');
-  return {};
+    revalidatePath('/admin/videos');
+    // 'layout' rather than the default, so the clip pages under /motion go too.
+    // Every one of them carries its own position on the roll — the frame code and
+    // the prev/next pager — so a change to any clip can invalidate all of them,
+    // and a reorder always does.
+    revalidatePath('/motion', 'layout');
+    return {};
+  });
 }
 
 export async function deleteVideo(id: string): Promise<{ error?: string }> {
-  if (!(await isAuthenticated())) return { error: 'Unauthorized' };
+  return attempt('deleteVideo', async () => {
+    if (!(await isAuthenticated())) return { error: 'Unauthorized' };
 
-  const video = await db.video.findUnique({
-    where: { id },
-    select: { videoUrl: true, posterImageUrl: true, spriteUrl: true },
+    const video = await db.video.findUnique({
+      where: { id },
+      select: { videoUrl: true, posterImageUrl: true, spriteUrl: true },
+    });
+    if (!video) return { error: 'That video no longer exists' };
+
+    // The row first, then the objects — see deletePhoto for the reasoning. A clip
+    // owns three objects, so an orphan here costs more than a stray photo does,
+    // which is an argument for sweeping the log, not for leaving /motion pointing
+    // at a clip that will not play.
+    const objects = [video.videoUrl, video.posterImageUrl, video.spriteUrl];
+    await db.video.delete({ where: { id } });
+
+    try {
+      await deleteObjectsByUrl(objects);
+    } catch (cause) {
+      console.error('R2 cleanup failed for deleted video', id, objects, cause);
+    }
+
+    await pruneUnusedTags();
+
+    revalidatePath('/admin/videos');
+    // 'layout' rather than the default, so the clip pages under /motion go too.
+    // Every one of them carries its own position on the roll — the frame code and
+    // the prev/next pager — so a change to any clip can invalidate all of them,
+    // and a reorder always does.
+    revalidatePath('/motion', 'layout');
+    return {};
   });
-  if (!video) return { error: 'That video no longer exists' };
-
-  // The row first, then the objects — see deletePhoto for the reasoning. A clip
-  // owns three objects, so an orphan here costs more than a stray photo does,
-  // which is an argument for sweeping the log, not for leaving /motion pointing
-  // at a clip that will not play.
-  const objects = [video.videoUrl, video.posterImageUrl, video.spriteUrl];
-  await db.video.delete({ where: { id } });
-
-  try {
-    await deleteObjectsByUrl(objects);
-  } catch (cause) {
-    console.error('R2 cleanup failed for deleted video', id, objects, cause);
-  }
-
-  await pruneUnusedTags();
-
-  revalidatePath('/admin/videos');
-  // 'layout' rather than the default, so the clip pages under /motion go too.
-  // Every one of them carries its own position on the roll — the frame code and
-  // the prev/next pager — so a change to any clip can invalidate all of them,
-  // and a reorder always does.
-  revalidatePath('/motion', 'layout');
-  return {};
 }

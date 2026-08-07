@@ -8,6 +8,7 @@ import { pruneUnusedTags, tagConnections } from '@/lib/tags';
 import { photoSettingsSchema } from '@/lib/photo/settings';
 import { inputValueToTakenAt } from '@/lib/photo/date';
 import { deleteObjectsByUrl } from '@/lib/storage/r2';
+import { attempt } from '@/lib/actions/errors';
 
 const photoSchema = z.object({
   id: z.string().optional(),
@@ -37,41 +38,45 @@ const photoSchema = z.object({
 export type PhotoInput = z.infer<typeof photoSchema>;
 
 export async function savePhoto(input: PhotoInput): Promise<{ error?: string }> {
-  // Server actions are publicly reachable endpoints — re-check auth here rather
-  // than trusting that the proxy gate covered the page that rendered the form.
-  if (!(await isAuthenticated())) return { error: 'Unauthorized' };
+  // Wrapped so a failure past validation still arrives as `{ error }` rather
+  // than as a rejected promise the form cannot see — see lib/actions/errors.
+  return attempt('savePhoto', async () => {
+    // Server actions are publicly reachable endpoints — re-check auth here rather
+    // than trusting that the proxy gate covered the page that rendered the form.
+    if (!(await isAuthenticated())) return { error: 'Unauthorized' };
 
-  const parsed = photoSchema.safeParse(input);
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0].message };
-  }
+    const parsed = photoSchema.safeParse(input);
+    if (!parsed.success) {
+      return { error: parsed.error.issues[0].message };
+    }
 
-  const { id, tags, takenAt, ...data } = parsed.data;
-  const connections = await tagConnections(tags);
-  const write = { ...data, takenAt: inputValueToTakenAt(takenAt) };
+    const { id, tags, takenAt, ...data } = parsed.data;
+    const connections = await tagConnections(tags);
+    const write = { ...data, takenAt: inputValueToTakenAt(takenAt) };
 
-  if (id) {
-    // Replace the tag set wholesale rather than diffing it — but as one
-    // transaction, because the two halves are not independently useful: a delete
-    // that commits while the update fails leaves the photo with no tags at all,
-    // silently, and the admin has no way to tell that happened.
-    await db.$transaction([
-      db.photoTag.deleteMany({ where: { photoId: id } }),
-      db.photo.update({
-        where: { id },
-        data: { ...write, tags: { create: connections } },
-      }),
-    ]);
-  } else {
-    await db.photo.create({ data: { ...write, tags: { create: connections } } });
-  }
+    if (id) {
+      // Replace the tag set wholesale rather than diffing it — but as one
+      // transaction, because the two halves are not independently useful: a delete
+      // that commits while the update fails leaves the photo with no tags at all,
+      // silently, and the admin has no way to tell that happened.
+      await db.$transaction([
+        db.photoTag.deleteMany({ where: { photoId: id } }),
+        db.photo.update({
+          where: { id },
+          data: { ...write, tags: { create: connections } },
+        }),
+      ]);
+    } else {
+      await db.photo.create({ data: { ...write, tags: { create: connections } } });
+    }
 
-  // An edit that drops the last photo carrying a tag leaves it behind.
-  await pruneUnusedTags();
+    // An edit that drops the last photo carrying a tag leaves it behind.
+    await pruneUnusedTags();
 
-  revalidatePath('/admin/photos');
-  revalidatePath('/stills');
-  return {};
+    revalidatePath('/admin/photos');
+    revalidatePath('/stills');
+    return {};
+  });
 }
 
 const retouchSchema = z.object({
@@ -99,58 +104,62 @@ export type RetouchInput = z.infer<typeof retouchSchema>;
  * pointing at a 404 if the update then failed.
  */
 export async function retouchPhoto(input: RetouchInput): Promise<{ error?: string }> {
-  if (!(await isAuthenticated())) return { error: 'Unauthorized' };
+  return attempt('retouchPhoto', async () => {
+    if (!(await isAuthenticated())) return { error: 'Unauthorized' };
 
-  const parsed = retouchSchema.safeParse(input);
-  if (!parsed.success) return { error: parsed.error.issues[0].message };
+    const parsed = retouchSchema.safeParse(input);
+    if (!parsed.success) return { error: parsed.error.issues[0].message };
 
-  const { id, ...data } = parsed.data;
-  const existing = await db.photo.findUnique({ where: { id }, select: { imageUrl: true } });
-  if (!existing) return { error: 'That photo no longer exists' };
+    const { id, ...data } = parsed.data;
+    const existing = await db.photo.findUnique({ where: { id }, select: { imageUrl: true } });
+    if (!existing) return { error: 'That photo no longer exists' };
 
-  await db.photo.update({ where: { id }, data });
+    await db.photo.update({ where: { id }, data });
 
-  if (existing.imageUrl !== data.imageUrl) {
-    try {
-      await deleteObjectsByUrl([existing.imageUrl]);
-    } catch (cause) {
-      // The trim itself succeeded, so this is not worth failing the action over —
-      // the cost is one orphaned object, and saying so beats a false error.
-      console.error('Could not remove the pre-trim image for photo', id, cause);
+    if (existing.imageUrl !== data.imageUrl) {
+      try {
+        await deleteObjectsByUrl([existing.imageUrl]);
+      } catch (cause) {
+        // The trim itself succeeded, so this is not worth failing the action over —
+        // the cost is one orphaned object, and saying so beats a false error.
+        console.error('Could not remove the pre-trim image for photo', id, cause);
+      }
     }
-  }
 
-  revalidatePath('/admin/photos');
-  revalidatePath(`/admin/photos/${id}`);
-  revalidatePath('/stills');
-  return {};
+    revalidatePath('/admin/photos');
+    revalidatePath(`/admin/photos/${id}`);
+    revalidatePath('/stills');
+    return {};
+  });
 }
 
 export async function deletePhoto(id: string): Promise<{ error?: string }> {
-  if (!(await isAuthenticated())) return { error: 'Unauthorized' };
+  return attempt('deletePhoto', async () => {
+    if (!(await isAuthenticated())) return { error: 'Unauthorized' };
 
-  const photo = await db.photo.findUnique({ where: { id }, select: { imageUrl: true } });
-  if (!photo) return { error: 'That photo no longer exists' };
+    const photo = await db.photo.findUnique({ where: { id }, select: { imageUrl: true } });
+    if (!photo) return { error: 'That photo no longer exists' };
 
-  // The row first, then the object — the same order as retouchPhoto, and for the
-  // same reason. Neither order is atomic, so the choice is only which half-done
-  // state to accept. Dropping the object first buys a retryable failure at the
-  // price of the worse one: if the row delete then fails, the wall is left
-  // serving a photo whose file is a 404, publicly, until someone notices. This
-  // way the surviving failure is an object nothing points at — invisible,
-  // costing pennies of storage, and logged below with the URL so it can still be
-  // swept up by hand.
-  await db.photo.delete({ where: { id } });
+    // The row first, then the object — the same order as retouchPhoto, and for the
+    // same reason. Neither order is atomic, so the choice is only which half-done
+    // state to accept. Dropping the object first buys a retryable failure at the
+    // price of the worse one: if the row delete then fails, the wall is left
+    // serving a photo whose file is a 404, publicly, until someone notices. This
+    // way the surviving failure is an object nothing points at — invisible,
+    // costing pennies of storage, and logged below with the URL so it can still be
+    // swept up by hand.
+    await db.photo.delete({ where: { id } });
 
-  try {
-    await deleteObjectsByUrl([photo.imageUrl]);
-  } catch (cause) {
-    console.error('R2 cleanup failed for deleted photo', id, photo.imageUrl, cause);
-  }
+    try {
+      await deleteObjectsByUrl([photo.imageUrl]);
+    } catch (cause) {
+      console.error('R2 cleanup failed for deleted photo', id, photo.imageUrl, cause);
+    }
 
-  await pruneUnusedTags();
+    await pruneUnusedTags();
 
-  revalidatePath('/admin/photos');
-  revalidatePath('/stills');
-  return {};
+    revalidatePath('/admin/photos');
+    revalidatePath('/stills');
+    return {};
+  });
 }
