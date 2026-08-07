@@ -457,12 +457,19 @@ so the currently-deployed code survives the gap between the two.
 Ranked roughly by what they cost. The full list, with file references, is in
 [`code-review-findings.md`](code-review-findings.md).
 
-**Before this is genuinely production-ready:**
+**Before this is genuinely production-ready:** nothing. All three launch
+blockers are closed. What remains is ranked in
+[`code-review-findings.md`](code-review-findings.md) and costs convenience
+rather than correctness.
 
-1. **One failed upload part discards the whole upload** — the exact failure
-   multipart was adopted to prevent. Nothing retries a part. This is the last of
-   the three launch blockers still open, and it costs a re-upload rather than
-   anything unrecoverable.
+Closed 2026-08-07, the last blocker: a failed upload part is retried rather than
+discarding the whole upload. Four attempts with exponential backoff, and only
+for what a retry could fix — a dropped connection, 408, 429, 5xx. A 401/403 is a
+session that expired mid-upload and fails at once instead of making the admin
+wait out three backoffs for the same message. Each attempt re-signs the part URL,
+because on the long uploads this matters for the presigned URL may itself be what
+expired. The same pass made upload errors carry the route's own message, weighted
+progress by bytes rather than by part, and made an empty blob say so.
 
 Closed in the pre-deploy pass (2026-08-05): login now rate-limits — 8 wrong
 passwords locks an address out for 15 minutes, in-memory and per-instance, see

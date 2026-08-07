@@ -35,6 +35,14 @@ export interface SpriteResult {
   windowSeconds: number;
 }
 
+/** How far through the grab we are, reported once per captured frame. */
+export interface SpriteProgress {
+  captured: number;
+  total: number;
+  /** Rounded 0–100, so callers can render it exactly as uploads already are. */
+  percent: number;
+}
+
 export interface SpriteOptions {
   frameCount?: number;
   frameWidth?: number;
@@ -43,7 +51,42 @@ export interface SpriteOptions {
    * fifth of the way in — see windowStart.
    */
   startSeconds?: number;
+  /**
+   * Called at 0 once the frame count is known, then after each frame lands.
+   * Eighteen sequential seeks through a long clip is tens of seconds in which a
+   * silent form is indistinguishable from a dead one.
+   */
+  onProgress?: (progress: SpriteProgress) => void;
 }
+
+/** Clamped, so a caller cannot be handed 105% by a miscount. */
+export function spriteProgress(captured: number, total: number): SpriteProgress {
+  const frames = Math.max(0, Math.trunc(total));
+  const done = Math.min(Math.max(0, Math.trunc(captured)), frames);
+  return {
+    captured: done,
+    total: frames,
+    percent: frames === 0 ? 0 : Math.round((done / frames) * 100),
+  };
+}
+
+/**
+ * Budgets for the waits below. Both are far past any honest worst case on
+ * purpose: a timeout that fires on a working clip is *worse* than the hang it
+ * replaces, because it fails routinely on real uploads where the hang needs a
+ * file the browser can demux but not decode.
+ *
+ * Metadata gets the larger share. A clip not written faststart keeps its moov
+ * atom at the end, so the browser reads the whole blob before it can answer
+ * `duration` — and on the regenerate path that blob is a few hundred megabytes
+ * that were just downloaded and assembled in memory.
+ *
+ * A seek is bounded work by comparison: decode forward from the preceding
+ * keyframe, at most one GOP. All eighteen land inside a 1.5s window, so every
+ * seek after the first is a near-neighbour of a frame already decoded.
+ */
+export const METADATA_TIMEOUT_MS = 60_000;
+export const SEEK_TIMEOUT_MS = 30_000;
 
 /**
  * Frames were 320px wide and displayed around 820px — a 2.5x upscale, and the
@@ -54,21 +97,44 @@ export interface SpriteOptions {
  */
 export const DEFAULT_SPRITE_FRAME_WIDTH = 480;
 
-/** Resolves on the first of `event` or an error, whichever fires. */
-function once(video: HTMLVideoElement, event: string, failure: string): Promise<void> {
+/**
+ * Resolves on the first of `event` or an error, and rejects if neither arrives
+ * inside the budget. The timeout is the whole point: a browser that accepts a
+ * file and then simply never fires `seeked` used to leave the caller awaiting
+ * forever, with the admin form stuck busy, no error on screen and nothing to
+ * retry short of a reload that empties the fields.
+ *
+ * Exported for its own test — the seek loop around it needs a decoder jsdom
+ * does not have.
+ */
+export function once(
+  video: HTMLVideoElement,
+  event: string,
+  failure: string,
+  timeoutMs: number,
+): Promise<void> {
   return new Promise((resolve, reject) => {
-    const cleanup = () => {
+    // Declarations, not arrows: each of the three refers to the others, and to
+    // the timer handle declared after them.
+    function cleanup() {
+      clearTimeout(timer);
       video.removeEventListener(event, onDone);
       video.removeEventListener('error', onError);
-    };
-    const onDone = () => {
+    }
+    function onDone() {
       cleanup();
       resolve();
-    };
-    const onError = () => {
+    }
+    function onError() {
       cleanup();
       reject(new Error(failure));
-    };
+    }
+    const timer = setTimeout(() => {
+      cleanup();
+      // Names the wait, since "could not seek to 4.20s" and "could not read
+      // metadata" are different problems with different answers.
+      reject(new Error(`${failure} — gave up after ${Math.round(timeoutMs / 1000)}s`));
+    }, timeoutMs);
     video.addEventListener(event, onDone);
     video.addEventListener('error', onError);
   });
@@ -79,7 +145,7 @@ function once(video: HTMLVideoElement, event: string, failure: string): Promise<
  * capture whatever frame happened to be decoded, so each grab waits for `seeked`.
  */
 async function seekTo(video: HTMLVideoElement, time: number): Promise<void> {
-  const seeked = once(video, 'seeked', `Could not seek to ${time.toFixed(2)}s`);
+  const seeked = once(video, 'seeked', `Could not seek to ${time.toFixed(2)}s`, SEEK_TIMEOUT_MS);
   video.currentTime = time;
   await seeked;
 }
@@ -100,6 +166,7 @@ export async function generateSpriteSheet(
     frameCount = DEFAULT_SPRITE_FRAMES,
     frameWidth = DEFAULT_SPRITE_FRAME_WIDTH,
     startSeconds,
+    onProgress,
   }: SpriteOptions = {},
 ): Promise<SpriteResult> {
   const objectUrl = URL.createObjectURL(file);
@@ -113,7 +180,7 @@ export async function generateSpriteSheet(
   video.crossOrigin = 'anonymous';
 
   try {
-    await once(video, 'loadedmetadata', 'Could not read video metadata');
+    await once(video, 'loadedmetadata', 'Could not read video metadata', METADATA_TIMEOUT_MS);
 
     const timestamps = computeFrameTimestamps(
       video.duration,
@@ -145,6 +212,8 @@ export async function generateSpriteSheet(
     const posterContext = poster.getContext('2d');
     if (!posterContext) throw new Error('Could not get a 2D canvas context');
 
+    onProgress?.(spriteProgress(0, timestamps.length));
+
     // Sequential, not Promise.all: a single <video> has one playhead, so parallel
     // seeks would race and every frame would come out identical.
     for (const [index, time] of timestamps.entries()) {
@@ -159,6 +228,7 @@ export async function generateSpriteSheet(
       if (index === 0) {
         posterContext.drawImage(video, 0, 0, frameWidth, frameHeight);
       }
+      onProgress?.(spriteProgress(index + 1, timestamps.length));
     }
 
     const [spriteBlob, posterBlob] = await Promise.all([
