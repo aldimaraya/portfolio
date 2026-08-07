@@ -9,13 +9,24 @@ import { parseTagNames } from './parse';
 
 export { parseTagNames, formatTagNames } from './parse';
 
-/** Upserts each named tag and returns join-table rows ready to `create`. */
+/**
+ * Upserts each named tag and returns join-table rows ready to `create`.
+ *
+ * Sequential, not `Promise.all`: Postgres resolves an upsert as a select then an
+ * insert, so two concurrent upserts of a name that does not exist yet both miss
+ * and both insert, and the second dies on the unique index. Two tags of the same
+ * name cannot collide inside one call — `parseTagNames` dedupes — but two saves
+ * overlapping in flight can, and a single admin still has two tabs. The names per
+ * save are a handful, so the round-trips this costs are not worth measuring.
+ */
 export async function tagConnections(tagsRaw: string): Promise<{ tagId: string }[]> {
   const names = parseTagNames(tagsRaw);
-  const tags = await Promise.all(
-    names.map((name) => db.tag.upsert({ where: { name }, create: { name }, update: {} })),
-  );
-  return tags.map((tag) => ({ tagId: tag.id }));
+  const connections: { tagId: string }[] = [];
+  for (const name of names) {
+    const tag = await db.tag.upsert({ where: { name }, create: { name }, update: {} });
+    connections.push({ tagId: tag.id });
+  }
+  return connections;
 }
 
 /**
