@@ -5,7 +5,11 @@ import { useRouter } from 'next/navigation';
 import { UploadField } from './UploadField';
 import { TagInput } from './TagInput';
 import { BUTTON, FIELD, LABEL } from './fields';
-import { generateSpriteSheet, type SpriteResult } from '@/lib/video/sprite';
+import {
+  generateSpriteSheet,
+  type SpriteProgress,
+  type SpriteResult,
+} from '@/lib/video/sprite';
 import { inspectAudio } from '@/lib/video/audio';
 import { missingRequiredFields, titleFromFilename } from '@/lib/video/form';
 import { listPhrase } from '@/lib/text';
@@ -50,6 +54,13 @@ export function VideoForm({ initial, tagOptions }: { initial?: Initial; tagOptio
   const [file, setFile] = useState<File | null>(null);
   const [sprite, setSprite] = useState<SpriteResult | null>(null);
   const [generating, setGenerating] = useState(false);
+  /**
+   * Frames captured so far, shown as a percentage for the same reason uploads
+   * are: eighteen seeks through a long clip is long enough that silence reads as
+   * a hang. Null until the frame count is known — the metadata wait comes first
+   * and has nothing to count.
+   */
+  const [grabbed, setGrabbed] = useState<SpriteProgress | null>(null);
   // Downloading the stored clip back for a re-grab, which for a large clip is
   // long enough that saying nothing would read as a dead button.
   const [fetching, setFetching] = useState(false);
@@ -160,7 +171,8 @@ export function VideoForm({ initial, tagOptions }: { initial?: Initial; tagOptio
   async function grabFrames(from: File, startSeconds?: number) {
     try {
       setGenerating(true);
-      const result = await generateSpriteSheet(from, { startSeconds });
+      setGrabbed(null);
+      const result = await generateSpriteSheet(from, { startSeconds, onProgress: setGrabbed });
       setSprite(result);
       // Where the grab actually landed after clamping, so the control below
       // agrees with the strip above it.
@@ -182,6 +194,7 @@ export function VideoForm({ initial, tagOptions }: { initial?: Initial; tagOptio
       );
     } finally {
       setGenerating(false);
+      setGrabbed(null);
     }
   }
 
@@ -333,7 +346,13 @@ export function VideoForm({ initial, tagOptions }: { initial?: Initial; tagOptio
       {fetching ? (
         <p className="text-xs text-gold">Fetching the stored clip…</p>
       ) : generating ? (
-        <p className="text-xs text-gold">Grabbing frames…</p>
+        // Same shape as the upload readout below, so the two stages of one save
+        // read as one system rather than as two widgets.
+        <p className="text-xs text-gold" aria-live="polite">
+          {grabbed
+            ? `Grabbing frames… ${grabbed.percent}% (${grabbed.captured} of ${grabbed.total})`
+            : 'Grabbing frames…'}
+        </p>
       ) : null}
 
       {audioWarning ? (
