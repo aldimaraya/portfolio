@@ -50,7 +50,15 @@ export function DeleteButton({ id, action, redirectTo, label }: Props) {
       <button type="button" onClick={() => setConfirming(false)} className="text-sm text-ash">
         Cancel
       </button>
-      {error ? <span className="text-sm text-red-400">{error}</span> : null}
+      {/* `basis-full` drops the message onto its own line of the wrap container
+          rather than letting it sit as a flex item beside the buttons: a refusal
+          that names every journal entry embedding this media is a sentence, not
+          a word, and inline it would push the row past the page. */}
+      {error ? (
+        <p role="alert" className="basis-full text-sm leading-relaxed text-balance text-red-400">
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }
