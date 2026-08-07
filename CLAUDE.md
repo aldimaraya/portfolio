@@ -109,4 +109,7 @@ Load-bearing constraints — these are why the code is shaped this way:
 the known gaps — and is the document to trust when the others disagree with it. The design spec and the
 task-by-task implementation plan in `docs/superpowers/{specs,plans}/` are history: every task is done, and
 both are flagged as historical at the top. `docs/code-review-findings.md` tracks open defects, ranked by
-cost, with fixed ones struck through rather than deleted.
+cost, with fixed ones struck through rather than deleted — but **security findings never go in it**, or in
+any other tracked doc: this repo is public, so an unfixed weakness written there is published next to the
+source code for it. Raise those as a GitHub private security advisory, or fix them before writing them
+down. Privacy and runaway-cost items may stay in Tier 0; anything that lets someone *in* does not.
