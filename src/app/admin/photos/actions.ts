@@ -9,6 +9,7 @@ import { photoSettingsSchema } from '@/lib/photo/settings';
 import { inputValueToTakenAt } from '@/lib/photo/date';
 import { deleteObjectsByUrl } from '@/lib/storage/r2';
 import { attempt } from '@/lib/actions/errors';
+import { mediaInUseMessage, postsEmbeddingMedia } from '@/lib/post/media-usage';
 
 const photoSchema = z.object({
   id: z.string().optional(),
@@ -139,6 +140,15 @@ export async function deletePhoto(id: string): Promise<{ error?: string }> {
 
     const photo = await db.photo.findUnique({ where: { id }, select: { imageUrl: true } });
     if (!photo) return { error: 'That photo no longer exists' };
+
+    // Nothing records that a post embeds this photo — mediaSnippet writes the URL
+    // into the body and that is the whole of the reference — so the bodies are
+    // the index, and deleting without reading them leaves prerendered journal
+    // pages serving a 404 that nothing afterwards can find. Refuse instead, and
+    // name the entries: the admin can only fix this by editing those posts, so
+    // the message has to say which.
+    const embedding = await postsEmbeddingMedia([photo.imageUrl]);
+    if (embedding.length) return { error: mediaInUseMessage('photo', embedding) };
 
     // The row first, then the object — the same order as retouchPhoto, and for the
     // same reason. Neither order is atomic, so the choice is only which half-done

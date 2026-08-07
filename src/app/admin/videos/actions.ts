@@ -7,6 +7,7 @@ import { isAuthenticated } from '@/lib/auth/guard';
 import { pruneUnusedTags, tagConnections } from '@/lib/tags';
 import { deleteObjectsByUrl } from '@/lib/storage/r2';
 import { attempt } from '@/lib/actions/errors';
+import { mediaInUseMessage, postsEmbeddingMedia } from '@/lib/post/media-usage';
 
 const videoSchema = z.object({
   id: z.string().optional(),
@@ -161,6 +162,18 @@ export async function deleteVideo(id: string): Promise<{ error?: string }> {
       select: { videoUrl: true, posterImageUrl: true, spriteUrl: true },
     });
     if (!video) return { error: 'That video no longer exists' };
+
+    // See deletePhoto: the post bodies are the only record of who embeds this.
+    // All three objects are checked, not just the clip — the picker writes the
+    // poster into the Markdown title alongside the video URL, so a body can name
+    // either, and the sprite can be referenced by hand. Dropping any one of them
+    // breaks the embed.
+    const embedding = await postsEmbeddingMedia([
+      video.videoUrl,
+      video.posterImageUrl,
+      video.spriteUrl,
+    ]);
+    if (embedding.length) return { error: mediaInUseMessage('clip', embedding) };
 
     // The row first, then the objects — see deletePhoto for the reasoning. A clip
     // owns three objects, so an orphan here costs more than a stray photo does,

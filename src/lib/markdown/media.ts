@@ -123,7 +123,12 @@ function escapeCaption(caption: string): string {
  */
 const URL_ESCAPES: Record<string, string> = { '(': '%28', ')': '%29' };
 
-function escapeUrl(url: string): string {
+/**
+ * Exported because it is the only description of how a URL is spelled once it is
+ * in a body: anything searching a stored post for a known media URL has to look
+ * for this form, not for the URL as the row holds it.
+ */
+export function escapeMediaUrl(url: string): string {
   return url
     .trim()
     .replace(/[()\s]/g, (char) => URL_ESCAPES[char] ?? encodeURIComponent(char));
@@ -131,13 +136,13 @@ function escapeUrl(url: string): string {
 
 /** The Markdown to drop into the body for a piece of media. */
 export function mediaSnippet(media: MediaRef): string {
-  const url = escapeUrl(media.url);
+  const url = escapeMediaUrl(media.url);
   const caption = escapeCaption(media.caption ?? '');
 
   // A bare URL on its own line. A caption would have to become link text, which
   // would stop it being a lone link and so stop it being an embed.
   if (media.kind === 'youtube') return url;
 
-  const title = media.kind === 'video' && media.poster ? ` "${POSTER_PREFIX}${escapeUrl(media.poster)}"` : '';
+  const title = media.kind === 'video' && media.poster ? ` "${POSTER_PREFIX}${escapeMediaUrl(media.poster)}"` : '';
   return `![${caption}](${url}${title})`;
 }
