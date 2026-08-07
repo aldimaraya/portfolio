@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { db } from '@/lib/db';
 import { isAuthenticated } from '@/lib/auth/guard';
 import { slugify } from '@/lib/slug';
+import { attempt, attemptOr } from '@/lib/actions/errors';
 
 const postSchema = z.object({
   id: z.string().optional(),
@@ -35,51 +36,55 @@ async function uniqueSlug(title: string, currentId?: string): Promise<string> {
 }
 
 export async function savePost(input: PostInput): Promise<{ error?: string }> {
-  // Server actions are publicly reachable endpoints — re-check auth here rather
-  // than trusting that the proxy gate covered the page that rendered the form.
-  if (!(await isAuthenticated())) return { error: 'Unauthorized' };
+  // Wrapped so a failure past validation still arrives as `{ error }` rather
+  // than as a rejected promise the form cannot see — see lib/actions/errors.
+  return attempt('savePost', async () => {
+    // Server actions are publicly reachable endpoints — re-check auth here rather
+    // than trusting that the proxy gate covered the page that rendered the form.
+    if (!(await isAuthenticated())) return { error: 'Unauthorized' };
 
-  const parsed = postSchema.safeParse(input);
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0].message };
-  }
+    const parsed = postSchema.safeParse(input);
+    if (!parsed.success) {
+      return { error: parsed.error.issues[0].message };
+    }
 
-  const { id, ...data } = parsed.data;
+    const { id, ...data } = parsed.data;
 
-  if (!id) {
-    await db.blogPost.create({
-      data: { ...data, slug: await uniqueSlug(data.title) },
+    if (!id) {
+      await db.blogPost.create({
+        data: { ...data, slug: await uniqueSlug(data.title) },
+      });
+      revalidatePath('/admin/posts');
+      revalidatePath('/journal');
+      return {};
+    }
+
+    const existing = await db.blogPost.findUnique({
+      where: { id },
+      select: { slug: true, draft: true },
     });
+    if (!existing) return { error: 'That post no longer exists' };
+
+    // A published slug is a public URL that may already be linked to, so retitling
+    // must not move it. Drafts are not public yet, so their slug still tracks the
+    // title.
+    const slug = existing.draft ? await uniqueSlug(data.title, id) : existing.slug;
+
+    // Publishing is what dates a post. Without this, something drafted weeks ago
+    // would appear in the journal already buried under newer entries.
+    const publishing = existing.draft && !data.draft;
+
+    await db.blogPost.update({
+      where: { id },
+      data: { ...data, slug, ...(publishing ? { publishedAt: new Date() } : {}) },
+    });
+
     revalidatePath('/admin/posts');
     revalidatePath('/journal');
+    revalidatePath(`/journal/${slug}`);
+    if (slug !== existing.slug) revalidatePath(`/journal/${existing.slug}`);
     return {};
-  }
-
-  const existing = await db.blogPost.findUnique({
-    where: { id },
-    select: { slug: true, draft: true },
   });
-  if (!existing) return { error: 'That post no longer exists' };
-
-  // A published slug is a public URL that may already be linked to, so retitling
-  // must not move it. Drafts are not public yet, so their slug still tracks the
-  // title.
-  const slug = existing.draft ? await uniqueSlug(data.title, id) : existing.slug;
-
-  // Publishing is what dates a post. Without this, something drafted weeks ago
-  // would appear in the journal already buried under newer entries.
-  const publishing = existing.draft && !data.draft;
-
-  await db.blogPost.update({
-    where: { id },
-    data: { ...data, slug, ...(publishing ? { publishedAt: new Date() } : {}) },
-  });
-
-  revalidatePath('/admin/posts');
-  revalidatePath('/journal');
-  revalidatePath(`/journal/${slug}`);
-  if (slug !== existing.slug) revalidatePath(`/journal/${existing.slug}`);
-  return {};
 }
 
 export interface PostMediaLibrary {
@@ -94,32 +99,39 @@ export interface PostMediaLibrary {
  * most edits never touch media, and this is every row in both tables.
  */
 export async function listPostMedia(): Promise<PostMediaLibrary> {
-  if (!(await isAuthenticated())) return { photos: [], videos: [] };
+  // No `{ error }` to return here, so the failure shape is the one this already
+  // uses for an unauthenticated caller: an empty library. A picker that opens
+  // with nothing in it is recoverable; a rejected promise takes the editor down.
+  return attemptOr('listPostMedia', { photos: [], videos: [] }, async () => {
+    if (!(await isAuthenticated())) return { photos: [], videos: [] };
 
-  const [photos, videos] = await Promise.all([
-    db.photo.findMany({
-      select: { id: true, imageUrl: true, width: true, height: true, location: true },
-      orderBy: { createdAt: 'desc' },
-    }),
-    db.video.findMany({
-      select: { id: true, videoUrl: true, posterImageUrl: true, title: true },
-      orderBy: { sortOrder: 'asc' },
-    }),
-  ]);
+    const [photos, videos] = await Promise.all([
+      db.photo.findMany({
+        select: { id: true, imageUrl: true, width: true, height: true, location: true },
+        orderBy: { createdAt: 'desc' },
+      }),
+      db.video.findMany({
+        select: { id: true, videoUrl: true, posterImageUrl: true, title: true },
+        orderBy: { sortOrder: 'asc' },
+      }),
+    ]);
 
-  return { photos, videos };
+    return { photos, videos };
+  });
 }
 
 export async function deletePost(id: string): Promise<{ error?: string }> {
-  if (!(await isAuthenticated())) return { error: 'Unauthorized' };
+  return attempt('deletePost', async () => {
+    if (!(await isAuthenticated())) return { error: 'Unauthorized' };
 
-  const post = await db.blogPost.findUnique({ where: { id }, select: { slug: true } });
-  if (!post) return { error: 'That post no longer exists' };
+    const post = await db.blogPost.findUnique({ where: { id }, select: { slug: true } });
+    if (!post) return { error: 'That post no longer exists' };
 
-  await db.blogPost.delete({ where: { id } });
+    await db.blogPost.delete({ where: { id } });
 
-  revalidatePath('/admin/posts');
-  revalidatePath('/journal');
-  revalidatePath(`/journal/${post.slug}`);
-  return {};
+    revalidatePath('/admin/posts');
+    revalidatePath('/journal');
+    revalidatePath(`/journal/${post.slug}`);
+    return {};
+  });
 }
