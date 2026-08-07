@@ -349,9 +349,7 @@ export function VideoForm({ initial, tagOptions }: { initial?: Initial; tagOptio
         // Same shape as the upload readout below, so the two stages of one save
         // read as one system rather than as two widgets.
         <p className="text-xs text-gold" aria-live="polite">
-          {grabbed
-            ? `Grabbing frames… ${grabbed.percent}% (${grabbed.captured} of ${grabbed.total})`
-            : 'Grabbing frames…'}
+          {grabbed ? `Grabbing frames… ${grabbed.percent}%` : 'Grabbing frames…'}
         </p>
       ) : null}
 
