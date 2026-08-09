@@ -23,6 +23,7 @@ item is left there that blocks nothing unrecoverable.
 | Styling | Tailwind CSS v4 (`@theme` block in `globals.css`, no `tailwind.config.ts`) |
 | Database | Postgres (Neon) via Prisma 7 + `@prisma/adapter-neon` |
 | Media storage | Cloudflare R2 (S3-compatible, zero egress) |
+| Video encoding | `mediabunny` over WebCodecs, in the admin browser |
 | Auth | Single admin: `bcryptjs` hash + `jose` session JWT, gated by `src/proxy.ts` |
 | Validation | Zod 4 |
 | Tests | Vitest (unit), Playwright (E2E) |
@@ -120,8 +121,13 @@ These constraints are load-bearing — they are why the code is shaped this way.
   presigned *multipart* URLs (a 1 GB upload that fails at 90% must not restart
   from zero). Video is served straight from R2/CDN; only photos take the
   `next/image` hop for resizing and lazy-loading.
-- **Video encoding is a manual pre-upload step.** Clips are encoded locally to
-  1080p H.264 at ~5–8 Mbps before upload. 4K masters stay offline.
+- **Video is re-encoded in the browser, on save.** Clips over 1080p or ~6 Mbps
+  are transcoded to H.264 via WebCodecs before they reach R2 — on the hardware
+  encoder, with no ffmpeg and no server involved. The trigger is bitrate rather
+  than file size, so a long clip that is merely large is left alone. Picking a
+  clip only probes it; the encode waits for save, so changing your mind costs
+  nothing. Desktop only — a phone would be killed for the memory it takes. 4K
+  masters stay offline; the encode is lossy and one-way.
 - **A photo's EXIF never reaches the stored copy.** Files carrying metadata are
   re-encoded through a canvas before upload, so GPS coordinates are never
   published — which also means a capture date missed at upload is gone for good.

@@ -61,9 +61,11 @@ does not cause a test failure — it causes the design to stop making sense.
 Average colour ([`lib/color/analyze.ts`](../src/lib/color/analyze.ts)), border
 insets ([`lib/photo/border.ts`](../src/lib/photo/border.ts)), compression
 ([`lib/photo/compress.ts`](../src/lib/photo/compress.ts)), video sprite sheets
-([`lib/video/sprite.ts`](../src/lib/video/sprite.ts)) and clip duration all run
-client-side and are stored on the row. **There is no server-side image or video
-processing anywhere.** Rendering a public page is a plain database read.
+([`lib/video/sprite.ts`](../src/lib/video/sprite.ts)), the video re-encode
+([`lib/video/transcode-client.ts`](../src/lib/video/transcode-client.ts)) and clip
+duration all run client-side and are stored on the row. **There is no server-side
+image or video processing anywhere.** Rendering a public page is a plain database
+read.
 
 The cost of this is that anything not captured at upload time is generally gone
 for good, which is why three backfill scripts exist and why two columns have
@@ -137,12 +139,74 @@ them, parks the projector, and skips autoplay on a clip page. Every one of those
 is a deliberate choice repeated in `globals.css` and
 [`ClipStage`](../src/components/motion/ClipStage.tsx).
 
-### Video encoding is a manual pre-upload step
+### Video encoding happens in the browser, on save
 
-Clips are encoded locally to 1080p H.264 at ~5–8 Mbps before upload. 4K masters
-stay offline. [`lib/video/audio.ts`](../src/lib/video/audio.ts) warns at upload
-time about uncompressed PCM audio, which no browser can decode — the cause of a
-long-running "clips play silently" bug.
+Clips are re-encoded to 1080p H.264 at ~6 Mbps before they reach R2, in the admin
+browser, by [`lib/video/transcode-client.ts`](../src/lib/video/transcode-client.ts)
+driving WebCodecs through [mediabunny](https://mediabunny.dev/). The OS hardware
+encoder does the work; there is no ffmpeg and no wasm, and the constraint above —
+no server-side video processing anywhere — is untouched. 4K masters still stay
+offline: the encode is lossy and one-way, exactly as it is for stills.
+
+The trigger is **bitrate, not file size**
+([`lib/video/transcode.ts`](../src/lib/video/transcode.ts)). Size alone cannot
+tell a fine ten-minute clip from an unencoded twenty-second one — both land near
+200 MB and only one is a problem — so the threshold divides by duration and fires
+past 25% over target, or whenever the long edge exceeds 1920. A clip already
+within the band is uploaded untouched rather than paying for a second generation.
+
+**Decided when the clip is picked, run when it is saved.** Picking only reads the
+container header, which costs kilobytes and lets the form say up front what save
+will do; the encode itself is minutes of the machine's fans, and spending that on
+a clip that is then swapped out or removed is the one cost this design can
+actually avoid. The consequence is that the sprite sheet, poster and duration are
+all derived from the *original* file — which is fine, because the strip is a
+480 px-wide thumbnail either way and duration does not change — but the stored
+`width`/`height` would then describe the wrong bytes. So a clip that was resized
+is re-probed after encoding and the measured dimensions are what reach the row.
+
+This used to be a manual `ffmpeg` step enforced by nothing but a warning in the
+picker, which is a poor guard on a 10 GB bucket where media cannot be replaced in
+place — only deleted and re-created.
+
+**Desktop only.** A phone skips the step entirely — it is not even asked to size
+the clip up, which also keeps the ~500 kB media library off a mobile connection.
+The reason is memory rather than the encoder: the output is buffered whole before
+upload, at roughly 45 MB per minute, and a phone is killed for that long before a
+laptop notices. iOS also suspends background tabs, so switching apps mid-encode
+loses the work with no way to resume, and a phone's own footage is the worst case
+regardless — 4K HEVC trips the threshold every time. iPads count as desktop,
+because iPadOS Safari has claimed to be a Mac since iPadOS 13 and cannot be told
+apart; they have the memory and the encoder, so that is the right way to be
+wrong. Lifting this means moving off `BufferTarget` to a streaming target that
+feeds the multipart uploader as it encodes.
+
+Four things degrade rather than block, because a clip the pipeline cannot
+improve is still a clip worth publishing:
+
+- **A video track the browser cannot decode** (ProRes, and other pro codecs)
+  fails `canDecode()` and is uploaded as-is with a note saying to encode it
+  locally.
+- **An audio track that cannot be carried over** is refused outright. This one
+  needs saying because mediabunny does not fail on it: a discarded track leaves
+  the conversion *valid*, since a video-only file is a valid file, so the default
+  behaviour is to publish a silent clip. Safari before 26 ships WebCodecs without
+  any audio classes at all, so this is not hypothetical. The original is uploaded
+  instead — larger, but with its sound.
+- **An encode that came out no smaller** than the original is discarded and the
+  original kept.
+- **An encode that throws** falls back to uploading the original.
+
+Audio is copied, not re-encoded, whenever it is already AAC. The exception is the
+uncompressed PCM that [`lib/video/audio.ts`](../src/lib/video/audio.ts) warns
+about — no browser can decode it, and it was the cause of a long-running "clips
+play silently" bug. Anything that goes through the encoder now comes out as AAC,
+so the transcode fixes that case rather than only reporting it. The warning stays
+for the clips that skip transcoding.
+
+Regenerating a clip's preview frames deliberately does **not** re-encode: the
+stored clip already is the encode, and running it through again would cost a
+generation every time a preview was redone.
 
 ---
 
