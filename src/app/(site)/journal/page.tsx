@@ -2,6 +2,14 @@ import Link from 'next/link';
 import { db } from '@/lib/db';
 import { buildExcerpt } from '@/lib/excerpt';
 import { formatPostDate } from '@/lib/post/date';
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Journal',
+  description:
+    'Notes by Aldi Maraya on photography, filmmaking, and how the work gets made.',
+  alternates: { canonical: '/journal' },
+};
 
 export default async function JournalPage() {
   // Drafts are excluded in the query rather than filtered afterwards: an

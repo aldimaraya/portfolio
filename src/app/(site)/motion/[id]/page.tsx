@@ -5,6 +5,8 @@ import { ClipStage } from '@/components/motion/ClipStage';
 import { FilmRail, frameCode } from '@/components/motion/FilmRail';
 import { db } from '@/lib/db';
 import { formatDuration } from '@/lib/video/duration';
+import { JsonLd } from '@/components/site/JsonLd';
+import { videoSchema } from '@/lib/schema';
 
 // params is a Promise in Next 16 and must be awaited.
 type Params = { params: Promise<{ id: string }> };
@@ -37,6 +39,9 @@ async function loadClip(id: string) {
       durationSeconds: true,
       title: true,
       description: true,
+      // Not drawn anywhere — it is the VideoObject's uploadDate, which Google
+      // requires before a clip is eligible for a video result at all.
+      createdAt: true,
     },
   });
 
@@ -60,6 +65,7 @@ export async function generateMetadata({ params }: Params) {
   return {
     title: found.clip.title,
     description: found.clip.description || undefined,
+    alternates: { canonical: `/motion/${id}` },
   };
 }
 
@@ -76,6 +82,7 @@ export default async function ClipPage({ params }: Params) {
     // as the stills wall would put the controls a mouse-travel away from the
     // frame, and the description beside it would run past a readable measure.
     <main className="mx-auto max-w-[62rem]">
+      <JsonLd schema={videoSchema(clip)} />
       <div className="mb-3 flex items-center justify-between gap-4">
         <Link
           href="/motion"
