@@ -1,6 +1,13 @@
 import { db } from '@/lib/db';
 import { MotionRoll } from '@/components/motion/MotionRoll';
 import { rollDuration } from '@/lib/video/duration';
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Motion',
+  description: 'A roll of films and motion work by Aldi Maraya.',
+  alternates: { canonical: '/motion' },
+};
 
 /**
  * The roll. One flat list in the order set by dragging rows in the admin — no

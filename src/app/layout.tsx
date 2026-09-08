@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { Source_Serif_4 } from 'next/font/google';
-import { SITE_NAME, SITE_TAGLINE } from '@/lib/site';
+import { SITE_DESCRIPTION, SITE_NAME, SITE_TAGLINE } from '@/lib/site';
 import { siteUrl } from '@/lib/site-url';
 import './globals.css';
 
@@ -32,12 +32,18 @@ export const metadata: Metadata = {
     // page has to repeat it.
     template: `%s — ${SITE_NAME}`,
   },
-  description: SITE_TAGLINE,
+  // SITE_DESCRIPTION rather than SITE_TAGLINE: the tagline is the wordmark's
+  // line, too short to tell a searcher what the site holds. Pages override it.
+  description: SITE_DESCRIPTION,
+  // Resolved against metadataBase, and overridden per page. Without it the
+  // filtered stills URLs (?camera=...) each stand as their own indexable page
+  // competing with the clean one.
+  alternates: { canonical: '/' },
   openGraph: {
     type: 'website',
     siteName: SITE_NAME,
     title: `${SITE_NAME} — ${SITE_TAGLINE}`,
-    description: SITE_TAGLINE,
+    description: SITE_DESCRIPTION,
     url: '/',
   },
   // Next derives the Twitter card's image from opengraph-image.tsx on its own —

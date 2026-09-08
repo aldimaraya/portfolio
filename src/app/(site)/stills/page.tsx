@@ -3,6 +3,19 @@ import { db } from '@/lib/db';
 import { DEFAULT_SORT, sortPhotosForWall } from '@/lib/color/sort';
 import { StillsGallery } from '@/components/stills/StillsGallery';
 import { toSettings } from '@/lib/photo/settings';
+import type { Metadata } from 'next';
+import { JsonLd } from '@/components/site/JsonLd';
+import { personSchema } from '@/lib/schema';
+
+export const metadata: Metadata = {
+  title: 'Stills',
+  description:
+    'A wall of still photography by Aldi Maraya, arranged by colour rather than by date.',
+  // The wall's filters live in the query string and are read on the client, so
+  // every ?camera= combination is a URL a crawler can reach. All of them are the
+  // same page and canonicalise to the bare one.
+  alternates: { canonical: '/stills' },
+};
 
 /**
  * Statically rendered and revalidated by the photo actions, so a visitor is
@@ -60,6 +73,7 @@ export default async function StillsPage() {
 
   return (
     <main>
+      <JsonLd schema={personSchema()} />
       {/* useSearchParams needs a Suspense boundary to prerender around: the
           static HTML is built without a query string, and the client fills in
           the filtered view on hydration. */}

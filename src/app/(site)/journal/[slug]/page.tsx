@@ -5,6 +5,8 @@ import { AdminEditLink } from '@/components/site/AdminEditLink';
 import { db } from '@/lib/db';
 import { buildExcerpt } from '@/lib/excerpt';
 import { formatPostDate } from '@/lib/post/date';
+import { JsonLd } from '@/components/site/JsonLd';
+import { articleSchema } from '@/lib/schema';
 
 // params is a Promise in Next 16 and must be awaited.
 type Params = { params: Promise<{ slug: string }> };
@@ -42,6 +44,14 @@ export async function generateMetadata({ params }: Params) {
     title: post.title,
     // The same flattening the list uses, kept short enough for a link preview.
     description: buildExcerpt(post.markdownContent, 160),
+    alternates: { canonical: `/journal/${post.slug}` },
+    openGraph: {
+      type: 'article',
+      title: post.title,
+      description: buildExcerpt(post.markdownContent, 160),
+      url: `/journal/${post.slug}`,
+      publishedTime: post.publishedAt.toISOString(),
+    },
   };
 }
 
@@ -55,6 +65,14 @@ export default async function JournalPostPage({ params }: Params) {
     // 1300px the prose column inside the sheet would run well past a readable
     // measure, which is the opposite of the problem this layout solves.
     <main className="mx-auto max-w-[62rem]">
+      <JsonLd
+        schema={articleSchema({
+          slug: post.slug,
+          title: post.title,
+          description: buildExcerpt(post.markdownContent, 160),
+          publishedAt: post.publishedAt,
+        })}
+      />
       <div className="flex items-center justify-between gap-4">
         <Link
           href="/journal"
