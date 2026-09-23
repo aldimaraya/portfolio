@@ -183,14 +183,16 @@ export function MediaPicker({ onInsert, onClose }: Props) {
             <button
               key={photo.id}
               type="button"
-              title={photo.location}
-              onClick={() => insert({ kind: 'image', url: photo.imageUrl, caption: photo.location })}
+              title={photo.title || photo.location}
+              onClick={() =>
+                insert({ kind: 'image', url: photo.imageUrl, caption: photo.title || photo.location })
+              }
               className="overflow-hidden rounded border border-hairline transition hover:border-gold"
             >
               {/* Plain <img>: an admin-only thumbnail grid is not worth the
                   optimiser, and these are already served from the CDN. */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={photo.imageUrl} alt={photo.location} className="h-24 w-full object-cover" />
+              <img src={photo.imageUrl} alt={photo.title || photo.location} className="h-24 w-full object-cover" />
             </button>
           ))}
         </Grid>

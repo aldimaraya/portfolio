@@ -37,6 +37,7 @@ function buildForm(initial?: Initial): PhotoInput {
     imageUrl: initial?.imageUrl ?? '',
     width: initial?.width ?? 0,
     height: initial?.height ?? 0,
+    title: initial?.title ?? '',
     location: initial?.location ?? '',
     camera: initial?.camera ?? '',
     settings: initial?.settings ?? EMPTY_SETTINGS,
@@ -54,10 +55,13 @@ export function PhotoForm({
   initial,
   tagOptions,
   locationOptions,
+  returnTo = '/admin/photos',
 }: {
   initial?: Initial;
   tagOptions: string[];
   locationOptions: string[];
+  /** Where a saved edit goes. Already reduced to a same-site path by the page. */
+  returnTo?: string;
 }) {
   const router = useRouter();
   const [form, setForm] = useState<PhotoInput>(() => buildForm(initial));
@@ -299,8 +303,9 @@ export function PhotoForm({
 
     if (isEdit) {
       // A real navigation away from /admin/photos/[id]; the form unmounts, so
-      // leaving `busy` set keeps the button disabled until it does.
-      router.push('/admin/photos');
+      // leaving `busy` set keeps the button disabled until it does. Back to the
+      // lightbox when that is where the edit started — see lib/photo/lightbox-link.
+      router.push(returnTo);
       router.refresh();
       return;
     }
@@ -410,6 +415,18 @@ export function PhotoForm({
             </div>
           ) : null}
 
+          {/* Plain input, not a SuggestInput: titles are one-offs, and offering
+              the last photo's title would only invite reusing it by accident. */}
+          <label className="flex flex-col gap-1">
+            <span className={LABEL}>Title (optional)</span>
+            <input
+              className={FIELD}
+              placeholder="Shown instead of the location on the print"
+              aria-label="Title"
+              value={form.title}
+              onChange={(event) => set('title', event.target.value)}
+            />
+          </label>
           <SuggestInput
             label="Location"
             placeholder="Location (e.g. Tokyo / Shinjuku)"

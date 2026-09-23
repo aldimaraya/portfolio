@@ -108,6 +108,29 @@ test.describe('signed in', () => {
     await expect(page.getByText('Drag a file here, or')).toBeVisible();
   });
 
+  // Stops short of pressing Save: development points at the live database, so
+  // this follows the link out and the return path back without writing a row.
+  // The save's own redirect is the one line in PhotoForm that pushes returnTo.
+  test('editing from the lightbox finds its way back to the open photo', async ({ page }) => {
+    await signIn(page);
+    await page.goto('/stills');
+
+    await page.getByRole('button', { name: /full screen$/ }).first().click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    const title = await dialog.getAttribute('aria-label');
+
+    await dialog.getByRole('link', { name: 'Edit photo' }).click();
+    await page.waitForURL('**/admin/photos/*?return=*', { timeout: 60_000 });
+    const back = new URL(page.url()).searchParams.get('return');
+    expect(back).toMatch(/^\/stills\?photo=/);
+
+    await page.goto(back!);
+    await expect(page.getByRole('dialog')).toHaveAttribute('aria-label', title!);
+    // Dropped once acted on, so a reload after closing does not reopen it.
+    await expect(page).not.toHaveURL(/photo=/);
+  });
+
   test('signing out closes the session', async ({ page }) => {
     await signIn(page);
     await expect(page).toHaveURL(/\/admin$/);

@@ -88,7 +88,14 @@ export async function savePost(input: PostInput): Promise<{ error?: string }> {
 }
 
 export interface PostMediaLibrary {
-  photos: { id: string; imageUrl: string; width: number; height: number; location: string }[];
+  photos: {
+    id: string;
+    imageUrl: string;
+    width: number;
+    height: number;
+    title: string;
+    location: string;
+  }[];
   videos: { id: string; videoUrl: string; posterImageUrl: string; title: string }[];
 }
 
@@ -107,7 +114,7 @@ export async function listPostMedia(): Promise<PostMediaLibrary> {
 
     const [photos, videos] = await Promise.all([
       db.photo.findMany({
-        select: { id: true, imageUrl: true, width: true, height: true, location: true },
+        select: { id: true, imageUrl: true, width: true, height: true, title: true, location: true },
         orderBy: { createdAt: 'desc' },
       }),
       db.video.findMany({

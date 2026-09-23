@@ -9,6 +9,10 @@
  * off-origin. Resolving against a placeholder origin and insisting the result
  * stayed there tests the property we actually care about, rather than a
  * hand-listed set of the ways it can be violated.
+ *
+ * Not login-specific: the photo form's `return` parameter is the same crafted
+ * input feeding the same kind of redirect, so it goes through here too, with its
+ * own fallback.
  */
 
 export const DEFAULT_NEXT = '/admin';
@@ -16,20 +20,23 @@ export const DEFAULT_NEXT = '/admin';
 /** A host no real deployment can be, so a match means the input was relative. */
 const PLACEHOLDER_ORIGIN = 'https://next-path.invalid';
 
-export function safeNextPath(value: string | string[] | undefined): string {
+export function safeNextPath(
+  value: string | string[] | undefined,
+  fallback: string = DEFAULT_NEXT,
+): string {
   const candidate = Array.isArray(value) ? value[0] : value;
-  if (!candidate) return DEFAULT_NEXT;
+  if (!candidate) return fallback;
 
   let url: URL;
   try {
     url = new URL(candidate, PLACEHOLDER_ORIGIN);
   } catch {
-    return DEFAULT_NEXT;
+    return fallback;
   }
 
   // Covers an absolute URL to another host, a protocol-relative `//host`, a
   // backslash-smuggled host, and `javascript:` (whose origin is "null").
-  if (url.origin !== PLACEHOLDER_ORIGIN) return DEFAULT_NEXT;
+  if (url.origin !== PLACEHOLDER_ORIGIN) return fallback;
 
   return `${url.pathname}${url.search}${url.hash}`;
 }
