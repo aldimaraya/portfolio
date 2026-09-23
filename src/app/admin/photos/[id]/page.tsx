@@ -8,12 +8,24 @@ import { DeleteButton } from '@/components/admin/DeleteButton';
 import { LABEL } from '@/components/admin/fields';
 import { toSettings } from '@/lib/photo/settings';
 import { takenAtToInputValue } from '@/lib/photo/date';
+import { safeNextPath } from '@/lib/auth/next-path';
+import { RETURN_PARAM } from '@/lib/photo/lightbox-link';
 import { deletePhoto } from '../actions';
 
 export const dynamic = 'force-dynamic';
 
-export default async function EditPhotoPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function EditPhotoPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { id } = await params;
+  // Set when the edit was opened from the lightbox, so a save lands back on the
+  // wall with the photo open. Anyone can craft this link, so it is reduced to a
+  // path on this site before the form is allowed to navigate to it.
+  const returnTo = safeNextPath((await searchParams)[RETURN_PARAM], '/admin/photos');
   const [photo, tagOptions, locationOptions] = await Promise.all([
     db.photo.findUnique({
       where: { id },
@@ -30,6 +42,7 @@ export default async function EditPhotoPage({ params }: { params: Promise<{ id: 
       <PhotoForm
         tagOptions={tagOptions}
         locationOptions={locationOptions}
+        returnTo={returnTo}
         initial={{
           id: photo.id,
           imageUrl: photo.imageUrl,

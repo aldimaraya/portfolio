@@ -73,8 +73,26 @@ function prefersReducedMotion(): boolean {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
-export function PolaroidWall({ photos }: { photos: PolaroidPhoto[] }) {
+export function PolaroidWall({
+  photos,
+  openPhotoId = null,
+}: {
+  photos: PolaroidPhoto[];
+  /** A photo to open on arrival — see lib/photo/lightbox-link. */
+  openPhotoId?: string | null;
+}) {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
+  /**
+   * Acted on once per request, during render rather than in an effect, so the
+   * wall's first paint already has the lightbox up instead of flashing the bare
+   * wall for a frame. A photo the current filters hide is simply not opened.
+   */
+  const [openedFor, setOpenedFor] = useState<string | null>(null);
+  if (openPhotoId && openPhotoId !== openedFor) {
+    setOpenedFor(openPhotoId);
+    const index = photos.findIndex((photo) => photo.id === openPhotoId);
+    if (index !== -1) setOpenIndex(index);
+  }
   /**
    * The wall waits on the top row only — never on the whole wall. Everything
    * past EAGER_FRAMES is lazy and reveals on scroll, so counting it would hold

@@ -2,8 +2,10 @@
 
 import Image from 'next/image';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { AdminEditLink } from '@/components/site/AdminEditLink';
 import { photoCaption } from '@/lib/photo/caption';
+import { editPhotoHref } from '@/lib/photo/lightbox-link';
 import type { PolaroidPhoto } from './Polaroid';
 
 interface LightboxProps {
@@ -49,6 +51,7 @@ function prefersReducedMotion(): boolean {
 
 export function Lightbox({ photos, index, originFor, onClose, onNavigate }: LightboxProps) {
   const photo = photos[index];
+  const searchParams = useSearchParams();
   /**
    * The overlay has to outlive the decision to close it, or there is nothing
    * left on screen to animate. Every dismissal sets this instead of unmounting,
@@ -326,7 +329,10 @@ export function Lightbox({ photos, index, originFor, onClose, onNavigate }: Ligh
               backdrop, whose job is to dismiss — leaving here should be a
               navigation, not a dismissal that happens to navigate. */}
           <span onClick={(event) => event.stopPropagation()}>
-            <AdminEditLink href={`/admin/photos/${photo.id}`} label="Edit photo" />
+            <AdminEditLink
+              href={editPhotoHref(photo.id, searchParams.toString())}
+              label="Edit photo"
+            />
           </span>
           <button
             type="button"
