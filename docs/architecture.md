@@ -160,6 +160,11 @@ long-running "clips play silently" bug.
   every photo to pack its rows.
 - **Lightbox** with swipe, keyboard navigation, and a FLIP expand from the
   clicked frame. The caption carries the date and capture settings.
+- **Optional titles.** A titled photo prints its title as the caption's bold line
+  and demotes the location to the meta line; untitled, it reads as it always did.
+  The wall and the lightbox share one builder,
+  [`lib/photo/caption.ts`](../src/lib/photo/caption.ts). Titles are not a filter
+  facet and the admin offers no suggestions for them.
 - **Load-time placeholders** painted from the photo's own average colour, and a
   wall-level loading state gated on real image `load` events rather than a timer
   ([`useAssetsReady`](../src/components/site/useAssetsReady.ts)).
@@ -233,6 +238,7 @@ Columns whose *shape* carries a decision:
 | Column | Why it looks like that |
 | --- | --- |
 | `Photo.settings` (`Json`) | Lens/focal length/aperture/shutter/ISO as one blob, every field optional free text. Read it back through `toSettings()`, which coerces malformed JSON to blanks rather than throwing. |
+| `Photo.title` | `''` means untitled, not null, so the column could be added with `db push` and no backfill. |
 | `Photo.warmth` | The wall's sort key. Defaults to 0, which files un-analysed rows as perfectly neutral until `recolor:photos` runs. |
 | `Photo.takenAt` (nullable) | Null means unknown, and unknown is permanent — see the EXIF constraint above. |
 | `Photo.hueStrength` | **Dead column.** Left declared only so `db push` stays additive; dropping it needs `--accept-data-loss`. Safe to drop by hand. |

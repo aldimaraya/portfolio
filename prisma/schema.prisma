@@ -19,6 +19,10 @@ model Photo {
   width  Int
   height Int
 
+  // Optional. When set it takes the caption's bold line and the location drops
+  // to the meta line beneath it (lib/photo/caption.ts); blank reads as before.
+  // Not a filter facet and offered no suggestions — titles are one-offs.
+  title    String @default("")
   location String
   camera   String
 

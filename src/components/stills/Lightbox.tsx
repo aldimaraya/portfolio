@@ -3,8 +3,7 @@
 import Image from 'next/image';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { AdminEditLink } from '@/components/site/AdminEditLink';
-import { summarizeSettings } from '@/lib/photo/settings';
-import { formatTakenAt } from '@/lib/photo/date';
+import { photoCaption } from '@/lib/photo/caption';
 import type { PolaroidPhoto } from './Polaroid';
 
 interface LightboxProps {
@@ -296,19 +295,13 @@ export function Lightbox({ photos, index, originFor, onClose, onNavigate }: Ligh
 
   if (!photo) return null;
 
-  const caption = [
-    photo.camera,
-    summarizeSettings(photo.settings),
-    photo.takenAt ? formatTakenAt(photo.takenAt) : '',
-  ]
-    .filter(Boolean)
-    .join(' · ');
+  const caption = photoCaption(photo);
 
   return (
     <div
       role="dialog"
       aria-modal="true"
-      aria-label={photo.location}
+      aria-label={caption.label}
       // zoom-out on the backdrop, default over the photo itself — the cursor
       // tells you which regions dismiss and which do not.
       className="lightbox fixed inset-0 z-50 flex cursor-zoom-out flex-col bg-black/95 backdrop-blur-sm"
@@ -369,7 +362,7 @@ export function Lightbox({ photos, index, originFor, onClose, onNavigate }: Ligh
             key={photo.id}
             ref={imageRef}
             src={photo.imageUrl}
-            alt={photo.location}
+            alt={caption.label}
             // Intrinsic dimensions rather than `fill`: the mat has to take its
             // size from the picture, and a filled image contributes none.
             width={photo.width}
@@ -390,11 +383,11 @@ export function Lightbox({ photos, index, originFor, onClose, onNavigate }: Ligh
             style={{ maxWidth: captionWidth }}
           >
             <div className="text-sm font-bold tracking-[0.04em] text-matink uppercase">
-              {photo.location}
+              {caption.heading}
             </div>
-            {caption ? (
+            {caption.meta ? (
               <div className="mt-1 font-mono text-[0.7rem] tracking-[0.05em] text-matmeta uppercase">
-                {caption}
+                {caption.meta}
               </div>
             ) : null}
           </figcaption>

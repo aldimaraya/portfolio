@@ -35,6 +35,7 @@ export default async function EditPhotoPage({ params }: { params: Promise<{ id: 
           imageUrl: photo.imageUrl,
           width: photo.width,
           height: photo.height,
+          title: photo.title,
           location: photo.location,
           camera: photo.camera,
           // The Json column is untyped at the DB boundary — coerce it before it

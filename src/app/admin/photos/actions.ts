@@ -15,6 +15,9 @@ const photoSchema = z.object({
   imageUrl: z.url('Upload an image before saving'),
   width: z.number().int().positive(),
   height: z.number().int().positive(),
+  // Optional, so no min — but still trimmed, so a lone space stores as untitled
+  // rather than as a title that renders blank.
+  title: z.string().trim(),
   // Trimmed before the length check: a lone space would otherwise satisfy min(1)
   // and store a blank-looking value.
   location: z.string().trim().min(1, 'Location is required'),

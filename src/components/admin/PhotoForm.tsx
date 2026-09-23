@@ -37,6 +37,7 @@ function buildForm(initial?: Initial): PhotoInput {
     imageUrl: initial?.imageUrl ?? '',
     width: initial?.width ?? 0,
     height: initial?.height ?? 0,
+    title: initial?.title ?? '',
     location: initial?.location ?? '',
     camera: initial?.camera ?? '',
     settings: initial?.settings ?? EMPTY_SETTINGS,
@@ -410,6 +411,18 @@ export function PhotoForm({
             </div>
           ) : null}
 
+          {/* Plain input, not a SuggestInput: titles are one-offs, and offering
+              the last photo's title would only invite reusing it by accident. */}
+          <label className="flex flex-col gap-1">
+            <span className={LABEL}>Title (optional)</span>
+            <input
+              className={FIELD}
+              placeholder="Shown instead of the location on the print"
+              aria-label="Title"
+              value={form.title}
+              onChange={(event) => set('title', event.target.value)}
+            />
+          </label>
           <SuggestInput
             label="Location"
             placeholder="Location (e.g. Tokyo / Shinjuku)"

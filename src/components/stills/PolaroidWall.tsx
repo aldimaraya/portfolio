@@ -5,6 +5,7 @@ import { CARD_PADDING, FRAME_HEIGHT, Polaroid, type PolaroidPhoto } from './Pola
 import { Lightbox } from './Lightbox';
 import { WallLoader } from './WallLoader';
 import { justifyRows } from '@/lib/photo/justify';
+import { photoCaption } from '@/lib/photo/caption';
 import { useAssetsReady } from '@/components/site/useAssetsReady';
 
 /**
@@ -251,7 +252,7 @@ export function PolaroidWall({ photos }: { photos: PolaroidPhoto[] }) {
               else frames.current.delete(photo.id);
             }}
             type="button"
-            aria-label={`Open ${photo.location} full screen`}
+            aria-label={`Open ${photoCaption(photo).label} full screen`}
             onClick={() => setOpenIndex(index)}
             className="stagger-in max-w-full text-left"
             // The delay rides on a custom property so the keyframes stay in the

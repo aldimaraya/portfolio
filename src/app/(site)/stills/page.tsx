@@ -36,6 +36,7 @@ export default async function StillsPage() {
       imageUrl: true,
       width: true,
       height: true,
+      title: true,
       location: true,
       camera: true,
       settings: true,
@@ -56,6 +57,7 @@ export default async function StillsPage() {
     imageUrl: photo.imageUrl,
     width: photo.width,
     height: photo.height,
+    title: photo.title,
     location: photo.location,
     camera: photo.camera,
     // The Json column is untyped at the DB boundary — coerce it here.
