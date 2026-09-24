@@ -7,6 +7,7 @@ import { isAuthenticated } from '@/lib/auth/guard';
 import { pruneUnusedTags, tagConnections } from '@/lib/tags';
 import { deleteObjectsByUrl } from '@/lib/storage/r2';
 import { attempt } from '@/lib/actions/errors';
+import { announce } from '@/lib/newsletter/queue';
 
 const videoSchema = z.object({
   id: z.string().optional(),
@@ -125,13 +126,14 @@ export async function saveVideo(input: VideoInput): Promise<{ error?: string }> 
     } else {
       // New clips land at the end of their roll. Sort order is never typed in — it
       // is rearranged by dragging rows in the admin list.
-      await db.video.create({
+      const created = await db.video.create({
         data: {
           ...data,
           sortOrder: await nextSortOrder(data.rollId),
           tags: { create: connections },
         },
       });
+      await announce('motion', created.id);
     }
 
     // An edit that drops the last clip carrying a tag leaves it behind.

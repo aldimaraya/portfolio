@@ -28,6 +28,7 @@ One Next.js App Router application, four surfaces:
 | Stills | `/stills` | A photo wall whose order is derived entirely from colour |
 | Motion | `/motion`, `/motion/[id]` | Clips grouped into rolls of film, each clip with its own page |
 | Journal | `/journal`, `/journal/[slug]` | A Markdown blog |
+| Newsletter | `/newsletter`, `/newsletter/{confirm,manage}` | Email when something new goes up — see [Newsletter](#newsletter) |
 | Admin | `/admin/**`, `/login` | One password-protected area managing all of it |
 
 `/` redirects to `/stills`. The three public surfaces share chrome through the
@@ -240,12 +241,74 @@ One password, one session. Photos, videos and posts each get a list and a form.
   admin. They ask the client (`/api/auth/state`) rather than reading `cookies()`,
   because a cookie read would make the page dynamic and lose the CDN.
 
+### Newsletter
+
+Visitors can get an email when something new goes up, choosing any of journal,
+motion and stills. There is **no schedule**: the site is updated occasionally,
+and a weekly newsletter would mostly be empty. Code in
+[`lib/newsletter/`](../src/lib/newsletter), sending through Resend.
+
+- **Publishing queues, the cron sends.** `savePost` (on a post's first publish),
+  `savePhoto` and `saveVideo` (on create, never on edit) call `announce()`,
+  which adds an `Announcement`. A daily Vercel Cron
+  (`vercel.json` → `/api/cron/newsletter`, authorised by `CRON_SECRET`) sends
+  everything pending as one `Dispatch` once nothing new has been added for
+  `QUIET_HOURS` ([`schedule.ts`](../src/lib/newsletter/schedule.ts)). That is
+  the bundling: an afternoon of uploads is one email the next day, and a quiet
+  month is no email at all. Each subscriber gets only the kinds they chose, and
+  nothing if the batch holds none of them.
+- **An item is announced once, ever** — the unique index on `(kind, refId)`.
+  Unpublishing and republishing a post does not email anyone twice. A post put
+  back into draft while pending is held, not sent; deleted content is dropped.
+- **Dispatches resume.** Each subscriber's `lastDispatchId` records that they
+  have been handled, so a run that dies or hits Resend's daily cap is finished
+  by the next one, and each batch of 100 carries an idempotency key derived from
+  its recipients so a retry after a crash is not a duplicate. Only one dispatch
+  runs at a time; a second racing run claims no items and backs out.
+- **`/admin/newsletter`** shows the pending batch with an estimate of when it
+  goes out, lets an item be left out (or put back), renders the exact email as a
+  preview, has **Send now** and **Email me a preview**, and lists subscribers
+  and past sends.
+- **Double opt-in, no accounts.** A random token per subscriber is the whole
+  credential behind the confirm, manage and unsubscribe links. Confirming takes
+  a click on the page, not just a GET — mail scanners fetch every link in an
+  email, and a GET that confirmed would let one sign someone up. Unconfirmed
+  signups are deleted after a week; unsubscribing deletes the row.
+- **Every digest carries RFC 8058 one-click unsubscribe headers**, which Gmail
+  and Yahoo expect from bulk senders. Only the POST acts on
+  `/api/newsletter/unsubscribe`, for the same scanner reason.
+- **The signup form reveals nothing.** Every outcome — new, pending, already
+  subscribed — gets the same answer. It has a honeypot field, a per-IP cap
+  ([`throttle.ts`](../src/lib/newsletter/throttle.ts), in-memory like the login
+  limiter) and a per-inbox resend limit, because every signup spends quota.
+- **The prompt** ([`NewsletterPrompt`](../src/components/newsletter/NewsletterPrompt.tsx))
+  is a native `<dialog>` opened after 20 seconds, mounted in the public layout
+  so its clock survives navigation. It never shows to the admin, on the
+  newsletter's own pages, or over an open photo, and never again in a browser
+  that has closed it or subscribed (localStorage, best-effort). A footer link
+  on every public page is the permanent way in.
+- **Only production can email subscribers.** Development and previews share
+  production's database, so [`send.ts`](../src/lib/newsletter/send.ts) drops
+  every recipient not in `NEWSLETTER_TEST_EMAIL` unless `VERCEL_ENV` is
+  `production`, and `runDispatch` refuses to run at all elsewhere — a dispatch
+  there would mark real subscribers as sent while delivering nothing. Keep
+  `RESEND_API_KEY` scoped to Production in Vercel as the second lock.
+- **Outside production, email links point back at the request's own origin**
+  ([`origin.ts`](../src/lib/newsletter/origin.ts)), so a confirmation sent from
+  `localhost` confirms on `localhost` rather than on a production that has not
+  shipped the page yet. Images still load from `siteUrl()`, because a mail
+  provider's image proxy cannot reach localhost.
+- Email images go through the site's own `/_next/image` at 640px, since the
+  originals on R2 are full size. That spends image transformations, once per
+  image.
+
 ---
 
 ## Data model
 
-[`prisma/schema.prisma`](../prisma/schema.prisma). Seven models: `Photo`, `Video`,
-`Roll`, `BlogPost`, `Tag`, and the two join tables.
+[`prisma/schema.prisma`](../prisma/schema.prisma). Ten models: `Photo`, `Video`,
+`Roll`, `BlogPost`, `Tag`, the two join tables, and the newsletter's
+`Subscriber`, `Announcement` and `Dispatch`.
 
 Columns whose *shape* carries a decision:
 
@@ -261,6 +324,9 @@ Columns whose *shape* carries a decision:
 | `Video.sortOrder` | Videos *do* have a manual order, unlike photos — but only within their roll; values on different rolls are not comparable. |
 | `Video.rollId` (nullable) | Nullable only so the push stayed additive. `saveVideo` requires one; a clip without one (older than rolls, until `backfill:rolls` runs) is shown at the end of the first roll rather than dropped. |
 | `BlogPost.draft` | Defaults to `true`, so a half-written post cannot be published by forgetting a checkbox. |
+| `Announcement.refId` | Points at a `Photo`, `Video` or `BlogPost` depending on `kind`, so it cannot be a foreign key; deleted content is dropped when the batch resolves. |
+| `Announcement.dispatchId` | `onDelete: Restrict`. Deleting a dispatch must not put what it sent back into the queue. |
+| `Subscriber.lastDispatchId` | What makes a dispatch resumable. Not a relation, so dispatch history can never be blocked by it. |
 
 ---
 
@@ -455,6 +521,10 @@ Levers, cheapest first:
 - **Do not browse the full wall on a preview** when the change under review is
   not about the wall. This sounds like advice rather than infrastructure, and it
   is, but it is the single biggest lever on the metric that actually binds.
+
+`RESEND_API_KEY`, `EMAIL_FROM` and `CRON_SECRET` should be set on **Production
+only**. A preview shares production's subscriber list, and without the key it
+cannot email anyone even if the guard in `lib/newsletter/send.ts` were wrong.
 
 `NEXT_PUBLIC_SITE_URL` should stay **unset** on Preview: with it set, every
 preview claims to be the canonical origin in its metadata and sitemap. Note the

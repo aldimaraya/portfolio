@@ -6,6 +6,7 @@ import { db } from '@/lib/db';
 import { isAuthenticated } from '@/lib/auth/guard';
 import { slugify } from '@/lib/slug';
 import { attempt, attemptOr } from '@/lib/actions/errors';
+import { announce } from '@/lib/newsletter/queue';
 
 const postSchema = z.object({
   id: z.string().optional(),
@@ -51,9 +52,12 @@ export async function savePost(input: PostInput): Promise<{ error?: string }> {
     const { id, ...data } = parsed.data;
 
     if (!id) {
-      await db.blogPost.create({
+      const created = await db.blogPost.create({
         data: { ...data, slug: await uniqueSlug(data.title) },
       });
+      // Saved straight to published. A draft is announced when it is published,
+      // below — never on creation.
+      if (!data.draft) await announce('journal', created.id);
       revalidatePath('/admin/posts');
       revalidatePath('/journal');
       return {};
@@ -78,6 +82,9 @@ export async function savePost(input: PostInput): Promise<{ error?: string }> {
       where: { id },
       data: { ...data, slug, ...(publishing ? { publishedAt: new Date() } : {}) },
     });
+    // Unpublishing and republishing calls this again; announce() ignores an
+    // item it has already queued, so subscribers hear about a post only once.
+    if (publishing) await announce('journal', id);
 
     revalidatePath('/admin/posts');
     revalidatePath('/journal');

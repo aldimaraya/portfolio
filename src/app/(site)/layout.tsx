@@ -1,3 +1,5 @@
+import Link from 'next/link';
+import { NewsletterPrompt } from '@/components/newsletter/NewsletterPrompt';
 import { AdminBar } from '@/components/site/AdminBar';
 import { Header } from '@/components/site/Header';
 import { PageTransition } from '@/components/site/PageTransition';
@@ -19,6 +21,18 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
           navigations, and re-animating it would read as a page reload. */}
       <Header />
       <PageTransition>{children}</PageTransition>
+      {/* The way back to the signup for anyone who closed the prompt. Quiet on
+          purpose: the prompt already asked once. */}
+      <footer className="mt-16 border-t border-hairline pt-6 text-center">
+        <Link
+          href="/newsletter"
+          className="font-mono text-xs tracking-[0.15em] text-ash uppercase transition hover:text-gold"
+        >
+          Get new work by email
+        </Link>
+      </footer>
+      {/* In the layout rather than a page, so its clock survives navigation. */}
+      <NewsletterPrompt />
     </div>
   );
 }

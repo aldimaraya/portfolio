@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { PostMarkdown } from '@/components/markdown/PostMarkdown';
+import { PostSignup } from '@/components/newsletter/PostSignup';
 import { AdminEditLink } from '@/components/site/AdminEditLink';
 import { db } from '@/lib/db';
 import { buildExcerpt } from '@/lib/excerpt';
@@ -99,6 +100,7 @@ export default async function JournalPostPage({ params }: Params) {
             </div>
           </div>
         </div>
+        <PostSignup />
       </article>
     </main>
   );
