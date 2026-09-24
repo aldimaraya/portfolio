@@ -16,6 +16,7 @@
     "backfill:photos": "node scripts/backfill-photos.mjs",
     "backfill:settings": "node scripts/backfill-settings.mjs",
     "backfill:durations": "node scripts/backfill-durations.mjs",
+    "backfill:rolls": "node scripts/backfill-rolls.mjs",
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
     "db:studio": "prisma studio",

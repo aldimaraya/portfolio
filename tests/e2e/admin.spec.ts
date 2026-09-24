@@ -131,6 +131,22 @@ test.describe('signed in', () => {
     await expect(page).not.toHaveURL(/photo=/);
   });
 
+  // Same shape as the lightbox test above, and stops short of Save for the same
+  // reason. A clip is its own route, so there is nothing to reopen — only a path
+  // to come back to.
+  test('editing from a clip page finds its way back to the clip', async ({ page }) => {
+    await signIn(page);
+    await page.goto('/motion');
+
+    await page.locator('ul a[href^="/motion/"]').first().click();
+    await page.waitForURL(/\/motion\/[^/]+$/);
+    const clipPath = new URL(page.url()).pathname;
+
+    await page.getByRole('link', { name: 'Edit clip' }).click();
+    await page.waitForURL('**/admin/videos/*?return=*', { timeout: 60_000 });
+    expect(new URL(page.url()).searchParams.get('return')).toBe(clipPath);
+  });
+
   test('signing out closes the session', async ({ page }) => {
     await signIn(page);
     await expect(page).toHaveURL(/\/admin$/);

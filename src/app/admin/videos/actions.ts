@@ -27,6 +27,8 @@ const videoSchema = z.object({
   title: z.string().trim().min(1, 'Title is required'),
   // Optional — not every clip needs a blurb.
   description: z.string().trim(),
+  // Required, though the column is nullable — see Video.rollId.
+  rollId: z.string().min(1, 'Pick a roll'),
   tags: z.string(),
 })
   // A *new* clip has just had its frames grabbed in the browser, which cannot
@@ -38,6 +40,19 @@ const videoSchema = z.object({
   });
 
 export type VideoInput = z.infer<typeof videoSchema>;
+
+/**
+ * One past the last clip on a roll. Not exported: every export of a 'use server'
+ * file is a public endpoint.
+ */
+async function nextSortOrder(rollId: string): Promise<number> {
+  const last = await db.video.findFirst({
+    where: { rollId },
+    orderBy: { sortOrder: 'desc' },
+    select: { sortOrder: true },
+  });
+  return (last?.sortOrder ?? -1) + 1;
+}
 
 export async function saveVideo(input: VideoInput): Promise<{ error?: string }> {
   // Wrapped so a failure past validation still arrives as `{ error }` rather
@@ -53,6 +68,13 @@ export async function saveVideo(input: VideoInput): Promise<{ error?: string }> 
     }
 
     const { id, tags, ...data } = parsed.data;
+
+    // Checked rather than left to the foreign key, whose failure would reach the
+    // form as the generic message: a roll deleted in another tab while this form
+    // was open is a thing the admin can act on if told.
+    const roll = await db.roll.findUnique({ where: { id: data.rollId }, select: { id: true } });
+    if (!roll) return { error: 'That roll no longer exists — pick another' };
+
     const connections = await tagConnections(tags);
 
     if (id) {
@@ -64,12 +86,16 @@ export async function saveVideo(input: VideoInput): Promise<{ error?: string }> 
       // renders the gap.
       const stored = await db.video.findUnique({
         where: { id },
-        select: { posterImageUrl: true, spriteUrl: true },
+        select: { posterImageUrl: true, spriteUrl: true, rollId: true },
       });
       const replaced = [
         stored?.posterImageUrl !== data.posterImageUrl ? stored?.posterImageUrl : null,
         stored?.spriteUrl !== data.spriteUrl ? stored?.spriteUrl : null,
       ].filter((url): url is string => Boolean(url));
+
+      // A clip moved to another roll goes to its end: its old sortOrder means
+      // nothing among the new roll's clips.
+      const moved = stored?.rollId !== data.rollId ? await nextSortOrder(data.rollId) : null;
 
       // Replace the tag set wholesale rather than diffing it — but as one
       // transaction, because the two halves are not independently useful: a delete
@@ -79,7 +105,11 @@ export async function saveVideo(input: VideoInput): Promise<{ error?: string }> 
         db.videoTag.deleteMany({ where: { videoId: id } }),
         db.video.update({
           where: { id },
-          data: { ...data, tags: { create: connections } },
+          data: {
+            ...data,
+            ...(moved === null ? {} : { sortOrder: moved }),
+            tags: { create: connections },
+          },
         }),
       ]);
 
@@ -93,16 +123,12 @@ export async function saveVideo(input: VideoInput): Promise<{ error?: string }> 
         }
       }
     } else {
-      // New clips land at the end of the wall. Sort order is never typed in — it is
-      // rearranged by dragging rows in the admin list.
-      const last = await db.video.findFirst({
-        orderBy: { sortOrder: 'desc' },
-        select: { sortOrder: true },
-      });
+      // New clips land at the end of their roll. Sort order is never typed in — it
+      // is rearranged by dragging rows in the admin list.
       await db.video.create({
         data: {
           ...data,
-          sortOrder: (last?.sortOrder ?? -1) + 1,
+          sortOrder: await nextSortOrder(data.rollId),
           tags: { create: connections },
         },
       });
@@ -122,23 +148,31 @@ export async function saveVideo(input: VideoInput): Promise<{ error?: string }> 
 }
 
 /**
- * Persists a drag-reordered list. Takes the full ordering rather than a moved
- * pair, so the result cannot drift from what the admin sees on screen, and
- * writes it in one transaction so a partial failure cannot leave gaps.
+ * Persists one roll's order after a drag — along the roll, or into it from
+ * another. Takes the roll's full ordering rather than a moved pair, so the
+ * result cannot drift from what the admin sees on screen, and writes rollId with
+ * each position so a clip dragged in from elsewhere is moved by the same write.
+ * The roll it left needs nothing: its remaining clips keep their relative order,
+ * and a gap in sortOrder is harmless.
  */
-export async function reorderVideos(ids: string[]): Promise<{ error?: string }> {
+export async function reorderVideos(rollId: string, ids: string[]): Promise<{ error?: string }> {
   // The sharpest case for the wrapper: this takes whatever ids the list on
   // screen holds, so a drag against a row deleted in another tab throws P2025
   // out of the transaction and the reorder silently does nothing.
   return attempt('reorderVideos', async () => {
     if (!(await isAuthenticated())) return { error: 'Unauthorized' };
 
-    const parsed = z.array(z.string().min(1)).safeParse(ids);
+    const parsed = z
+      .object({ rollId: z.string().min(1), ids: z.array(z.string().min(1)) })
+      .safeParse({ rollId, ids });
     if (!parsed.success) return { error: 'Invalid ordering' };
 
+    const roll = await db.roll.findUnique({ where: { id: parsed.data.rollId }, select: { id: true } });
+    if (!roll) return { error: 'That roll no longer exists' };
+
     await db.$transaction(
-      parsed.data.map((id, index) =>
-        db.video.update({ where: { id }, data: { sortOrder: index } }),
+      parsed.data.ids.map((id, index) =>
+        db.video.update({ where: { id }, data: { rollId: roll.id, sortOrder: index } }),
       ),
     );
 
@@ -182,6 +216,82 @@ export async function deleteVideo(id: string): Promise<{ error?: string }> {
     // Every one of them carries its own position on the roll — the frame code and
     // the prev/next pager — so a change to any clip can invalidate all of them,
     // and a reorder always does.
+    revalidatePath('/motion', 'layout');
+    return {};
+  });
+}
+
+const rollSchema = z.object({
+  id: z.string().optional(),
+  name: z.string().trim().min(1, 'A roll needs a name'),
+  description: z.string().trim(),
+});
+
+export type RollInput = z.infer<typeof rollSchema>;
+
+export async function saveRoll(input: RollInput): Promise<{ error?: string }> {
+  return attempt('saveRoll', async () => {
+    if (!(await isAuthenticated())) return { error: 'Unauthorized' };
+
+    const parsed = rollSchema.safeParse(input);
+    if (!parsed.success) return { error: parsed.error.issues[0].message };
+
+    const { id, ...data } = parsed.data;
+    if (id) {
+      await db.roll.update({ where: { id }, data });
+    } else {
+      // Same end-of-the-list rule as a new clip.
+      const last = await db.roll.findFirst({
+        orderBy: { sortOrder: 'desc' },
+        select: { sortOrder: true },
+      });
+      await db.roll.create({ data: { ...data, sortOrder: (last?.sortOrder ?? -1) + 1 } });
+    }
+
+    revalidatePath('/admin/videos');
+    // A roll's name is printed on every clip page in it.
+    revalidatePath('/motion', 'layout');
+    return {};
+  });
+}
+
+/** The roll counterpart to reorderVideos, with the same whole-ordering contract. */
+export async function reorderRolls(ids: string[]): Promise<{ error?: string }> {
+  return attempt('reorderRolls', async () => {
+    if (!(await isAuthenticated())) return { error: 'Unauthorized' };
+
+    const parsed = z.array(z.string().min(1)).safeParse(ids);
+    if (!parsed.success) return { error: 'Invalid ordering' };
+
+    await db.$transaction(
+      parsed.data.map((id, index) =>
+        db.roll.update({ where: { id }, data: { sortOrder: index } }),
+      ),
+    );
+
+    revalidatePath('/admin/videos');
+    // Reordering rolls re-letters them, which changes every clip's frame code.
+    revalidatePath('/motion', 'layout');
+    return {};
+  });
+}
+
+export async function deleteRoll(id: string): Promise<{ error?: string }> {
+  return attempt('deleteRoll', async () => {
+    if (!(await isAuthenticated())) return { error: 'Unauthorized' };
+
+    // Checked up front for the message; the Restrict on Video.roll is what
+    // actually guarantees a roll never takes its clips with it.
+    const clips = await db.video.count({ where: { rollId: id } });
+    if (clips > 0) {
+      return {
+        error: `Move its ${clips} ${clips === 1 ? 'clip' : 'clips'} to another roll first`,
+      };
+    }
+
+    await db.roll.delete({ where: { id } });
+
+    revalidatePath('/admin/videos');
     revalidatePath('/motion', 'layout');
     return {};
   });
