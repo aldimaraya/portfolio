@@ -707,3 +707,11 @@ body {
 .prose-portfolio table { width: 100%; border-collapse: collapse; margin: 0 0 1em; display: block; overflow-x: auto; }
 .prose-portfolio th,
 .prose-portfolio td { border: 1px solid var(--color-hairline); padding: 0.4em 0.6em; text-align: left; }
+
+/* The newsletter prompt. It interrupts, so it arrives gently: a short dissolve,
+   and nothing that moves for a reduced-motion visitor. */
+@media (prefers-reduced-motion: no-preference) {
+  .newsletter-prompt[open] {
+    animation: page-enter 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+}

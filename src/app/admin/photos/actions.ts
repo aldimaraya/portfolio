@@ -9,6 +9,7 @@ import { photoSettingsSchema } from '@/lib/photo/settings';
 import { inputValueToTakenAt } from '@/lib/photo/date';
 import { deleteObjectsByUrl } from '@/lib/storage/r2';
 import { attempt } from '@/lib/actions/errors';
+import { announce } from '@/lib/newsletter/queue';
 
 const photoSchema = z.object({
   id: z.string().optional(),
@@ -70,7 +71,9 @@ export async function savePhoto(input: PhotoInput): Promise<{ error?: string }> 
         }),
       ]);
     } else {
-      await db.photo.create({ data: { ...write, tags: { create: connections } } });
+      const created = await db.photo.create({ data: { ...write, tags: { create: connections } } });
+      // Only new photos are news; an edit or a retouch is not.
+      await announce('stills', created.id);
     }
 
     // An edit that drops the last photo carrying a tag leaves it behind.

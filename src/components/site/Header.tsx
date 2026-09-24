@@ -84,45 +84,59 @@ export function Header() {
         <p className="mt-0.5 text-xs text-ash uppercase sm:mt-1 sm:text-sm">{SITE_TAGLINE}</p>
       </Link>
 
-      <nav ref={navRef} className="relative flex gap-5 sm:gap-6">
-        {NAV_TABS.map((tab) => (
-          <Link
-            key={tab.href}
-            href={tab.href}
-            ref={(node) => {
-              if (node) tabRefs.current.set(tab.href, node);
-              else tabRefs.current.delete(tab.href);
-            }}
-            // aria-current follows the settled route, not the optimistic one: a
-            // screen reader announcing the page as current before it exists is a
-            // worse lie than a late highlight is a delay.
-            aria-current={tab.href === settledHref ? 'page' : undefined}
-            onClick={() => setPending({ href: tab.href, from: pathname })}
-            className={`py-1.5 text-sm font-medium tracking-wider uppercase transition-colors sm:py-2 ${
-              tab.href === activeHref ? 'text-gold' : 'text-ash hover:text-gold'
-            }`}
-          >
-            {tab.label}
-          </Link>
-        ))}
+      <div className="flex items-center gap-5 sm:gap-6">
+        <nav ref={navRef} className="relative flex gap-5 sm:gap-6">
+          {NAV_TABS.map((tab) => (
+            <Link
+              key={tab.href}
+              href={tab.href}
+              ref={(node) => {
+                if (node) tabRefs.current.set(tab.href, node);
+                else tabRefs.current.delete(tab.href);
+              }}
+              // aria-current follows the settled route, not the optimistic one: a
+              // screen reader announcing the page as current before it exists is a
+              // worse lie than a late highlight is a delay.
+              aria-current={tab.href === settledHref ? 'page' : undefined}
+              onClick={() => setPending({ href: tab.href, from: pathname })}
+              className={`py-1.5 text-sm font-medium tracking-wider uppercase transition-colors sm:py-2 ${
+                tab.href === activeHref ? 'text-gold' : 'text-ash hover:text-gold'
+              }`}
+            >
+              {tab.label}
+            </Link>
+          ))}
 
-        {/* One bar for the whole nav rather than a pseudo-element per tab: two
-            separate underlines cannot animate into one another, so sliding needs
-            a single element that moves. -bottom-5 lands it on the header's
-            bottom rule, matching the pb-5 above. */}
-        {underline ? (
-          <span
-            aria-hidden
-            data-testid="tab-underline"
-            className={`absolute -bottom-4 left-0 h-0.5 bg-gold sm:-bottom-5 ${
-              slides
-                ? 'motion-safe:transition-[transform,width] motion-safe:duration-300 motion-safe:ease-out'
-                : ''
-            }`}
-            style={{ width: underline.width, transform: `translateX(${underline.left}px)` }}
-          />
-        ) : null}
-      </nav>
+          {/* One bar for the whole nav rather than a pseudo-element per tab: two
+              separate underlines cannot animate into one another, so sliding needs
+              a single element that moves. -bottom-5 lands it on the header's
+              bottom rule, matching the pb-5 above. */}
+          {underline ? (
+            <span
+              aria-hidden
+              data-testid="tab-underline"
+              className={`absolute -bottom-4 left-0 h-0.5 bg-gold sm:-bottom-5 ${
+                slides
+                  ? 'motion-safe:transition-[transform,width] motion-safe:duration-300 motion-safe:ease-out'
+                  : ''
+              }`}
+              style={{ width: underline.width, transform: `translateX(${underline.left}px)` }}
+            />
+          ) : null}
+        </nav>
+
+        {/* Outside the nav on purpose: it is not a place, so it takes no part in
+            the underline, and it is outlined rather than tabbed so it does not
+            read as a fourth section competing with the work. The footer link
+            alone went unseen — it sits below the entire wall on /stills. */}
+        <Link
+          href="/newsletter"
+          aria-current={pathname === '/newsletter' ? 'page' : undefined}
+          className="rounded border border-goldline px-2.5 py-1 text-xs font-medium tracking-wider text-gold uppercase transition hover:border-gold hover:bg-gold/10"
+        >
+          Subscribe
+        </Link>
+      </div>
     </header>
   );
 }

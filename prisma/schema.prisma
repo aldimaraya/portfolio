@@ -180,3 +180,97 @@ model VideoTag {
 
   @@id([videoId, tagId])
 }
+
+// ── Newsletter ──────────────────────────────────────────────────────────────
+// Email is sent when something new goes up, not on a calendar: publishing
+// enqueues an Announcement, and the daily cron sends everything pending as one
+// Dispatch once nothing new has arrived for a while (lib/newsletter/schedule.ts).
+// See "Newsletter" in docs/architecture.md.
+
+// What an Announcement points at. Named for the surfaces a subscriber opts into,
+// not the tables — "stills" is a Photo, "motion" a Video, "journal" a BlogPost.
+enum ContentKind {
+  journal
+  motion
+  stills
+}
+
+model Subscriber {
+  id    String @id @default(cuid())
+  // Stored lowercased and trimmed (lib/newsletter/email.ts), so the unique
+  // index is what stops one inbox subscribing twice under two spellings.
+  email String @unique
+
+  // The only credential a subscriber has: it is in the confirm link, the manage
+  // link and every email's unsubscribe link. There are no accounts. Random, not
+  // derived from the id, so a leaked id cannot be turned into someone's link.
+  token String @unique
+
+  journal Boolean @default(true)
+  motion  Boolean @default(true)
+  stills  Boolean @default(true)
+
+  // Null until the confirmation link is followed — nothing is sent to an
+  // unconfirmed address but that one email. The cron deletes rows left
+  // unconfirmed for a week, so a stranger typing someone else's address in
+  // leaves nothing behind.
+  confirmedAt   DateTime?
+  // When the confirmation email last went out, so re-submitting the form cannot
+  // be used to mail-bomb an address (CONFIRM_RESEND_MS).
+  confirmSentAt DateTime
+
+  // The last Dispatch this subscriber has been handled for — emailed, or
+  // skipped because nothing in it matched their choices. What makes a dispatch
+  // resumable: a run that dies halfway, or hits the provider's daily cap, picks
+  // up with exactly the subscribers not yet marked.
+  lastDispatchId String?
+
+  createdAt DateTime @default(now())
+
+  @@index([confirmedAt])
+}
+
+// One piece of content queued to be emailed about. Enqueued by the admin save
+// actions on create (and on a post's first publish), never on an edit.
+model Announcement {
+  id    String      @id @default(cuid())
+  kind  ContentKind
+  // A Photo, Video or BlogPost id. Deliberately not a foreign key — it points at
+  // one of three tables — so a deleted item is dropped when the batch resolves
+  // rather than cascaded here.
+  refId String
+
+  createdAt DateTime @default(now())
+
+  // Taken out of the batch by hand in /admin/newsletter. Kept rather than
+  // deleted so the unique index below still stops it being queued again.
+  skipped Boolean @default(false)
+
+  // Null while pending. Restrict, because the alternative (SetNull) would turn
+  // deleting old dispatch history into putting already-sent items back in the
+  // queue, and the next cron run would email them all again.
+  dispatchId String?
+  dispatch   Dispatch? @relation(fields: [dispatchId], references: [id], onDelete: Restrict)
+
+  // One announcement per item, ever: unpublishing a post and publishing it
+  // again must not email everyone a second time.
+  @@unique([kind, refId])
+  @@index([dispatchId, skipped])
+}
+
+// One send of the pending batch to every subscriber.
+model Dispatch {
+  id String @id @default(cuid())
+
+  createdAt   DateTime  @default(now())
+  // Null while subscribers remain to be handled. An incomplete dispatch is
+  // resumed before any new one is started.
+  completedAt DateTime?
+
+  // Emails actually handed to the provider, for the admin history.
+  sent Int @default(0)
+
+  announcements Announcement[]
+
+  @@index([completedAt])
+}

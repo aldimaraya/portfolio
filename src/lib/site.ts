@@ -6,6 +6,13 @@ export const SITE_NAME = 'Aldi Maraya';
 export const SITE_TAGLINE = 'My life, documented';
 
 /**
+ * What the newsletter calls the site in a subject line. The bare name reads as
+ * a person emailing you, not a site you subscribed to — "Confirm your
+ * subscription to Aldi Maraya" is odd in an inbox in a way the wordmark is not.
+ */
+export const NEWSLETTER_NAME = 'Aldi’s portfolio';
+
+/**
  * What the site is about, in a sentence, for the places a tagline is too thin to
  * do the job: the meta description and the Person schema.
  *
