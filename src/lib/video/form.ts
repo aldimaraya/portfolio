@@ -12,6 +12,7 @@ export interface VideoDraft {
   /** Sprite and poster available, either freshly generated or already stored. */
   hasPreview: boolean;
   title: string;
+  hasRoll: boolean;
 }
 
 export function missingRequiredFields(draft: VideoDraft): string[] {
@@ -19,6 +20,7 @@ export function missingRequiredFields(draft: VideoDraft): string[] {
 
   if (!draft.hasVideo) missing.push('a video');
   if (!draft.title.trim()) missing.push('a title');
+  if (!draft.hasRoll) missing.push('a roll');
 
   // Derived, not typed, so it is only worth reporting once a video exists.
   if (draft.hasVideo && !draft.hasPreview) {

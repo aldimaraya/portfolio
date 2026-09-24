@@ -5,7 +5,9 @@ import { ClipRow, type RollClip } from './ClipRow';
 import { FilmRail, PERFORATION_PITCH } from './FilmRail';
 
 /**
- * The roll as a list.
+ * One roll as a list. /motion stacks one of these per roll, each with its own
+ * rail and spool — the spool is sticky within its own rail, so it parks at the
+ * top of the roll being read and leaves with it.
  *
  * The film used to *be* the layout: a tall runway track, a sticky 85vh viewport,
  * and a translateY on the frames driven by window.scrollY. That is what made the
@@ -27,7 +29,7 @@ const PERFORATIONS_PER_TURN = 6;
 
 const DEGREES_PER_PIXEL = 360 / (PERFORATION_PITCH * PERFORATIONS_PER_TURN);
 
-export function MotionRoll({ clips }: { clips: RollClip[] }) {
+export function MotionRoll({ clips, letter }: { clips: RollClip[]; letter: string }) {
   const railRef = useRef<HTMLDivElement>(null);
   const spoolRef = useRef<HTMLDivElement>(null);
 
@@ -84,7 +86,7 @@ export function MotionRoll({ clips }: { clips: RollClip[] }) {
       <ul className="min-w-0 flex-1">
         {clips.map((clip, index) => (
           <li key={clip.id} className="border-b border-hairline first:border-t">
-            <ClipRow clip={clip} index={index} />
+            <ClipRow clip={clip} index={index} letter={letter} />
           </li>
         ))}
       </ul>

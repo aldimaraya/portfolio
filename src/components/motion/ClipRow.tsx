@@ -3,9 +3,9 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { SpritePreview } from './SpritePreview';
-import { frameCode } from './FilmRail';
 import { thumbWidth } from '@/lib/video/frame';
 import { formatDuration } from '@/lib/video/duration';
+import { frameCode } from '@/lib/video/roll';
 
 export interface RollClip {
   id: string;
@@ -46,7 +46,16 @@ const THUMB_COLUMN = thumbWidth({ width: 16, height: 9 }, THUMB_HEIGHT);
  * question the visitor just asked. Reduced motion still stops it dead — the
  * rule in globals.css pins every strip back to frame one regardless of this.
  */
-export function ClipRow({ clip, index }: { clip: RollClip; index: number }) {
+export function ClipRow({
+  clip,
+  index,
+  letter,
+}: {
+  clip: RollClip;
+  /** Position on its own roll, not on the page — frame codes restart per roll. */
+  index: number;
+  letter: string;
+}) {
   const [previewing, setPreviewing] = useState(false);
   const runtime = formatDuration(clip.durationSeconds);
 
@@ -97,7 +106,7 @@ export function ClipRow({ clip, index }: { clip: RollClip; index: number }) {
           the running time is what anyone deciding whether to watch actually
           wants, so it stays at every width. */}
       <span className="flex shrink-0 items-baseline gap-2.5 font-mono text-[0.7rem] tracking-[0.08em] tabular-nums">
-        <span className="text-gold max-strip:hidden">[{frameCode(index)}]</span>
+        <span className="text-gold max-strip:hidden">[{frameCode(index, letter)}]</span>
         {runtime ? <span className="text-ash">{runtime}</span> : null}
       </span>
     </Link>

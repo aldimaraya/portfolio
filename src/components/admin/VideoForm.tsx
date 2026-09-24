@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { UploadField } from './UploadField';
 import { TagInput } from './TagInput';
@@ -43,13 +44,37 @@ function buildForm(initial?: Initial): VideoInput {
     durationSeconds: initial?.durationSeconds ?? 0,
     title: initial?.title ?? '',
     description: initial?.description ?? '',
+    rollId: initial?.rollId ?? '',
     tags: initial?.tags ?? '',
   };
 }
 
-export function VideoForm({ initial, tagOptions }: { initial?: Initial; tagOptions: string[] }) {
+export interface RollOption {
+  id: string;
+  name: string;
+}
+
+export function VideoForm({
+  initial,
+  tagOptions,
+  rolls,
+  returnTo = '/admin/videos',
+}: {
+  initial?: Initial;
+  tagOptions: string[];
+  /** In roll order. Empty means there is nowhere to file a clip yet. */
+  rolls: RollOption[];
+  /** Where a saved edit goes. Already reduced to a same-site path by the page. */
+  returnTo?: string;
+}) {
   const router = useRouter();
-  const [form, setForm] = useState<VideoInput>(() => buildForm(initial));
+  const [form, setForm] = useState<VideoInput>(() =>
+    // The first roll rather than a blank "pick one": most uploads go to it, and
+    // a clip with no roll cannot be saved anyway. That includes a clip older than
+    // rolls, which /motion already shows on the first roll — so saving it there
+    // files it where it was already being read.
+    buildForm({ ...initial, rollId: initial?.rollId || rolls[0]?.id }),
+  );
   // The clip waits here until save — nothing reaches R2 before then.
   const [file, setFile] = useState<File | null>(null);
   const [sprite, setSprite] = useState<SpriteResult | null>(null);
@@ -93,6 +118,7 @@ export function VideoForm({ initial, tagOptions }: { initial?: Initial; tagOptio
     hasVideo: Boolean(file) || Boolean(form.videoUrl),
     hasPreview: Boolean(sprite) || Boolean(form.spriteUrl && form.posterImageUrl),
     title: form.title,
+    hasRoll: Boolean(form.rollId),
   });
   const ready = missing.length === 0 && !generating && !fetching;
 
@@ -291,15 +317,18 @@ export function VideoForm({ initial, tagOptions }: { initial?: Initial; tagOptio
     }
 
     if (isEdit) {
-      router.push('/admin/videos');
+      // Back to the clip's page when that is where the edit started — see
+      // lib/video/edit-link.
+      router.push(returnTo);
       router.refresh();
       return;
     }
 
     // The create form is rendered *on* /admin/videos, so there is no navigation
     // to unmount it — reset by hand, ready for the next clip. Sort order is
-    // assigned server-side, so nothing about position needs carrying over.
-    setForm(buildForm());
+    // assigned server-side; the roll is carried over, since clips tend to be
+    // uploaded a roll at a time.
+    setForm(buildForm({ rollId: form.rollId }));
     setFile(null);
     setSource(null);
     setSprite(null);
@@ -481,6 +510,33 @@ export function VideoForm({ initial, tagOptions }: { initial?: Initial; tagOptio
             value={form.description}
             onChange={(event) => set('description', event.target.value)}
           />
+
+          {rolls.length > 0 ? (
+            <label className="flex flex-col gap-1">
+              <span className={LABEL}>Roll</span>
+              <select
+                className={FIELD}
+                value={form.rollId}
+                onChange={(event) => set('rollId', event.target.value)}
+              >
+                {rolls.map((roll) => (
+                  <option key={roll.id} value={roll.id}>
+                    {roll.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            // A link rather than "below": this form is also the edit page, which
+            // has no roll manager of its own.
+            <p className="text-xs text-amber-400">
+              A clip needs a roll.{' '}
+              <Link href="/admin/videos#new-roll" className="underline hover:text-gold">
+                Add one below the clips
+              </Link>{' '}
+              first.
+            </p>
+          )}
 
           <TagInput
             value={form.tags}

@@ -2,11 +2,14 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { AdminEditLink } from '@/components/site/AdminEditLink';
 import { ClipStage } from '@/components/motion/ClipStage';
-import { FilmRail, frameCode } from '@/components/motion/FilmRail';
+import { FilmRail } from '@/components/motion/FilmRail';
 import { db } from '@/lib/db';
 import { formatDuration } from '@/lib/video/duration';
 import { JsonLd } from '@/components/site/JsonLd';
 import { videoSchema } from '@/lib/schema';
+import { CLIP_ORDER, loadRolls } from '@/lib/video/load-rolls';
+import { frameCode, groupIntoRolls, locateClip } from '@/lib/video/roll';
+import { editVideoHref } from '@/lib/video/edit-link';
 
 // params is a Promise in Next 16 and must be awaited.
 type Params = { params: Promise<{ id: string }> };
@@ -23,38 +26,34 @@ export async function generateStaticParams() {
 }
 
 /**
- * The clip, its neighbours, and its place on the roll — in one query rather than
- * four. Position is what the frame code and the pager are both built from, and
- * it exists only as an ordering, so the roll has to be read to know it.
+ * The clip, its neighbours, and its place on its roll. Position exists only as
+ * an ordering, so every roll has to be read to know it — and read through the
+ * same grouping /motion uses, or the frame code printed here could disagree
+ * with the one on the row that linked to it.
  */
 async function loadClip(id: string) {
-  const roll = await db.video.findMany({
-    orderBy: { sortOrder: 'asc' },
-    select: {
-      id: true,
-      videoUrl: true,
-      posterImageUrl: true,
-      width: true,
-      height: true,
-      durationSeconds: true,
-      title: true,
-      description: true,
-      // Not drawn anywhere — it is the VideoObject's uploadDate, which Google
-      // requires before a clip is eligible for a video result at all.
-      createdAt: true,
-    },
-  });
+  const [rolls, videos] = await Promise.all([
+    loadRolls(),
+    db.video.findMany({
+      orderBy: [...CLIP_ORDER],
+      select: {
+        id: true,
+        rollId: true,
+        videoUrl: true,
+        posterImageUrl: true,
+        width: true,
+        height: true,
+        durationSeconds: true,
+        title: true,
+        description: true,
+        // Not drawn anywhere — it is the VideoObject's uploadDate, which Google
+        // requires before a clip is eligible for a video result at all.
+        createdAt: true,
+      },
+    }),
+  ]);
 
-  const index = roll.findIndex((video) => video.id === id);
-  if (index === -1) return null;
-
-  return {
-    clip: roll[index],
-    index,
-    total: roll.length,
-    previous: roll[index - 1] ?? null,
-    next: roll[index + 1] ?? null,
-  };
+  return locateClip(groupIntoRolls(rolls, videos), id);
 }
 
 export async function generateMetadata({ params }: Params) {
@@ -74,8 +73,9 @@ export default async function ClipPage({ params }: Params) {
   const found = await loadClip(id);
   if (!found) notFound();
 
-  const { clip, index, total, previous, next } = found;
+  const { roll, clip, index, previous, next } = found;
   const runtime = formatDuration(clip.durationSeconds);
+  const rollLabel = roll.name ? `Roll ${roll.letter} — ${roll.name}` : `Roll ${roll.letter}`;
 
   return (
     // Capped rather than run across the full 1300px container: a player as wide
@@ -84,16 +84,18 @@ export default async function ClipPage({ params }: Params) {
     <main className="mx-auto max-w-[62rem]">
       <JsonLd schema={videoSchema(clip)} />
       <div className="mb-3 flex items-center justify-between gap-4">
+        {/* To this clip's roll, not the top of the page: from the fourth roll,
+            "back" means back to the fourth roll. */}
         <Link
-          href="/motion"
-          className="font-mono text-xs tracking-[0.1em] text-ash uppercase transition hover:text-gold"
+          href={`/motion#roll-${roll.letter.toLowerCase()}`}
+          className="min-w-0 truncate font-mono text-xs tracking-[0.1em] text-ash uppercase transition hover:text-gold"
         >
-          ← Back to the roll
+          ← {rollLabel}
         </Link>
-        <AdminEditLink href={`/admin/videos/${clip.id}`} label="Edit clip" />
+        <AdminEditLink href={editVideoHref(clip.id)} label="Edit clip" />
       </div>
 
-      <ClipStage clip={clip} index={index} />
+      <ClipStage clip={clip} index={index} letter={roll.letter} />
 
       {/* The same rail as the roll, so the clip reads as a place on the film
           rather than a page of its own. Static — nothing is transporting here. */}
@@ -109,7 +111,7 @@ export default async function ClipPage({ params }: Params) {
               {clip.title}
             </h2>
             <p className="font-mono text-[0.7rem] tracking-[0.1em] text-gold uppercase tabular-nums">
-              Frame {frameCode(index)} · {index + 1} of {total}
+              Frame {frameCode(index, roll.letter)} · {index + 1} of {roll.clips.length}
               {runtime ? ` · ${runtime}` : ''}
             </p>
           </div>
@@ -121,7 +123,9 @@ export default async function ClipPage({ params }: Params) {
           ) : null}
 
           {/* Prev/next along the roll rather than a grid of "more clips": the
-              order is deliberate, so the useful next thing is the next one.
+              order is deliberate, so the useful next thing is the next one. It
+              stops at the roll's ends rather than running into the next roll —
+              see locateClip.
               Below the fold by design — it is what you want after the clip, not
               during it, so it is not charged to the height budget above. */}
           <nav className="mt-6 flex gap-4 border-t border-hairline pt-5">

@@ -10,9 +10,9 @@
  * stayed there tests the property we actually care about, rather than a
  * hand-listed set of the ways it can be violated.
  *
- * Not login-specific: the photo form's `return` parameter is the same crafted
- * input feeding the same kind of redirect, so it goes through here too, with its
- * own fallback.
+ * Not login-specific: the photo and video forms' `return` parameter is the same
+ * crafted input feeding the same kind of redirect, so it goes through here too,
+ * with its own fallback.
  */
 
 export const DEFAULT_NEXT = '/admin';

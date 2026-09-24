@@ -35,8 +35,3 @@ export function FilmRail({
     </div>
   );
 }
-
-/** `01A`, `02A`, … — the frame numbering printed along a real strip. */
-export function frameCode(index: number): string {
-  return `${String(index + 1).padStart(2, '0')}A`;
-}

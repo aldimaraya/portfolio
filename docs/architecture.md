@@ -26,7 +26,7 @@ One Next.js App Router application, four surfaces:
 | Surface | Route | What it is |
 | --- | --- | --- |
 | Stills | `/stills` | A photo wall whose order is derived entirely from colour |
-| Motion | `/motion`, `/motion/[id]` | A roll of clips, each with its own page |
+| Motion | `/motion`, `/motion/[id]` | Clips grouped into rolls of film, each clip with its own page |
 | Journal | `/journal`, `/journal/[slug]` | A Markdown blog |
 | Admin | `/admin/**`, `/login` | One password-protected area managing all of it |
 
@@ -66,7 +66,7 @@ client-side and are stored on the row. **There is no server-side image or video
 processing anywhere.** Rendering a public page is a plain database read.
 
 The cost of this is that anything not captured at upload time is generally gone
-for good, which is why three backfill scripts exist and why two columns have
+for good, which is why several backfill scripts exist and why two columns have
 awkward defaults. See [Backfills](#backfills).
 
 ### Media never passes through the app server
@@ -171,13 +171,21 @@ long-running "clips play silently" bug.
 
 ### Motion
 
-- **The roll** (`/motion`) is a list: a 26px perforated film rail down the left,
-  clips as rows, on ordinary page scroll. Each row shows a sprite-sheet
+- **Rolls** (`/motion`) are stacked down the page, each its own strip: a
+  heading (`Roll A — Travel`, clip count, running time, optional description),
+  then a 26px perforated film rail down the left with clips as rows, on ordinary
+  page scroll. Rolls are lettered A, B, C… by position and a clip's frame code
+  carries its roll's letter (`01A`, `01B`), so reordering rolls renumbers every
+  clip on them. Empty rolls are not shown, and lettering skips them.
+  [`lib/video/roll.ts`](../src/lib/video/roll.ts) does the grouping for both
+  `/motion` and the clip pages, so the two cannot disagree about a frame code. Each row shows a sprite-sheet
   thumbnail, title, description and running time. Sprite previews animate on
   hover or keyboard focus only — six looping previews down a list is ambient
   motion competing for attention.
 - **A clip page** (`/motion/[id]`) per clip: the projector gate, the title, its
-  position on the roll, its running time, and prev/next along the roll. SSG,
+  position on its roll, its running time, and prev/next along that roll —
+  stopping at the roll's ends rather than splicing into the next one. "Back"
+  returns to the clip's roll (`/motion#roll-b`), not the top of the page. SSG,
   like a journal post.
 - **Clips run on arrival**, started from an effect rather than the `autoPlay`
   attribute — the attribute gives no way to learn that the browser refused,
@@ -186,8 +194,8 @@ long-running "clips play silently" bug.
 - **The gate is sized against the window**, not a fixed pixel cap, so the frame,
   its title and its place on the roll are visible at once. `svh` rather than
   `vh`, because `vh` measures the viewport with mobile browser chrome retracted.
-- **The projector**: a sticky spool at the head of the rail turning with the
-  scroll, and a gate spool on a clip page that turns only while the clip runs.
+- **The projector**: a sticky spool at the head of each roll's rail turning
+  with the scroll, and a gate spool on a clip page that turns only while the clip runs.
 
 ### Journal
 
@@ -219,9 +227,15 @@ One password, one session. Photos, videos and posts each get a list and a form.
 - **Regenerate preview frames** on a clip's edit page pulls the stored clip back
   through `video-source` and re-grabs, which is how a preview is changed after
   upload and how a legacy row's missing dimensions get filled in.
-- **Drag-to-reorder** for videos, persisted as a whole ordering in one
-  transaction rather than a moved pair, so the result cannot drift from what is
-  on screen.
+- **Rolls** are renamed, reordered and deleted on their own headings in the
+  `/admin/videos` clip list, and added at its foot. A roll with clips on it
+  cannot be deleted — the admin says so, and `onDelete: Restrict` guarantees
+  it. A clip's roll can also be picked on its form; moving it that way puts it
+  at the end of the new roll.
+- **Drag-to-reorder** for videos, one list per roll — and across them, to move
+  a clip onto another roll, landing above or below the row by pointer position.
+  Persisted as the destination roll's whole ordering in one transaction rather
+  than a moved pair, so the result cannot drift from what is on screen.
 - **`AdminBar` and `AdminEditLink`** appear on public pages for a signed-in
   admin. They ask the client (`/api/auth/state`) rather than reading `cookies()`,
   because a cookie read would make the page dynamic and lose the CDN.
@@ -230,8 +244,8 @@ One password, one session. Photos, videos and posts each get a list and a form.
 
 ## Data model
 
-[`prisma/schema.prisma`](../prisma/schema.prisma). Six models: `Photo`, `Video`,
-`BlogPost`, `Tag`, and the two join tables.
+[`prisma/schema.prisma`](../prisma/schema.prisma). Seven models: `Photo`, `Video`,
+`Roll`, `BlogPost`, `Tag`, and the two join tables.
 
 Columns whose *shape* carries a decision:
 
@@ -244,7 +258,8 @@ Columns whose *shape* carries a decision:
 | `Photo.hueStrength` | **Dead column.** Left declared only so `db push` stays additive; dropping it needs `--accept-data-loss`. Safe to drop by hand. |
 | `Video.width/height` | Default 0, meaning "uploaded before these were stored". `FRAME_FALLBACK_RATIO` shapes those, and the clip page corrects itself from the file's own metadata. |
 | `Video.durationSeconds` | `Float`, default 0 meaning unknown. Rounding on the way in would make the roll's running total drift. |
-| `Video.sortOrder` | Videos *do* have a manual order, unlike photos. |
+| `Video.sortOrder` | Videos *do* have a manual order, unlike photos — but only within their roll; values on different rolls are not comparable. |
+| `Video.rollId` (nullable) | Nullable only so the push stayed additive. `saveVideo` requires one; a clip without one (older than rolls, until `backfill:rolls` runs) is shown at the end of the first roll rather than dropped. |
 | `BlogPost.draft` | Defaults to `true`, so a half-written post cannot be published by forgetting a checkbox. |
 
 ---
@@ -343,6 +358,7 @@ Each is a dry run by default and takes `-- --apply` to write.
 | `npm run backfill:settings` | Populate `Photo.settings` on older rows |
 | `npm run recolor:photos` | Re-derive OKLab colour stats. Imports the real analyser from `src/` rather than duplicating it, so the wall and the backfill cannot drift apart |
 | `npm run backfill:durations` | Recover `Video.durationSeconds` for clips predating the column |
+| `npm run backfill:rolls` | File clips predating rolls onto the first roll, creating one (`-- --name …`, default `Films`) if none exists. Only `rollId` is written, so the old order carries over |
 
 `backfill:durations` is the one place anything server-side looks inside a stored
 video. It stays within the no-server-side-processing rule: it walks the MP4 box

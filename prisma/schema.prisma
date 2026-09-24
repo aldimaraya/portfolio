@@ -104,13 +104,43 @@ model Video {
   // Optional: plenty of clips need no blurb beyond their title.
   description String @default("")
 
-  // Manual wall order, maintained by dragging rows in the admin list rather than
-  // typed in by hand. Assigned on create as (current max + 1), so a new clip
-  // lands at the end instead of colliding on 0.
+  // Manual order *within its roll*, maintained by dragging rows in the admin
+  // list rather than typed in by hand. Assigned on create — and on a move to
+  // another roll — as (that roll's max + 1), so a clip lands at the end of its
+  // roll instead of colliding on 0. Values are only comparable inside one roll.
   sortOrder Int @default(0)
+
+  // Nullable only so `db push` stays additive against rows written before rolls
+  // existed; saveVideo refuses a clip without one. scripts/backfill-rolls.mjs
+  // files the stragglers, and until it runs they read as belonging to the first
+  // roll (lib/video/roll.ts) rather than vanishing from /motion. Restrict, not
+  // cascade: deleting a roll must never take its clips — and their R2 objects,
+  // which a cascade would orphan — with it.
+  rollId String?
+  roll   Roll?   @relation(fields: [rollId], references: [id], onDelete: Restrict)
 
   createdAt DateTime   @default(now())
   tags      VideoTag[]
+
+  @@index([rollId, sortOrder])
+}
+
+// A named group of clips, drawn on /motion as its own strip of film. Rolls are
+// lettered A, B, C… by position, and a clip's frame code carries its roll's
+// letter (01A, 01B…), so reordering rolls renumbers every clip on them.
+model Roll {
+  id   String @id @default(cuid())
+  name String
+
+  // Optional, like Video.description: a roll's name is often enough.
+  description String @default("")
+
+  // Manual, like Video.sortOrder, and for the same reason: the sequence is an
+  // editorial choice, not something derivable from the clips.
+  sortOrder Int @default(0)
+
+  createdAt DateTime @default(now())
+  videos    Video[]
 
   @@index([sortOrder])
 }
