@@ -24,19 +24,6 @@ export const SITE_DESCRIPTION =
   'Photography and films by Aldi Maraya — a wall of stills, a roll of motion ' +
   'work, and a journal about how they were made.';
 
-/**
- * Profiles that belong to the same person, becoming the Person schema's
- * `sameAs`. This is how a search engine connects the site to accounts that
- * already rank for the name.
- *
- * Worth very little until each profile also links back here: the corroboration
- * has to run both ways, and a one-way claim is one anybody could make.
- */
-export const SOCIAL_LINKS: readonly string[] = [
-  // 'https://www.instagram.com/<handle>',
-  // 'https://github.com/aldimaraya',
-];
-
 export const NAV_TABS = [
   { href: '/stills', label: 'Stills' },
   { href: '/motion', label: 'Motion' },

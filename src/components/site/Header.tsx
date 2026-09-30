@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { SiteLinks } from '@/components/site/SiteLinks';
+import type { SiteLink } from '@/lib/links/link';
 import { NAV_TABS, SITE_NAME, SITE_TAGLINE } from '@/lib/site';
 
 interface Underline {
@@ -10,7 +12,12 @@ interface Underline {
   width: number;
 }
 
-export function Header() {
+/**
+ * `links` arrive as a prop because this is a client component and they live in
+ * the database: the site layout reads them once and hands the same list to the
+ * footer.
+ */
+export function Header({ links }: { links: readonly SiteLink[] }) {
   const pathname = usePathname();
   const navRef = useRef<HTMLElement>(null);
   const tabRefs = useRef(new Map<string, HTMLAnchorElement>());
@@ -76,13 +83,23 @@ export function Header() {
     // screen before the filters even began, so the first photograph started
     // two-thirds of the way down the first view of a photography site.
     <header className="mb-5 flex flex-wrap items-end justify-between gap-3 border-b border-hairline pb-4 sm:mb-8 sm:gap-4 sm:pb-5">
-      {/* The wordmark doubles as the way home, which is what people try first. */}
-      <Link href="/stills" className="block" onClick={() => setPending({ href: '/stills', from: pathname })}>
-        <h1 className="text-xl font-semibold tracking-tight uppercase sm:text-2xl">
-          {SITE_NAME}
-        </h1>
-        <p className="mt-0.5 text-xs text-ash uppercase sm:mt-1 sm:text-sm">{SITE_TAGLINE}</p>
-      </Link>
+      <div>
+        {/* The wordmark doubles as the way home, which is what people try first. */}
+        <Link href="/stills" className="block" onClick={() => setPending({ href: '/stills', from: pathname })}>
+          <h1 className="text-xl font-semibold tracking-tight uppercase sm:text-2xl">
+            {SITE_NAME}
+          </h1>
+        </Link>
+        {/* The tagline sits outside the home link so the outbound links can share
+            its line — an anchor cannot nest in another — and they sit *in* that
+            line, not beside it, so their marks rest on its baseline (see
+            SiteLinks). A div, because a <p> cannot hold a <nav>: the parser would
+            close the paragraph before it. */}
+        <div className="mt-0.5 text-xs text-ash uppercase sm:mt-1 sm:text-sm">
+          {SITE_TAGLINE}
+          <SiteLinks links={links} placement="header" />
+        </div>
+      </div>
 
       <div className="flex items-center gap-5 sm:gap-6">
         <nav ref={navRef} className="relative flex gap-5 sm:gap-6">

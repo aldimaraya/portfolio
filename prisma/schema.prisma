@@ -145,6 +145,30 @@ model Roll {
   @@index([sortOrder])
 }
 
+// An outbound link, drawn as an icon beside the wordmark and again in the
+// footer. Kept in the database rather than in code so adding one is an admin
+// edit, not a deploy. No icon column: the mark is derived from the URL's host
+// (lib/links/link.ts), so a link cannot name one icon and point somewhere else.
+model SiteLink {
+  id    String @id @default(cuid())
+  // The accessible name and tooltip under an icon, and the visible text for a
+  // host with no icon.
+  label String
+  href  String
+
+  // An account that *is* this person, rather than a place they point at — a
+  // shop, a print lab. Only profiles become the Person schema's sameAs and
+  // carry rel="me".
+  profile Boolean @default(false)
+
+  // Manual, like Roll.sortOrder: the order is an editorial choice.
+  sortOrder Int @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@index([sortOrder])
+}
+
 model BlogPost {
   id              String   @id @default(cuid())
   slug            String   @unique

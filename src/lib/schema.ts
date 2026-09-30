@@ -1,4 +1,5 @@
-import { SITE_DESCRIPTION, SITE_NAME, SOCIAL_LINKS } from '@/lib/site';
+import { profileUrls, type SiteLink } from '@/lib/links/link';
+import { SITE_DESCRIPTION, SITE_NAME } from '@/lib/site';
 import { siteUrl } from '@/lib/site-url';
 
 /**
@@ -21,8 +22,9 @@ function absolute(path: string): string {
  * `mainEntityOfPage` is what marks this site as the person's own, as opposed to
  * a page that merely mentions them.
  */
-export function personSchema() {
+export function personSchema(links: readonly SiteLink[]) {
   const url = siteUrl();
+  const sameAs = profileUrls(links);
 
   return {
     '@context': 'https://schema.org',
@@ -35,7 +37,7 @@ export function personSchema() {
     mainEntityOfPage: url,
     // Omitted rather than sent empty: an empty sameAs is a claim to no profiles,
     // which is worse than making no claim.
-    ...(SOCIAL_LINKS.length > 0 && { sameAs: [...SOCIAL_LINKS] }),
+    ...(sameAs.length > 0 && { sameAs }),
   };
 }
 
