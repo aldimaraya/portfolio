@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { SiteLinks } from '@/components/site/SiteLinks';
 import { NAV_TABS, SITE_NAME, SITE_TAGLINE } from '@/lib/site';
 
 interface Underline {
@@ -76,13 +77,24 @@ export function Header() {
     // screen before the filters even began, so the first photograph started
     // two-thirds of the way down the first view of a photography site.
     <header className="mb-5 flex flex-wrap items-end justify-between gap-3 border-b border-hairline pb-4 sm:mb-8 sm:gap-4 sm:pb-5">
-      {/* The wordmark doubles as the way home, which is what people try first. */}
-      <Link href="/stills" className="block" onClick={() => setPending({ href: '/stills', from: pathname })}>
-        <h1 className="text-xl font-semibold tracking-tight uppercase sm:text-2xl">
-          {SITE_NAME}
-        </h1>
-        <p className="mt-0.5 text-xs text-ash uppercase sm:mt-1 sm:text-sm">{SITE_TAGLINE}</p>
-      </Link>
+      {/* The links sit beside the wordmark, not inside it — an anchor cannot
+          nest in another — and bottom-aligned to sit on the tagline's line, the
+          same line the nav tabs settle on across the header. */}
+      <div className="flex items-end gap-3">
+        {/* The wordmark doubles as the way home, which is what people try first. */}
+        <Link href="/stills" className="block" onClick={() => setPending({ href: '/stills', from: pathname })}>
+          <h1 className="text-xl font-semibold tracking-tight uppercase sm:text-2xl">
+            {SITE_NAME}
+          </h1>
+          <p className="mt-0.5 text-xs text-ash uppercase sm:mt-1 sm:text-sm">{SITE_TAGLINE}</p>
+        </Link>
+        {/* Pulled down by the links' own padding (p-1.5): that padding is tap
+            target, not glyph, and left in the alignment it holds the icons a
+            visible step above the tagline they are meant to sit beside. */}
+        <div className="-mb-1.5">
+          <SiteLinks placement="header" />
+        </div>
+      </div>
 
       <div className="flex items-center gap-5 sm:gap-6">
         <nav ref={navRef} className="relative flex gap-5 sm:gap-6">

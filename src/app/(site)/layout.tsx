@@ -3,6 +3,7 @@ import { NewsletterPrompt } from '@/components/newsletter/NewsletterPrompt';
 import { AdminBar } from '@/components/site/AdminBar';
 import { Header } from '@/components/site/Header';
 import { PageTransition } from '@/components/site/PageTransition';
+import { SiteLinks } from '@/components/site/SiteLinks';
 
 /**
  * Chrome for the public pages. A route group, so it wraps /stills, /motion and
@@ -24,6 +25,9 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
       {/* The way back to the signup for anyone who closed the prompt. Quiet on
           purpose: the prompt already asked once. */}
       <footer className="mt-16 border-t border-hairline pt-6 text-center">
+        <div className="mb-3">
+          <SiteLinks placement="footer" />
+        </div>
         <Link
           href="/newsletter"
           className="font-mono text-xs tracking-[0.15em] text-ash uppercase transition hover:text-gold"

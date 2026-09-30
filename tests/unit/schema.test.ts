@@ -25,8 +25,21 @@ describe('personSchema', () => {
   });
 
   // An empty sameAs claims no profiles, which reads worse than making no claim.
-  it('omits sameAs entirely while no social links are configured', () => {
-    expect(personSchema()).not.toHaveProperty('sameAs');
+  it('omits sameAs entirely while no profiles are configured', () => {
+    expect(personSchema([])).not.toHaveProperty('sameAs');
+    expect(personSchema([{ label: 'Shop', href: 'https://shop.example.test' }])).not.toHaveProperty(
+      'sameAs',
+    );
+  });
+
+  // A shop or a print lab is somewhere the person points, not who they are.
+  it('lists only profile links in sameAs, in order', () => {
+    const schema = personSchema([
+      { label: 'Instagram', href: 'https://instagram.example.test/a', profile: true },
+      { label: 'Shop', href: 'https://shop.example.test' },
+      { label: 'Vimeo', href: 'https://vimeo.example.test/a', profile: true },
+    ]);
+    expect(schema.sameAs).toEqual(['https://instagram.example.test/a', 'https://vimeo.example.test/a']);
   });
 });
 
