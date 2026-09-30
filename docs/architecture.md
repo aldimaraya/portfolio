@@ -237,6 +237,15 @@ One password, one session. Photos, videos and posts each get a list and a form.
   a clip onto another roll, landing above or below the row by pointer position.
   Persisted as the destination roll's whole ordering in one transaction rather
   than a moved pair, so the result cannot drift from what is on screen.
+- **Links** (`/admin/links`) are the outbound links drawn as icons beside the
+  wordmark and again in the footer of every public page. Added, edited,
+  reordered and deleted in place; each save revalidates the whole site, because
+  every page carries them. The icon is derived from the URL's host
+  ([`lib/links/link.ts`](../src/lib/links/link.ts)), never stored, and a host
+  with no mark is drawn as its label. URLs are pinned to http(s) — the string
+  becomes an `href` on every public page — and lose share-tracking parameters
+  (`si`, `igsh`, `utm_*`) on the way in. Links marked as the owner's account
+  become the Person schema's `sameAs` and carry `rel="me"`.
 - **`AdminBar` and `AdminEditLink`** appear on public pages for a signed-in
   admin. They ask the client (`/api/auth/state`) rather than reading `cookies()`,
   because a cookie read would make the page dynamic and lose the CDN.
@@ -306,9 +315,9 @@ and a weekly newsletter would mostly be empty. Code in
 
 ## Data model
 
-[`prisma/schema.prisma`](../prisma/schema.prisma). Ten models: `Photo`, `Video`,
-`Roll`, `BlogPost`, `Tag`, the two join tables, and the newsletter's
-`Subscriber`, `Announcement` and `Dispatch`.
+[`prisma/schema.prisma`](../prisma/schema.prisma). Eleven models: `Photo`, `Video`,
+`Roll`, `BlogPost`, `Tag`, the two join tables, the newsletter's
+`Subscriber`, `Announcement` and `Dispatch`, and `SiteLink`.
 
 Columns whose *shape* carries a decision:
 
@@ -323,6 +332,7 @@ Columns whose *shape* carries a decision:
 | `Video.durationSeconds` | `Float`, default 0 meaning unknown. Rounding on the way in would make the roll's running total drift. |
 | `Video.sortOrder` | Videos *do* have a manual order, unlike photos — but only within their roll; values on different rolls are not comparable. |
 | `Video.rollId` (nullable) | Nullable only so the push stayed additive. `saveVideo` requires one; a clip without one (older than rolls, until `backfill:rolls` runs) is shown at the end of the first roll rather than dropped. |
+| `SiteLink` (no icon column) | The mark is derived from `href`'s host at render, so a row cannot name one brand's icon and point at another's site. |
 | `BlogPost.draft` | Defaults to `true`, so a half-written post cannot be published by forgetting a checkbox. |
 | `Announcement.refId` | Points at a `Photo`, `Video` or `BlogPost` depending on `kind`, so it cannot be a foreign key; deleted content is dropped when the batch resolves. |
 | `Announcement.dispatchId` | `onDelete: Restrict`. Deleting a dispatch must not put what it sent back into the queue. |

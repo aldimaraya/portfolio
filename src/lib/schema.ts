@@ -1,10 +1,5 @@
-import {
-  SITE_DESCRIPTION,
-  SITE_LINKS,
-  SITE_NAME,
-  profileUrls,
-  type SiteLink,
-} from '@/lib/site';
+import { profileUrls, type SiteLink } from '@/lib/links/link';
+import { SITE_DESCRIPTION, SITE_NAME } from '@/lib/site';
 import { siteUrl } from '@/lib/site-url';
 
 /**
@@ -27,7 +22,7 @@ function absolute(path: string): string {
  * `mainEntityOfPage` is what marks this site as the person's own, as opposed to
  * a page that merely mentions them.
  */
-export function personSchema(links: readonly SiteLink[] = SITE_LINKS) {
+export function personSchema(links: readonly SiteLink[]) {
   const url = siteUrl();
   const sameAs = profileUrls(links);
 

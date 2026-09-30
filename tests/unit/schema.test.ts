@@ -15,19 +15,19 @@ afterEach(() => {
 
 describe('personSchema', () => {
   it('is a Person carrying the site name', () => {
-    const schema = personSchema();
+    const schema = personSchema([]);
     expect(schema['@type']).toBe('Person');
     expect(schema.name).toBe('Aldi Maraya');
   });
 
   it('anchors an @id the other schemas can reference', () => {
-    expect(personSchema()['@id']).toBe('https://example.test/#person');
+    expect(personSchema([])['@id']).toBe('https://example.test/#person');
   });
 
   // An empty sameAs claims no profiles, which reads worse than making no claim.
   it('omits sameAs entirely while no profiles are configured', () => {
     expect(personSchema([])).not.toHaveProperty('sameAs');
-    expect(personSchema([{ label: 'Shop', href: 'https://shop.example.test' }])).not.toHaveProperty(
+    expect(personSchema([{ label: 'Shop', href: 'https://shop.example.test', profile: false }])).not.toHaveProperty(
       'sameAs',
     );
   });
@@ -36,7 +36,7 @@ describe('personSchema', () => {
   it('lists only profile links in sameAs, in order', () => {
     const schema = personSchema([
       { label: 'Instagram', href: 'https://instagram.example.test/a', profile: true },
-      { label: 'Shop', href: 'https://shop.example.test' },
+      { label: 'Shop', href: 'https://shop.example.test', profile: false },
       { label: 'Vimeo', href: 'https://vimeo.example.test/a', profile: true },
     ]);
     expect(schema.sameAs).toEqual(['https://instagram.example.test/a', 'https://vimeo.example.test/a']);
