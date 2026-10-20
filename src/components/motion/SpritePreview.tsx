@@ -50,6 +50,13 @@ export function SpritePreview({
           would fight. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
+        // A sheet already in the cache can finish loading before hydration has
+        // attached onLoad, and then never reports — so a complete image reports
+        // as it mounts. Reporting twice is harmless; never reporting would hold
+        // a gate until its cap.
+        ref={(node) => {
+          if (node?.complete) onSettled?.();
+        }}
         src={spriteUrl}
         alt={alt}
         onLoad={onSettled}

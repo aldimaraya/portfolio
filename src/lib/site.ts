@@ -24,6 +24,15 @@ export const SITE_DESCRIPTION =
   'Photography and films by Aldi Maraya — a wall of stills, a roll of motion ' +
   'work, and a journal about how they were made.';
 
+/**
+ * The home page's opening line. A placeholder until the about text is written —
+ * it is the first prose on the page a name search lands on, so it should say who
+ * this is in the owner's own words.
+ */
+export const HOME_INTRO =
+  'Hi, I’m Aldi. This is where I keep my life — what I’ve been up to, the ' +
+  'photos I took along the way, and the occasional film.';
+
 export const NAV_TABS = [
   { href: '/stills', label: 'Stills' },
   { href: '/motion', label: 'Motion' },

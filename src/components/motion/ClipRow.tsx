@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { SpritePreview } from './SpritePreview';
+import { useGatedAsset } from '@/components/site/AssetGate';
 import { thumbWidth } from '@/lib/video/frame';
 import { formatDuration } from '@/lib/video/duration';
 import { frameCode } from '@/lib/video/roll';
@@ -50,13 +51,22 @@ export function ClipRow({
   clip,
   index,
   letter,
+  gated = false,
 }: {
   clip: RollClip;
   /** Position on its own roll, not on the page — frame codes restart per roll. */
   index: number;
   letter: string;
+  /**
+   * Whether the enclosing AssetGate waits for this row's sprite sheet. Only the
+   * first rows on a page: the sheets are lazy, and one far below the fold is not
+   * fetched until it is scrolled to, so waiting on it would hold the page to the
+   * gate's cap.
+   */
+  gated?: boolean;
 }) {
   const [previewing, setPreviewing] = useState(false);
+  const onSettled = useGatedAsset(gated);
   const runtime = formatDuration(clip.durationSeconds);
 
   return (
@@ -86,6 +96,7 @@ export function ClipRow({
           // Decorative: the title sits next to it in the same link, so naming
           // the clip here would have a screen reader read it out twice.
           alt=""
+          onSettled={onSettled}
           boxStyle={{ width: thumbWidth(clip, THUMB_HEIGHT), height: THUMB_HEIGHT }}
           className="rounded-xs border border-goldline transition-colors group-hover:border-gold group-focus-visible:border-gold"
         />

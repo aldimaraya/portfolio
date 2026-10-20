@@ -3,7 +3,7 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { CARD_PADDING, FRAME_HEIGHT, Polaroid, type PolaroidPhoto } from './Polaroid';
 import { Lightbox } from './Lightbox';
-import { WallLoader } from './WallLoader';
+import { DevelopingLoader } from '@/components/site/DevelopingLoader';
 import { justifyRows } from '@/lib/photo/justify';
 import { photoCaption } from '@/lib/photo/caption';
 import { useAssetsReady } from '@/components/site/useAssetsReady';
@@ -256,7 +256,7 @@ export function PolaroidWall({
 
   return (
     <>
-      {showLoader ? <WallLoader /> : null}
+      {showLoader ? <DevelopingLoader /> : null}
       <div
         ref={wallRef}
         data-assets-loading={ready ? undefined : 'true'}

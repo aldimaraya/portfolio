@@ -29,7 +29,16 @@ const PERFORATIONS_PER_TURN = 6;
 
 const DEGREES_PER_PIXEL = 360 / (PERFORATION_PITCH * PERFORATIONS_PER_TURN);
 
-export function MotionRoll({ clips, letter }: { clips: RollClip[]; letter: string }) {
+export function MotionRoll({
+  clips,
+  letter,
+  gatedCount = 0,
+}: {
+  clips: RollClip[];
+  letter: string;
+  /** How many of this roll's first clips the page's AssetGate waits on — see ClipRow. */
+  gatedCount?: number;
+}) {
   const railRef = useRef<HTMLDivElement>(null);
   const spoolRef = useRef<HTMLDivElement>(null);
 
@@ -86,7 +95,7 @@ export function MotionRoll({ clips, letter }: { clips: RollClip[]; letter: strin
       <ul className="min-w-0 flex-1">
         {clips.map((clip, index) => (
           <li key={clip.id} className="border-b border-hairline first:border-t">
-            <ClipRow clip={clip} index={index} letter={letter} />
+            <ClipRow clip={clip} index={index} letter={letter} gated={index < gatedCount} />
           </li>
         ))}
       </ul>

@@ -6,9 +6,12 @@ import { test, expect } from '@playwright/test';
  * particular photo or post would start failing the next time content changes.
  */
 
-test('the root redirects to the stills wall', async ({ page }) => {
+test('the root is a home page that leads on to each surface', async ({ page }) => {
   await page.goto('/');
-  await expect(page).toHaveURL(/\/stills$/);
+  await expect(page).toHaveURL(/\/$/);
+  // Each section's way on is only drawn when that surface has content, so this
+  // asserts the newsletter signup, which is always there, and nothing else.
+  await expect(page.getByRole('heading', { name: 'Get new things by email' })).toBeVisible();
 });
 
 test('the three public tabs are navigable, and back again', async ({ page }) => {
@@ -30,7 +33,7 @@ test('the wordmark returns home from a sub-page', async ({ page }) => {
   await page.goto('/journal');
   // The wordmark's text is SITE_NAME in src/lib/site.ts.
   await page.getByRole('heading', { name: 'Aldi Maraya', level: 1 }).click();
-  await expect(page).toHaveURL(/\/stills$/);
+  await expect(page).toHaveURL(/\/$/);
 });
 
 test('the active tab is marked for assistive tech', async ({ page }) => {
@@ -39,7 +42,7 @@ test('the active tab is marked for assistive tech', async ({ page }) => {
 });
 
 test('the admin area is not linked from the public site', async ({ page }) => {
-  for (const path of ['/stills', '/motion', '/journal']) {
+  for (const path of ['/', '/stills', '/motion', '/journal']) {
     await page.goto(path);
     await expect(page.locator('a[href^="/admin"]')).toHaveCount(0);
   }

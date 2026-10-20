@@ -2,11 +2,9 @@ import { Suspense } from 'react';
 import { db } from '@/lib/db';
 import { DEFAULT_SORT, sortPhotosForWall } from '@/lib/color/sort';
 import { StillsGallery } from '@/components/stills/StillsGallery';
+import { PageHold } from '@/components/site/PageHold';
 import { toSettings } from '@/lib/photo/settings';
 import type { Metadata } from 'next';
-import { JsonLd } from '@/components/site/JsonLd';
-import { loadSiteLinks } from '@/lib/links/load';
-import { personSchema } from '@/lib/schema';
 
 export const metadata: Metadata = {
   title: 'Stills',
@@ -27,9 +25,6 @@ export const metadata: Metadata = {
  * client — and can, because the wall already needs every photo to pack its rows.
  */
 export default async function StillsPage() {
-  // The layout has already asked for these; loadSiteLinks is request-cached, so
-  // this is the same query, not a second one.
-  const links = await loadSiteLinks();
   const photos = await db.photo.findMany({
     // Colour decides the wall order below, but the query still needs one of its
     // own: without it Postgres may return rows in a different order between
@@ -79,11 +74,11 @@ export default async function StillsPage() {
 
   return (
     <main>
-      <JsonLd schema={personSchema(links)} />
       {/* useSearchParams needs a Suspense boundary to prerender around: the
           static HTML is built without a query string, and the client fills in
-          the filtered view on hydration. */}
-      <Suspense fallback={null}>
+          the filtered view on hydration. The fallback keeps the progress bar
+          running until the wall, and its own asset gate, have mounted. */}
+      <Suspense fallback={<PageHold />}>
         <StillsGallery photos={wall} />
       </Suspense>
     </main>

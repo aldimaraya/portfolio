@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Source_Serif_4 } from 'next/font/google';
+import { NavigationProgress } from '@/components/site/NavigationProgress';
 import { SITE_DESCRIPTION, SITE_NAME, SITE_TAGLINE } from '@/lib/site';
 import { siteUrl } from '@/lib/site-url';
 import './globals.css';
@@ -55,7 +56,12 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={serif.variable}>
-      <body className="min-h-screen bg-ink text-bone antialiased">{children}</body>
+      <body className="min-h-screen bg-ink text-bone antialiased">
+        {/* In the root layout rather than the site's, so a click in the admin is
+            acknowledged the same way. */}
+        <NavigationProgress />
+        {children}
+      </body>
     </html>
   );
 }

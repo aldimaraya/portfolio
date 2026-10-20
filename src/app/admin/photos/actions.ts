@@ -81,6 +81,7 @@ export async function savePhoto(input: PhotoInput): Promise<{ error?: string }> 
 
     revalidatePath('/admin/photos');
     revalidatePath('/stills');
+    revalidatePath('/');
     return {};
   });
 }
@@ -135,6 +136,7 @@ export async function retouchPhoto(input: RetouchInput): Promise<{ error?: strin
     revalidatePath('/admin/photos');
     revalidatePath(`/admin/photos/${id}`);
     revalidatePath('/stills');
+    revalidatePath('/');
     return {};
   });
 }
@@ -166,6 +168,7 @@ export async function deletePhoto(id: string): Promise<{ error?: string }> {
 
     revalidatePath('/admin/photos');
     revalidatePath('/stills');
+    revalidatePath('/');
     return {};
   });
 }

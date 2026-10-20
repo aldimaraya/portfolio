@@ -60,6 +60,7 @@ export async function savePost(input: PostInput): Promise<{ error?: string }> {
       if (!data.draft) await announce('journal', created.id);
       revalidatePath('/admin/posts');
       revalidatePath('/journal');
+      revalidatePath('/');
       return {};
     }
 
@@ -88,6 +89,7 @@ export async function savePost(input: PostInput): Promise<{ error?: string }> {
 
     revalidatePath('/admin/posts');
     revalidatePath('/journal');
+    revalidatePath('/');
     revalidatePath(`/journal/${slug}`);
     if (slug !== existing.slug) revalidatePath(`/journal/${existing.slug}`);
     return {};
@@ -145,6 +147,7 @@ export async function deletePost(id: string): Promise<{ error?: string }> {
 
     revalidatePath('/admin/posts');
     revalidatePath('/journal');
+    revalidatePath('/');
     revalidatePath(`/journal/${post.slug}`);
     return {};
   });

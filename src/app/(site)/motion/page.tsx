@@ -1,5 +1,6 @@
 import { db } from '@/lib/db';
 import { MotionRoll } from '@/components/motion/MotionRoll';
+import { AssetGate, GateLoader } from '@/components/site/AssetGate';
 import { rollDuration } from '@/lib/video/duration';
 import { CLIP_ORDER, loadRolls } from '@/lib/video/load-rolls';
 import { groupIntoRolls } from '@/lib/video/roll';
@@ -10,6 +11,12 @@ export const metadata: Metadata = {
   description: 'Rolls of films and motion work by Aldi Maraya.',
   alternates: { canonical: '/motion' },
 };
+
+/**
+ * How many clips, in page order, the rows wait on before cascading in — about a
+ * screen's worth. Past these the sheets are lazy and load on scroll.
+ */
+const GATED_CLIPS = 6;
 
 /**
  * The rolls, stacked. Each is its own strip — heading, rail, spool — in the
@@ -44,6 +51,11 @@ export default async function MotionPage() {
   ]);
 
   const grouped = groupIntoRolls(rolls, videos);
+  // Where each roll's clips start in page order, so the gate's budget is spent
+  // on the first clips on the page rather than the first of every roll.
+  const offsets = grouped.map((_, index) =>
+    grouped.slice(0, index).reduce((sum, roll) => sum + roll.clips.length, 0),
+  );
 
   return (
     <main>
@@ -58,8 +70,12 @@ export default async function MotionPage() {
 
       {grouped.length === 0 ? <p className="text-sm text-ash">No clips yet.</p> : null}
 
-      <div className="flex flex-col gap-12 max-strip:gap-9">
-        {grouped.map((roll) => {
+      {/* The rows hold their cascade until the first sprite sheets are in, as the
+          stills wall does for its top row; the headings stay put, so the page
+          has its shape the moment it arrives. */}
+      <AssetGate className="relative flex flex-col gap-12 max-strip:gap-9">
+        <GateLoader />
+        {grouped.map((roll, rollIndex) => {
           // A floor, not an estimate: clips stored before durationSeconds existed
           // count for nothing, so the total is only shown once it means something.
           const { total, unknown } = rollDuration(roll.clips.map((clip) => clip.durationSeconds));
@@ -97,11 +113,15 @@ export default async function MotionPage() {
                 ) : null}
               </div>
 
-              <MotionRoll clips={roll.clips} letter={roll.letter} />
+              <MotionRoll
+                clips={roll.clips}
+                letter={roll.letter}
+                gatedCount={Math.max(0, GATED_CLIPS - offsets[rollIndex])}
+              />
             </section>
           );
         })}
-      </div>
+      </AssetGate>
     </main>
   );
 }
