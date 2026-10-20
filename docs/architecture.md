@@ -31,7 +31,12 @@ One Next.js App Router application, four surfaces:
 | Newsletter | `/newsletter`, `/newsletter/{confirm,manage}` | Email when something new goes up — see [Newsletter](#newsletter) |
 | Admin | `/admin/**`, `/login` | One password-protected area managing all of it |
 
-`/` redirects to `/stills`. The three public surfaces share chrome through the
+`/` is a home page summarising the other three — the latest posts, a justified
+row of the newest stills, the newest clips, and the newsletter signup — and it
+carries the `WebSite` and `Person` JSON-LD, since it is where a search for the
+name lands. It reuses each surface's own components rather than restyling them,
+and every action that revalidates a surface revalidates `/` too. The public
+pages share chrome through the
 `(site)` route group — a group rather than a wrapper component, so a new public
 page cannot forget to include it. `/admin` and `/login` sit outside it with
 their own chrome.
@@ -168,7 +173,14 @@ long-running "clips play silently" bug.
   facet and the admin offers no suggestions for them.
 - **Load-time placeholders** painted from the photo's own average colour, and a
   wall-level loading state gated on real image `load` events rather than a timer
-  ([`useAssetsReady`](../src/components/site/useAssetsReady.ts)).
+  ([`useAssetsReady`](../src/components/site/useAssetsReady.ts)). The same gate —
+  hold the cascade, show the "Developing" loader after a 180ms grace and for at
+  least 400ms once shown, open by 2.5s regardless — also covers the first rows of
+  `/motion` and the home page's strip and clips
+  ([`AssetGate`](../src/components/site/AssetGate.tsx)). While any gate is shut the
+  page counts as busy, and the click-to-ready progress bar
+  ([`NavigationProgress`](../src/components/site/NavigationProgress.tsx)) keeps
+  running through it, so a click, the loader and the cascade read as one wait.
 
 ### Motion
 

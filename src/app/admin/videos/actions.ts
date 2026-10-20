@@ -145,6 +145,7 @@ export async function saveVideo(input: VideoInput): Promise<{ error?: string }> 
     // the prev/next pager — so a change to any clip can invalidate all of them,
     // and a reorder always does.
     revalidatePath('/motion', 'layout');
+    revalidatePath('/');
     return {};
   });
 }
@@ -184,6 +185,7 @@ export async function reorderVideos(rollId: string, ids: string[]): Promise<{ er
     // the prev/next pager — so a change to any clip can invalidate all of them,
     // and a reorder always does.
     revalidatePath('/motion', 'layout');
+    revalidatePath('/');
     return {};
   });
 }
@@ -219,6 +221,7 @@ export async function deleteVideo(id: string): Promise<{ error?: string }> {
     // the prev/next pager — so a change to any clip can invalidate all of them,
     // and a reorder always does.
     revalidatePath('/motion', 'layout');
+    revalidatePath('/');
     return {};
   });
 }
@@ -253,6 +256,7 @@ export async function saveRoll(input: RollInput): Promise<{ error?: string }> {
     revalidatePath('/admin/videos');
     // A roll's name is printed on every clip page in it.
     revalidatePath('/motion', 'layout');
+    revalidatePath('/');
     return {};
   });
 }
@@ -274,6 +278,7 @@ export async function reorderRolls(ids: string[]): Promise<{ error?: string }> {
     revalidatePath('/admin/videos');
     // Reordering rolls re-letters them, which changes every clip's frame code.
     revalidatePath('/motion', 'layout');
+    revalidatePath('/');
     return {};
   });
 }
@@ -295,6 +300,7 @@ export async function deleteRoll(id: string): Promise<{ error?: string }> {
 
     revalidatePath('/admin/videos');
     revalidatePath('/motion', 'layout');
+    revalidatePath('/');
     return {};
   });
 }

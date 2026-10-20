@@ -85,7 +85,7 @@ export function Header({ links }: { links: readonly SiteLink[] }) {
     <header className="mb-5 flex flex-wrap items-end justify-between gap-3 border-b border-hairline pb-4 sm:mb-8 sm:gap-4 sm:pb-5">
       <div>
         {/* The wordmark doubles as the way home, which is what people try first. */}
-        <Link href="/stills" className="block" onClick={() => setPending({ href: '/stills', from: pathname })}>
+        <Link href="/" className="block">
           <h1 className="text-xl font-semibold tracking-tight uppercase sm:text-2xl">
             {SITE_NAME}
           </h1>
