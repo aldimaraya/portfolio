@@ -948,18 +948,17 @@ body {
 .post-index--inline a { border-left: 0; flex-direction: row; align-items: baseline; gap: 0.75rem; padding: 0.375rem 0; }
 .post-index--inline li + li a { border-top: 1px solid rgba(255, 255, 255, 0.06); }
 
-/* Media, mounted on the same warm mat the lightbox prints a photo on — bg-mat,
-   p-3 pb-2.5, matmeta caption. A picture in a post is the same object as a
-   picture on the wall, and should be framed like one. */
-.post-figure {
-  background: var(--color-mat);
-  border-radius: 2px;
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
-  padding: 0.75rem 0.75rem 0.625rem;
-}
+/* Media, straight on the sheet with no mat. The lightbox's white mat was tried
+   here and glared — it recurs down a dark sheet where the lightbox shows one
+   photo on a dimmed screen — and every darker mat, raised or recessed, still
+   read as a box drawn round the picture. The caption keeps the lightbox's mono
+   set, in ash.
+   Its width comes from figureWidth (lib/post/fit.ts), inline; a figure
+   narrower than its row is centred in it. */
+.post-figure { margin-inline: auto; }
 .post-figure figcaption,
 .post-embed figcaption {
-  color: var(--color-matmeta);
+  color: var(--color-ash);
   font-family: var(--font-mono);
   font-size: 0.7rem;
   letter-spacing: 0.05em;
@@ -967,12 +966,10 @@ body {
   margin-top: 0.625rem;
   text-transform: uppercase;
 }
-.post-embed figcaption { color: var(--color-ash); }
-/* Square corners inside the mat: a rounded print in a paper frame reads as a UI
-   card, which is the one thing the mat exists to stop it looking like. */
+/* Square corners: a rounded photo reads as a UI card rather than a picture. */
 .post-photo { display: block; height: auto; width: 100%; }
 .post-photo-fill { height: 100%; inset: 0; object-fit: cover; position: absolute; width: 100%; }
-.post-photo-stack { display: flex; flex-direction: column; gap: 0.625rem; }
+.post-photo-stack { align-items: center; display: flex; flex-direction: column; gap: 0.625rem; }
 .post-photo-row { display: flex; gap: 0.5rem; }
 .post-photo-row > .post-photo-cell { flex-basis: 0; min-width: 0; }
 .post-photo-cell { background: var(--color-frame); position: relative; }
@@ -1020,7 +1017,7 @@ body {
 .post-carousel-step[data-side="next"] { right: 0.75rem; }
 .post-carousel-meta {
   align-items: center;
-  color: var(--color-matmeta);
+  color: var(--color-ash);
   display: flex;
   font-family: var(--font-mono);
   font-size: 0.7rem;
@@ -1035,13 +1032,13 @@ body {
   width: 1.25rem;
 }
 .post-carousel-dots button::before {
-  background: rgba(122, 99, 35, 0.3);
+  background: rgba(142, 142, 147, 0.3);
   border-radius: 999px;
   content: "";
   height: 0.45rem;
   width: 0.45rem;
 }
-.post-carousel-dots button[aria-current]::before { background: var(--color-matmeta); }
+.post-carousel-dots button[aria-current]::before { background: var(--color-gold); }
 
 /* A YouTube iframe has no intrinsic size, so the ratio has to be imposed from
    outside or it renders at the HTML default 300×150. */
@@ -1156,6 +1153,10 @@ body {
   .post-margin { flex-direction: row; flex-wrap: wrap; gap: 0 0.75rem; text-align: left; }
   .post-margin:empty { display: none; }
   .post-photo-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  /* A block scaled down to sit beside the prose on a laptop is a thumbnail on
+     a phone, so a scale is only honoured down to 60% here. The height cap still
+     holds — at 60% of a phone's width even a 2:3 portrait is under 80svh. */
+  .post-figure { min-width: 60%; }
 }
 
 /* The newsletter prompt. It interrupts, so it arrives gently: a short dissolve,
@@ -1495,6 +1496,38 @@ body {
 .editor-tag button:hover { color: var(--color-gold); }
 
 .editor-photo-panel { display: flex; flex-direction: column; gap: 0.75rem; margin-top: 1rem; }
+/* The resize grips on a selected photos block's edges (ResizeHandles),
+   straddling them so most of each grip sits off the photo being judged. */
+.editor-cell .post-figure { position: relative; }
+.editor-resize-handle {
+  background: var(--color-gold);
+  border: 2px solid var(--color-film);
+  border-radius: 999px;
+  cursor: ew-resize;
+  height: 3rem;
+  position: absolute;
+  top: calc(50% - 1.5rem);
+  /* Without this a touch drag scrolls the page instead of resizing. */
+  touch-action: none;
+  width: 0.625rem;
+  z-index: 1;
+}
+.editor-resize-handle[data-side="left"] { left: -0.3125rem; }
+.editor-resize-handle[data-side="right"] { right: -0.3125rem; }
+.editor-resize-handle:focus-visible { outline: 2px solid var(--color-bone); outline-offset: 2px; }
+.editor-resize-readout {
+  background: rgba(11, 11, 13, 0.85);
+  border-radius: 999px;
+  color: var(--color-bone);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  left: 50%;
+  padding: 0.25rem 0.625rem;
+  pointer-events: none;
+  position: absolute;
+  top: 0.75rem;
+  transform: translateX(-50%);
+}
 .editor-photo-strip { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 .editor-photo-strip li { width: 6rem; }
 .editor-photo-strip img,

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { MAX_SCALE, MIN_SCALE } from './fit';
 
 /**
  * A journal post's body: an ordered list of blocks, stored as JSON on
@@ -194,6 +195,11 @@ const photosBlock = z.object({
   items: z.array(photoRefSchema),
   layout: z.enum(PHOTO_LAYOUTS),
   size: z.enum(PHOTO_SIZES),
+  // A share of the width `size` gives the block, in percent, set by dragging its
+  // edge in the editor. Absent is 100. Optional rather than defaulted so every
+  // post saved before it existed parses, and so code from before it — which
+  // strips the key — still renders posts saved after. See lib/post/fit.ts.
+  scale: z.number().int().min(MIN_SCALE).max(MAX_SCALE).optional(),
   caption: line,
 });
 

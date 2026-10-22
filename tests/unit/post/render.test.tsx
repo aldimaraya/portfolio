@@ -61,6 +61,12 @@ describe('PostBody', () => {
     expect(html([block('full')], media)).toContain('<figcaption>Market</figcaption>');
   });
 
+  it('draws a scaled block at its share of the row, under the height cap', () => {
+    const media: PostMedia = { ...emptyMedia(), journal: { p: { url: 'https://elsewhere.test/a.jpg', width: 1000, height: 1500, alt: '' } } };
+    const out = html([{ id: 'p', type: 'photos', items: [{ kind: 'journal', id: 'p' }], layout: 'stacked', size: 'column', scale: 40, caption: '' }], media);
+    expect(out).toContain('style="width:min(40%, calc(80svh * 0.6667))"');
+  });
+
   it('draws nothing for photos whose rows are gone', () => {
     const out = html([{ id: 'p', type: 'photos', items: [{ kind: 'journal', id: 'deleted' }], layout: 'row', size: 'column', caption: 'x' }]);
     expect(out).not.toContain('<figure');

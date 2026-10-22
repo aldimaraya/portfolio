@@ -90,6 +90,14 @@ describe('parseContent', () => {
     expect(parsed?.blocks[0]).toEqual({ id: 'a', type: 'section', numbered: true, label: '', title: '', date: '', place: '' });
   });
 
+  it('takes a photos block with or without a scale, and refuses one out of range', () => {
+    const photos = (extra: object) => ({ version: 1, blocks: [{ id: 'a', type: 'photos', items: [], layout: 'stacked', size: 'column', ...extra }] });
+    expect(parseContent(photos({}))?.blocks[0]).not.toHaveProperty('scale');
+    expect(parseContent(photos({ scale: 45 }))?.blocks[0]).toMatchObject({ scale: 45 });
+    expect(parseContent(photos({ scale: 5 }))).toBeNull();
+    expect(parseContent(photos({ scale: 140 }))).toBeNull();
+  });
+
   it('refuses a photo layout that does not exist', () => {
     expect(
       parseContent({ version: 1, blocks: [{ id: 'a', type: 'photos', items: [], layout: 'masonry', size: 'column' }] }),
