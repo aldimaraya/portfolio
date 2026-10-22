@@ -230,7 +230,11 @@ links held to http(s), mailto and on-site targets.
   margin for dates and section labels, a text column at a reading measure, and a
   rail holding the **"In this post"** index, which stays in view and marks the
   section being read. Photos set *wide* take the margin too; *full* runs to both
-  edges of the sheet, over the rail. Every breakpoint is a **container query** on
+  edges of the sheet, over the rail. Within that width a photos block can be
+  scaled down (20–100%, by dragging its edge in the editor; stored as `scale`),
+  and stacked photos and rows are always held under 80svh tall, so a portrait
+  never runs past the screen ([`fit.ts`](../src/lib/post/fit.ts)). On a phone a
+  scale is honoured only down to 60%. Every breakpoint is a **container query** on
   `.post-frame`, not a media query, so the editor's phone preview — a narrow
   sheet in a wide window — collapses exactly as a phone does: the index moves
   under the title, then the margin moves above each block.

@@ -5,11 +5,13 @@ import { BulbIcon, Embed, PostBlock, rowAnchor, rowClass } from '@/components/jo
 import { PostPhotos } from '@/components/journal/PostPhotos';
 import { PHOTO_LAYOUTS, PHOTO_SIZES, type Block, type BlockOf, type PhotoLayout, type PhotoSize } from '@/lib/post/content';
 import { movePhoto } from '@/lib/post/editor';
+import { MAX_SCALE } from '@/lib/post/fit';
 import { resolvePhoto, type PostMedia, type ResolvedClip } from '@/lib/post/media';
 import { defaultLabel, type SectionEntry } from '@/lib/post/sections';
 import { promptForTag } from '@/lib/post/trip';
 import { BlockToolbar, Segmented, ToolButton } from './BlockToolbar';
 import { GrowingText, useLibrary } from './fields';
+import { ResizeHandles } from './ResizeHandles';
 import { RichTextContent, RichTextTools, useRichTextEditor } from './RichTextField';
 
 export interface EditorBlockProps {
@@ -237,6 +239,11 @@ function PhotosEditor(props: EditorBlockProps & { block: BlockOf<'photos'> }) {
             options={PHOTO_SIZES.map((size) => [size, SIZE_LABELS[size]] as const)}
             onChange={(size) => set({ size })}
           />
+          {block.scale !== undefined ? (
+            <ToolButton label="Back to full size" onClick={() => set({ scale: undefined })}>
+              {block.scale}% · Reset
+            </ToolButton>
+          ) : null}
           <ToolButton label="Add photos" onClick={onChoosePhotos}>
             Add photos
           </ToolButton>
@@ -253,8 +260,18 @@ function PhotosEditor(props: EditorBlockProps & { block: BlockOf<'photos'> }) {
       ) : (
         <>
           {/* The caption is edited below while selected, so it is left off the
-              mat here rather than shown twice. */}
-          <PostPhotos block={selected ? { ...block, caption: '' } : block} media={media} />
+              figure here rather than shown twice. */}
+          <PostPhotos
+            block={selected ? { ...block, caption: '' } : block}
+            media={media}
+            handles={
+              selected ? (
+                // 100% is stored as no scale at all, so a block dragged back to
+                // full size saves exactly as one that was never resized.
+                <ResizeHandles scale={block.scale ?? MAX_SCALE} onScale={(scale) => set({ scale: scale < MAX_SCALE ? scale : undefined })} />
+              ) : null
+            }
+          />
           {selected ? (
             <div className="editor-photo-panel">
               <GrowingText
