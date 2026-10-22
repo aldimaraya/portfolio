@@ -454,10 +454,26 @@ test.describe('reduced motion', () => {
   test('still suppresses the looping sprite previews', async ({ page }) => {
     // Guards the pre-existing rule at the same time: both live in one media
     // query, so a careless edit to either can silently drop the other.
+    // The strip only mounts once a preview is asked for, and never under this
+    // preference — so it is fetched first, and the preference turned on after,
+    // as it would be by someone changing it mid-visit.
+    await page.goto('/motion');
+    const row = page.locator('.sprite-window').first();
+    if ((await row.count()) === 0) test.skip(true, 'No clips to preview');
+    await row.hover();
+    const strip = row.locator('.sprite-strip');
+    await expect(strip).toHaveCount(1);
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    expect(await strip.evaluate((el) => getComputedStyle(el).animationName)).toBe('none');
+  });
+
+  test('never fetches a sprite sheet it would not play', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto('/motion');
-    const strip = page.locator('.sprite-strip').first();
-    if ((await strip.count()) === 0) test.skip(true, 'No clips to preview');
-    expect(await strip.evaluate((el) => getComputedStyle(el).animationName)).toBe('none');
+    const row = page.locator('.sprite-window').first();
+    if ((await row.count()) === 0) test.skip(true, 'No clips to preview');
+    await row.hover();
+    await expect(row).toHaveAttribute('data-active', 'true');
+    await expect(page.locator('.sprite-strip')).toHaveCount(0);
   });
 });

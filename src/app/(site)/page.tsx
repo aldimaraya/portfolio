@@ -79,6 +79,7 @@ export default async function HomePage() {
         id: true,
         rollId: true,
         spriteUrl: true,
+        posterImageUrl: true,
         spriteFrames: true,
         width: true,
         height: true,

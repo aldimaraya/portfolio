@@ -11,6 +11,8 @@ import { frameCode } from '@/lib/video/roll';
 export interface RollClip {
   id: string;
   spriteUrl: string;
+  /** Frame one of the sheet, shown until a preview is asked for — see SpritePreview. */
+  posterImageUrl: string;
   spriteFrames: number;
   width: number;
   height: number;
@@ -58,8 +60,8 @@ export function ClipRow({
   index: number;
   letter: string;
   /**
-   * Whether the enclosing AssetGate waits for this row's sprite sheet. Only the
-   * first rows on a page: the sheets are lazy, and one far below the fold is not
+   * Whether the enclosing AssetGate waits for this row's poster. Only the first
+   * rows on a page: the posters are lazy, and one far below the fold is not
    * fetched until it is scrolled to, so waiting on it would hold the page to the
    * gate's cap.
    */
@@ -91,6 +93,7 @@ export function ClipRow({
       <span className="flex shrink-0 justify-center" style={{ width: THUMB_COLUMN }}>
         <SpritePreview
           spriteUrl={clip.spriteUrl}
+          posterUrl={clip.posterImageUrl}
           frames={clip.spriteFrames}
           active={previewing}
           // Decorative: the title sits next to it in the same link, so naming
