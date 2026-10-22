@@ -1,30 +1,16 @@
 /**
- * The Markdown spelling of media in a journal post, and the readers that give it
- * meaning at render time.
+ * Readers for the media URLs a journal post can name.
  *
- * A post's body never renders raw HTML — react-markdown is deliberately used
- * without rehype-raw — so a video or an embed cannot be a `<video>`/`<iframe>`
- * pasted into the body. Instead everything is written in ordinary Markdown that
- * degrades sensibly, and PostMarkdown recognises three shapes:
+ * Posts written in Markdown spelled media in three shapes, which
+ * lib/markdown/legacy.ts recognises when it converts them to blocks:
  *
  *   ![caption](…/x.webp)                          an image
  *   ![caption](…/x.mp4 "poster:…/p.webp")         a video, poster in the title
  *   https://youtu.be/ID                            alone in a paragraph, an embed
  *
- * Nothing here trusts its input to be well-formed: these strings come from a
- * caption box and from URLs stored on other rows, and both end up inside link
- * syntax where an unescaped bracket would change the parse.
+ * The YouTube and optimisable-host checks are also what the block renderer uses
+ * for embed blocks and for images that were never in our own tables.
  */
-
-export type MediaKind = 'image' | 'video' | 'youtube';
-
-export interface MediaRef {
-  kind: MediaKind;
-  url: string;
-  caption?: string;
-  /** Video only — the still shown before playback starts. */
-  poster?: string;
-}
 
 const VIDEO_EXTENSIONS = ['.mp4', '.webm', '.mov', '.m4v'];
 
@@ -108,36 +94,4 @@ export function posterFromTitle(title?: string | null): string | null {
   if (!title || !title.startsWith(POSTER_PREFIX)) return null;
   const url = title.slice(POSTER_PREFIX.length).trim();
   return url || null;
-}
-
-/** Neutralises the delimiters of `![caption](url "title")`. */
-function escapeCaption(caption: string): string {
-  return caption.replace(/([[\]\\])/g, '\\$1').replace(/\s+/g, ' ').trim();
-}
-
-/**
- * URLs are percent-escaped rather than backslash-escaped: a literal space or
- * paren in an R2 key would otherwise end the link target early. Spelled out
- * rather than left to encodeURIComponent, which leaves parens alone — they are
- * legal in a URL and only a problem in this syntax.
- */
-const URL_ESCAPES: Record<string, string> = { '(': '%28', ')': '%29' };
-
-function escapeUrl(url: string): string {
-  return url
-    .trim()
-    .replace(/[()\s]/g, (char) => URL_ESCAPES[char] ?? encodeURIComponent(char));
-}
-
-/** The Markdown to drop into the body for a piece of media. */
-export function mediaSnippet(media: MediaRef): string {
-  const url = escapeUrl(media.url);
-  const caption = escapeCaption(media.caption ?? '');
-
-  // A bare URL on its own line. A caption would have to become link text, which
-  // would stop it being a lone link and so stop it being an embed.
-  if (media.kind === 'youtube') return url;
-
-  const title = media.kind === 'video' && media.poster ? ` "${POSTER_PREFIX}${escapeUrl(media.poster)}"` : '';
-  return `![${caption}](${url}${title})`;
 }

@@ -3,8 +3,10 @@
  *
  * Deliberately a regex pass rather than a parse: the output is one line of prose
  * with every mark stripped, so the structure a real parser recovers would only be
- * thrown away. Rendering the post itself goes through react-markdown — this never
- * produces anything meant to be interpreted as markup.
+ * thrown away. It never produces anything meant to be interpreted as markup.
+ *
+ * Only posts still stored as Markdown come through here; a post with blocks is
+ * summarised from them by postExcerpt (lib/post/excerpt.ts).
  */
 export function buildExcerpt(markdown: string, maxLength = 180): string {
   const plain = markdown
@@ -22,6 +24,11 @@ export function buildExcerpt(markdown: string, maxLength = 180): string {
     .replace(/\s+/g, ' ')
     .trim();
 
+  return truncate(plain, maxLength);
+}
+
+/** Cuts plain text to length with an ellipsis, or returns it whole when it fits. */
+export function truncate(plain: string, maxLength: number): string {
   if (plain.length <= maxLength) return plain;
 
   // trimEnd before appending: cutting mid-gap would otherwise leave the ellipsis

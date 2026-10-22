@@ -27,7 +27,7 @@ One Next.js App Router application, four surfaces:
 | --- | --- | --- |
 | Stills | `/stills` | A photo wall whose order is derived entirely from colour |
 | Motion | `/motion`, `/motion/[id]` | Clips grouped into rolls of film, each clip with its own page |
-| Journal | `/journal`, `/journal/[slug]` | A Markdown blog |
+| Journal | `/journal`, `/journal/[slug]` | Posts — trips, day by day, and the things around them — built from blocks |
 | Newsletter | `/newsletter`, `/newsletter/{confirm,manage}` | Email when something new goes up — see [Newsletter](#newsletter) |
 | Admin | `/admin/**`, `/login` | One password-protected area managing all of it |
 
@@ -216,16 +216,71 @@ long-running "clips play silently" bug.
 
 ### Journal
 
-- Markdown posts with **drafts** — a draft 404s rather than being a private
-  page, and is left out of `generateStaticParams` entirely.
-- A **WYSIWYG-ish editor** in the admin: a toolbar over a Markdown textarea
-  ([`lib/markdown/toolbar.ts`](../src/lib/markdown/toolbar.ts)) plus a media
-  picker that inserts images from the existing library
-  ([`lib/markdown/media.ts`](../src/lib/markdown/media.ts)), so a post can be
-  formatted and illustrated without knowing Markdown.
+A post is a list of **blocks**, stored as JSON on `BlogPost.content` and
+validated by [`lib/post/content.ts`](../src/lib/post/content.ts) on every save and
+read: sections, text, headings, photos, tips, lists with notes, clips, YouTube
+embeds, quotes and dividers. That schema is the whole vocabulary — there is no
+HTML or Markdown block, and the renderer builds every element itself, so nothing a
+post contains can become markup. Rich text inside a block is the subset of
+ProseMirror JSON the editor emits (paragraphs, lists, bold, italic, links), with
+links held to http(s), mailto and on-site targets.
+
+- **The sheet** ([`PostSheet`](../src/components/journal/PostSheet.tsx)) spans the
+  full container like stills and motion, without the lines growing with it: a
+  margin for dates and section labels, a text column at a reading measure, and a
+  rail holding the **"In this post"** index, which stays in view and marks the
+  section being read. Photos set *wide* take the margin too; *full* runs to both
+  edges of the sheet, over the rail. Every breakpoint is a **container query** on
+  `.post-frame`, not a media query, so the editor's phone preview — a narrow
+  sheet in a wide window — collapses exactly as a phone does: the index moves
+  under the title, then the margin moves above each block.
+- **Sections** divide a post. A *numbered* section is a day, labelled "Day N" by
+  its position, so moving one renumbers the rest; renaming it ("Arrival") keeps
+  its place in the count, so the days after it do not renumber. A *plain*
+  section ("Packing") is not counted. Both feed the index
+  ([`lib/post/sections.ts`](../src/lib/post/sections.ts)); a post with no sections
+  indexes its headings instead.
+- **Photos blocks** hold references, not URLs — a trip photo, a still off the
+  wall, or (for converted posts only) an outside URL — and lay them out
+  *stacked*, as a justified *row*, a *grid* or a *carousel* (a native
+  scroll-snap track; the script only adds buttons and the counter). A reference
+  whose row is gone is skipped, so deleting a still drops it from the posts that
+  used it; `deletePhoto` and `deleteVideo` revalidate the journal for that.
+- **Trip photos** are `JournalPhoto` rows, owned by one post and deleted with it,
+  and **never on the stills wall** — the wall is curated in its own admin. They
+  are uploaded from the editor's tray through the same browser-side path as a
+  still (EXIF read first for the capture date, then re-encoded so no GPS reaches
+  the bucket). The tray groups them by **day** — the camera's wall-clock date,
+  stored in UTC fields so the day is the same everywhere
+  ([`lib/post/trip.ts`](../src/lib/post/trip.ts)) — and by a fixed set of
+  **categories** (food, sights, getting around, stay, people). *Lay out days*
+  turns every day with no section yet into a numbered section with a text block
+  and the photos for each category, leaving only the words to write.
+- **The editor** (`components/admin/post-editor/`) draws the post on the same
+  sheet, each block edited in place: text through TipTap with everything the
+  schema cannot hold switched off, so a paste is reduced to what a post can
+  store; titles, labels and captions as plain growing fields. The selected
+  block's controls sit in a row of the sticky top bar, never over the writing.
+  New posts are created as an empty draft first, so photos can be uploaded into
+  one before its first save. Saving is explicit (Save, or ⌘S) — a published post
+  would otherwise go live keystroke by keystroke — and leaving unsaved asks
+  first. Every decision about what an edit does is a pure function in
+  [`lib/post/editor.ts`](../src/lib/post/editor.ts).
+- **Posts written in Markdown** before the editor have `content` null. They are
+  converted on read ([`lib/markdown/legacy.ts`](../src/lib/markdown/legacy.ts)),
+  following what the old renderer made of each shape, with images and videos
+  from the library matched back to their rows; the first save from the editor
+  stores the blocks. Nothing is rewritten behind the writer's back, and
+  `markdownContent` is never written again.
+- **Drafts** 404 rather than being a private page, and are left out of
+  `generateStaticParams` entirely. A draft's title can be empty; publishing needs
+  a title and something to read
+  ([`lib/post/form.ts`](../src/lib/post/form.ts)).
 - Slugs from titles, with collisions suffixed
-  ([`lib/slug.ts`](../src/lib/slug.ts)).
-- Excerpts flattened from the body for the list and for link previews.
+  ([`lib/slug.ts`](../src/lib/slug.ts)), frozen on publish.
+- Excerpts from the post's prose for the list, link previews and the newsletter
+  ([`lib/post/excerpt.ts`](../src/lib/post/excerpt.ts)); a post's link preview
+  uses its first photo.
 
 ### Admin
 
@@ -331,8 +386,8 @@ and a weekly newsletter would mostly be empty. Code in
 
 ## Data model
 
-[`prisma/schema.prisma`](../prisma/schema.prisma). Eleven models: `Photo`, `Video`,
-`Roll`, `BlogPost`, `Tag`, the two join tables, the newsletter's
+[`prisma/schema.prisma`](../prisma/schema.prisma). Twelve models: `Photo`, `Video`,
+`Roll`, `BlogPost`, `JournalPhoto`, `Tag`, the two join tables, the newsletter's
 `Subscriber`, `Announcement` and `Dispatch`, and `SiteLink`.
 
 Columns whose *shape* carries a decision:
@@ -350,6 +405,10 @@ Columns whose *shape* carries a decision:
 | `Video.rollId` (nullable) | Nullable only so the push stayed additive. `saveVideo` requires one; a clip without one (older than rolls, until `backfill:rolls` runs) is shown at the end of the first roll rather than dropped. |
 | `SiteLink` (no icon column) | The mark is derived from `href`'s host at render, so a row cannot name one brand's icon and point at another's site. |
 | `BlogPost.draft` | Defaults to `true`, so a half-written post cannot be published by forgetting a checkbox. |
+| `BlogPost.content` (`Json`, nullable) | The post as blocks (`PostContent`). Null means the post predates the block editor and its body is still `markdownContent`, converted on read; validated on every read, and a row that fails falls back to the Markdown rather than taking the page down. |
+| `BlogPost.markdownContent` | Read only for posts whose `content` is null, never written by the editor. Kept so the change stayed additive; droppable once every post has been saved from the editor. |
+| `JournalPhoto` | A post's own uploads, apart from `Photo` so a trip never reaches the stills wall. `onDelete: Cascade` from the post; the R2 objects are `deletePost`'s to remove. `category` is a string, not an enum, so the list can change without a schema change. |
+| `JournalPhoto.takenAt` | The camera's wall-clock time in UTC fields, so a trip's days are the same on every machine. Like `Photo.takenAt`, unrecoverable once the upload has stripped EXIF. |
 | `Announcement.refId` | Points at a `Photo`, `Video` or `BlogPost` depending on `kind`, so it cannot be a foreign key; deleted content is dropped when the batch resolves. |
 | `Announcement.dispatchId` | `onDelete: Restrict`. Deleting a dispatch must not put what it sent back into the queue. |
 | `Subscriber.lastDispatchId` | What makes a dispatch resumable. Not a relation, so dispatch history can never be blocked by it. |

@@ -1,19 +1,16 @@
+import { hasBody, type PostContent } from './content';
+
 /**
- * Client-side completeness check for the post form — the counterpart to
- * src/lib/photo/form.ts and src/lib/video/form.ts. savePost still validates
- * server-side; this only drives the save button and its hint.
+ * What a post still needs before it can be published — the counterpart to
+ * src/lib/photo/form.ts and src/lib/video/form.ts. Drafts need nothing: a post
+ * can be saved half-written. savePost runs the same check server-side; the
+ * editor uses it to explain a disabled Publish.
  */
-
-export interface PostDraft {
-  title: string;
-  markdownContent: string;
-}
-
-export function missingRequiredFields(draft: PostDraft): string[] {
+export function missingForPublish(post: { title: string; content: PostContent }): string[] {
   const missing: string[] = [];
 
-  if (!draft.title.trim()) missing.push('a title');
-  if (!draft.markdownContent.trim()) missing.push('some content');
+  if (!post.title.trim()) missing.push('a title');
+  if (!hasBody(post.content)) missing.push('something to read');
 
   return missing;
 }

@@ -625,8 +625,9 @@ body {
   }
 }
 
-/* Rendered Markdown, shared by the admin preview and the public journal pages so
-   a post cannot look one way while writing and another once published. */
+/* A post's prose — its text blocks and tips — shared by the editor and the
+   published page so a post cannot look one way while writing and another once
+   published. */
 .prose-portfolio {
   /* Every vertical measure in here is a multiple of --line, so the ruled lines
      drawn behind the paragraphs land under the words rather than near them. A
@@ -691,48 +692,6 @@ body {
   margin: 0 0 1em;
 }
 .prose-portfolio pre code { background: none; padding: 0; }
-.prose-portfolio img { max-width: 100%; border-radius: 3px; }
-/* Media inserted by the editor, mounted on the same warm mat the lightbox prints
-   a photo on — bg-mat, p-3 pb-2.5, matmeta caption. A picture in a post is the
-   same object as a picture on the wall, and should be framed like one. */
-.prose-portfolio figure {
-  background: var(--color-mat);
-  border-radius: 2px;
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
-  margin: 0 0 calc(var(--line) * 2);
-  padding: 0.75rem 0.75rem 0.625rem;
-}
-.prose-portfolio figcaption {
-  color: var(--color-matmeta);
-  font-family: var(--font-mono);
-  font-size: 0.7rem;
-  letter-spacing: 0.05em;
-  line-height: 1.4;
-  margin-top: 0.625rem;
-  text-transform: uppercase;
-}
-/* Square corners inside the mat: a rounded print in a paper frame reads as a UI
-   card, which is the one thing the mat exists to stop it looking like. */
-.prose-portfolio figure img,
-.prose-portfolio figure video { border-radius: 0; }
-.prose-portfolio video { display: block; max-width: 100%; border-radius: 3px; }
-/* A YouTube iframe has no intrinsic size, so the ratio has to be imposed from
-   outside or it renders at the HTML default 300×150. */
-.prose-portfolio .embed-frame {
-  position: relative;
-  aspect-ratio: 16 / 9;
-  margin: 1.5em 0;
-  border-radius: 3px;
-  overflow: hidden;
-  background: var(--color-film);
-}
-.prose-portfolio .embed-frame iframe {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  border: 0;
-}
 .prose-portfolio hr {
   border: 0;
   border-top: 1px solid var(--color-hairline);
@@ -745,7 +704,7 @@ body {
  * left the right-hand third of the page structurally empty. This spends that
  * width as a margin instead: the date sets into it, a rule runs the height of
  * the sheet, and the prose gets a page to sit on rather than an edge to hang
- * off. Post pages only — the admin preview renders the prose without it. */
+ * off. The journal list now; a post has its own wider sheet, .post-sheet. */
 .journal-sheet {
   --sheet-pad-x: 4rem;
   --margin-col: 7rem;
@@ -814,11 +773,390 @@ body {
   .journal-entry > a { grid-template-columns: minmax(0, 1fr); gap: 0.75rem; }
   .journal-margin { text-align: left; }
 }
-/* GFM tables come from remark-gfm; without a scroll container a wide one pushes
-   the whole page sideways. */
-.prose-portfolio table { width: 100%; border-collapse: collapse; margin: 0 0 1em; display: block; overflow-x: auto; }
-.prose-portfolio th,
-.prose-portfolio td { border: 1px solid var(--color-hairline); padding: 0.4em 0.6em; text-align: left; }
+/* ── A journal post ──────────────────────────────────────────────────────────
+ *
+ * The sheet spans the site's full container, like the stills and motion pages,
+ * without the lines growing with it: the text column stays at a reading measure
+ * and the width beyond it is given to three things — the margin (dates, section
+ * labels), the rail (the "In this post" index), and photos set wide or full.
+ *
+ *   | pad | margin 7rem | gap | text ≤42rem | gap | rail 15.5rem | pad |
+ *
+ * Breakpoints are container queries on .post-frame, not media queries, so the
+ * editor's phone preview — a narrow sheet in a wide window — lays out exactly as
+ * a phone would. PostSheet renders the structure.
+ */
+.post-frame { container: post / inline-size; }
+
+.post-sheet {
+  --line: 1.8125rem;
+  --sheet-pad-x: 4rem;
+  --margin-col: 7rem;
+  --margin-gap: 2.75rem;
+  --rail-col: 15.5rem;
+  /* Where the rail and fragment links stop below the top edge. The editor
+     raises it to clear its own toolbar. */
+  --rail-top: 1.5rem;
+  background: var(--color-film);
+  border: 1px solid var(--color-hairline);
+  border-radius: 3px;
+  padding: 3.5rem var(--sheet-pad-x) 4rem;
+  position: relative;
+}
+
+/* The margin rule, as on .journal-sheet. */
+.post-sheet::before {
+  background: var(--color-goldline);
+  bottom: 0;
+  content: "";
+  left: calc(var(--sheet-pad-x) + var(--margin-col) + (var(--margin-gap) / 2));
+  position: absolute;
+  top: 0;
+  width: 1px;
+}
+
+.post-layout {
+  align-items: start;
+  column-gap: var(--margin-gap);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--rail-col);
+}
+
+/* One block. Its row is the margin and the text column; a row's own bottom
+   margin is the one line of space between blocks, so the ruling stays on the
+   grid however the blocks are mixed. */
+.post-row {
+  column-gap: var(--margin-gap);
+  display: grid;
+  grid-template-columns: var(--margin-col) minmax(0, 42rem);
+  margin-bottom: var(--line);
+  scroll-margin-top: var(--rail-top);
+}
+.post-cell { grid-column: 2; min-width: 0; }
+.post-row--title { margin-bottom: calc(var(--line) * 1.5); }
+/* A section opens with a line of air above it, so a day reads as a new page of
+   the same notebook rather than another paragraph. */
+.post-row--section { padding-top: var(--line); }
+
+/* Wide spans the margin as well; full runs to both edges of the sheet, across
+   the rail — which it passes over while it is on screen (z-index), the way a
+   full-bleed plate interrupts a book's running heads. */
+.post-row--wide { grid-template-columns: var(--margin-col) minmax(0, 1fr); }
+.post-row--wide > .post-cell { grid-column: 1 / -1; }
+.post-row--full {
+  display: block;
+  margin-left: calc(-1 * var(--sheet-pad-x));
+  margin-right: calc(-1 * (var(--sheet-pad-x) + var(--rail-col) + var(--margin-gap)));
+  position: relative;
+  z-index: 2;
+}
+.post-row--full > .post-margin { display: none; }
+
+.post-margin {
+  color: var(--color-gold);
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  grid-column: 1;
+  letter-spacing: 0.12em;
+  line-height: 1.7;
+  text-align: right;
+  text-transform: uppercase;
+}
+.post-margin-label { font-size: 0.8rem; letter-spacing: 0.14em; }
+.post-margin-meta { color: rgba(212, 175, 55, 0.72); }
+.post-margin-tag { color: var(--color-ash); }
+
+.post-title {
+  font-family: var(--font-journal);
+  font-size: 2.125rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 2.75rem;
+  text-wrap: balance;
+}
+.post-section-title {
+  font-family: var(--font-journal);
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: var(--line);
+  text-wrap: balance;
+}
+.post-heading {
+  font-family: var(--font-journal);
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: var(--line);
+}
+/* The row already ends in a line of space; the prose's own last margin would
+   double it. */
+.post-prose > :last-child { margin-bottom: 0; }
+/* The editor wraps every list item in a paragraph, and a paragraph brings a
+   line of space below it; inside a list that would set the items a blank line
+   apart. The list keeps its own bottom margin. */
+.post-prose li > p { margin-bottom: 0; }
+
+.post-rail {
+  position: sticky;
+  top: var(--rail-top);
+  z-index: 1;
+}
+.post-index-inline { display: none; }
+
+.post-index-heading {
+  color: var(--color-ash);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  margin-bottom: 0.75rem;
+  text-transform: uppercase;
+}
+.post-index ol { display: flex; flex-direction: column; }
+.post-index a {
+  border-left: 2px solid var(--color-hairline);
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.5rem 0 0.5rem 0.875rem;
+  transition: border-color 150ms, color 150ms;
+}
+.post-index-label {
+  color: rgba(212, 175, 55, 0.72);
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.post-index-title {
+  color: var(--color-ash);
+  font-family: var(--font-journal);
+  font-size: 0.95rem;
+  line-height: 1.35;
+}
+.post-index a:hover .post-index-title { color: var(--color-bone); }
+.post-index a[aria-current] { border-left-color: var(--color-gold); }
+.post-index a[aria-current] .post-index-label { color: var(--color-gold); }
+.post-index a[aria-current] .post-index-title { color: var(--color-bone); }
+/* Under the title on a narrower sheet: a short contents list, no highlight. */
+.post-index--inline {
+  border: 1px solid var(--color-hairline);
+  border-radius: 3px;
+  margin-bottom: calc(var(--line) * 1.5);
+  padding: 0.75rem 1rem 0.5rem;
+}
+.post-index--inline a { border-left: 0; flex-direction: row; align-items: baseline; gap: 0.75rem; padding: 0.375rem 0; }
+.post-index--inline li + li a { border-top: 1px solid rgba(255, 255, 255, 0.06); }
+
+/* Media, mounted on the same warm mat the lightbox prints a photo on — bg-mat,
+   p-3 pb-2.5, matmeta caption. A picture in a post is the same object as a
+   picture on the wall, and should be framed like one. */
+.post-figure {
+  background: var(--color-mat);
+  border-radius: 2px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+  padding: 0.75rem 0.75rem 0.625rem;
+}
+.post-figure figcaption,
+.post-embed figcaption {
+  color: var(--color-matmeta);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+  line-height: 1.4;
+  margin-top: 0.625rem;
+  text-transform: uppercase;
+}
+.post-embed figcaption { color: var(--color-ash); }
+/* Square corners inside the mat: a rounded print in a paper frame reads as a UI
+   card, which is the one thing the mat exists to stop it looking like. */
+.post-photo { display: block; height: auto; width: 100%; }
+.post-photo-fill { height: 100%; inset: 0; object-fit: cover; position: absolute; width: 100%; }
+.post-photo-stack { display: flex; flex-direction: column; gap: 0.625rem; }
+.post-photo-row { display: flex; gap: 0.5rem; }
+.post-photo-row > .post-photo-cell { flex-basis: 0; min-width: 0; }
+.post-photo-cell { background: var(--color-frame); position: relative; }
+.post-photo-grid { display: grid; gap: 0.5rem; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.post-photo-grid[data-columns="2"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.post-photo-grid > .post-photo-cell { aspect-ratio: 1; }
+.post-video { background: var(--color-ink); display: block; width: 100%; }
+
+/* One photo at a time on a dark plate, letterboxed rather than cropped — a
+   carousel mixes portrait and landscape, and cutting either to fit would lose
+   the picture that was chosen. */
+.post-carousel { position: relative; }
+.post-carousel-track {
+  display: flex;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+.post-carousel-track::-webkit-scrollbar { display: none; }
+.post-carousel-track:focus-visible { outline: 2px solid var(--color-gold); outline-offset: 2px; }
+.post-carousel-slide {
+  aspect-ratio: 3 / 2;
+  background: var(--color-frame);
+  flex: 0 0 100%;
+  position: relative;
+  scroll-snap-align: center;
+}
+.post-carousel-slide .post-photo-fill { object-fit: contain; }
+.post-carousel-step {
+  align-items: center;
+  background: rgba(11, 11, 13, 0.6);
+  border-radius: 999px;
+  color: var(--color-bone);
+  display: flex;
+  height: 2.75rem;
+  justify-content: center;
+  position: absolute;
+  top: calc(50% - 1.75rem);
+  transition: background 150ms;
+  width: 2.75rem;
+}
+.post-carousel-step:hover { background: rgba(11, 11, 13, 0.85); }
+.post-carousel-step[data-side="prev"] { left: 0.75rem; }
+.post-carousel-step[data-side="next"] { right: 0.75rem; }
+.post-carousel-meta {
+  align-items: center;
+  color: var(--color-matmeta);
+  display: flex;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  justify-content: space-between;
+  margin-top: 0.375rem;
+}
+.post-carousel-dots { display: flex; }
+.post-carousel-dots button {
+  display: grid;
+  height: 1.5rem;
+  place-items: center;
+  width: 1.25rem;
+}
+.post-carousel-dots button::before {
+  background: rgba(122, 99, 35, 0.3);
+  border-radius: 999px;
+  content: "";
+  height: 0.45rem;
+  width: 0.45rem;
+}
+.post-carousel-dots button[aria-current]::before { background: var(--color-matmeta); }
+
+/* A YouTube iframe has no intrinsic size, so the ratio has to be imposed from
+   outside or it renders at the HTML default 300×150. */
+.embed-frame {
+  aspect-ratio: 16 / 9;
+  background: var(--color-film);
+  border-radius: 3px;
+  overflow: hidden;
+  position: relative;
+}
+.embed-frame iframe {
+  border: 0;
+  height: 100%;
+  inset: 0;
+  position: absolute;
+  width: 100%;
+}
+
+.post-tip {
+  background: rgba(212, 175, 55, 0.04);
+  border: 1px solid rgba(212, 175, 55, 0.35);
+  border-radius: 3px;
+  padding: 1rem 1.375rem 1.125rem;
+}
+.post-tip-title {
+  align-items: center;
+  color: var(--color-gold);
+  display: flex;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  gap: 0.5rem;
+  letter-spacing: 0.12em;
+  margin-bottom: 0.375rem;
+  text-transform: uppercase;
+}
+/* No ruling inside the tip: it is a note pinned to the page, not the page. */
+.post-tip .prose-portfolio p { background-image: none; }
+
+.post-list-group + .post-list-group { margin-top: 1.125rem; }
+.post-list-group h4 {
+  border-bottom: 1px solid var(--color-goldline);
+  color: var(--color-gold);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  padding-bottom: 0.375rem;
+  text-transform: uppercase;
+}
+.post-list-group li {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.125rem 1.5rem;
+  padding: 0.625rem 0;
+}
+.post-list-name {
+  flex: 1 1 11rem;
+  font-family: var(--font-journal);
+  font-size: 1.0625rem;
+  font-weight: 600;
+  line-height: 1.6rem;
+}
+.post-list-note {
+  color: #b4b4b8;
+  flex: 2 1 16rem;
+  font-family: var(--font-journal);
+  font-size: 1rem;
+  line-height: 1.6rem;
+}
+
+.post-quote {
+  border-left: 2px solid var(--color-gold);
+  color: #c9c9cc;
+  font-family: var(--font-journal);
+  font-size: 1.3rem;
+  font-style: italic;
+  line-height: var(--line);
+  padding-left: 1.125rem;
+  white-space: pre-line;
+}
+.post-divider {
+  border: 0;
+  border-top: 1px solid var(--color-hairline);
+  margin: calc(var(--line) / 2) 0;
+}
+
+/* The newsletter signup sits on the sheet below a post, on the journal grid. */
+.post-sheet .journal-grid { grid-template-columns: var(--margin-col) minmax(0, 1fr); }
+
+/* Narrower than the rail can sit beside the text: the index moves under the
+   title and full-width photos stop at the sheet's right edge. */
+@container post (max-width: 72rem) {
+  .post-layout { grid-template-columns: minmax(0, 1fr); }
+  .post-rail { display: none; }
+  .post-index-inline { display: block; }
+  .post-row--full { margin-right: calc(-1 * var(--sheet-pad-x)); }
+}
+
+/* A phone: one column, the margin returns to the top of each block as a line of
+   its own, and the rule is dropped — as .journal-sheet does at the same point. */
+@container post (max-width: 48rem) {
+  .post-sheet {
+    --sheet-pad-x: 1.25rem;
+    padding: 2rem var(--sheet-pad-x) 2.5rem;
+  }
+  .post-sheet::before { display: none; }
+  .post-row,
+  .post-row--wide,
+  .post-sheet .journal-grid { grid-template-columns: minmax(0, 1fr); row-gap: 0.5rem; }
+  .post-cell,
+  .post-row--wide > .post-cell { grid-column: 1; }
+  .post-margin { flex-direction: row; flex-wrap: wrap; gap: 0 0.75rem; text-align: left; }
+  .post-margin:empty { display: none; }
+  .post-photo-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 
 /* The newsletter prompt. It interrupts, so it arrives gently: a short dissolve,
    and nothing that moves for a reduced-motion visitor. */
@@ -826,4 +1164,512 @@ body {
   .newsletter-prompt[open] {
     animation: page-enter 220ms cubic-bezier(0.22, 1, 0.36, 1);
   }
+}
+
+/* ── The journal editor ──────────────────────────────────────────────────────
+ *
+ * Admin only. The editor draws the post on the same .post-sheet it is published
+ * on (PostSheet), so everything here is chrome laid over that sheet — selection,
+ * toolbars, the insert points on the margin rule, the photo tray — never a
+ * second set of type styles for the content itself.
+ */
+.editor-shell {
+  background: var(--color-ink);
+  inset: 0;
+  overflow-y: auto;
+  position: fixed;
+  z-index: 40;
+}
+.editor-bar {
+  align-items: center;
+  backdrop-filter: blur(8px);
+  background: rgba(11, 11, 13, 0.92);
+  border-bottom: 1px solid var(--color-hairline);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  padding: 0.75rem 1.5rem;
+  position: sticky;
+  top: 0;
+  z-index: 30;
+}
+.editor-back {
+  color: var(--color-ash);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.editor-back:hover { color: var(--color-gold); }
+.editor-bar-title {
+  align-items: baseline;
+  display: flex;
+  flex: 1 1 16rem;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+  min-width: 0;
+}
+.editor-bar-title > :first-child { font-size: 0.95rem; font-weight: 600; }
+.editor-bar-title [data-error] { color: #f87171; }
+
+.editor-canvas { margin: 0 auto; max-width: 1300px; padding: 2.5rem 1.5rem 8rem; }
+/* The sheet at a phone's width; PostSheet's container queries do the rest. */
+.editor-phone { margin: 0 auto; max-width: 390px; }
+/* The rail and fragment links clear the editor's own sticky bar. */
+.post-editing .post-sheet { --rail-top: 9rem; }
+.editor-block-anchor { scroll-margin-top: 10rem; }
+.editor-footer {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 2rem;
+  justify-content: space-between;
+  margin-top: 2rem;
+}
+
+.editor-muted { color: var(--color-ash); font-size: 0.8rem; line-height: 1.5; }
+.editor-error { color: #f87171; font-size: 0.75rem; }
+.editor-slug { color: var(--color-ash); font-family: var(--font-mono); font-size: 0.7rem; margin-top: 0.375rem; }
+
+.editor-button,
+.editor-primary {
+  align-items: center;
+  border-radius: 6px;
+  display: inline-flex;
+  font-size: 0.8rem;
+  gap: 0.5rem;
+  height: 2.5rem;
+  justify-content: center;
+  padding: 0 0.875rem;
+  transition: border-color 150ms, opacity 150ms;
+}
+.editor-button { border: 1px solid rgba(255, 255, 255, 0.15); color: var(--color-bone); }
+.editor-button:hover:not(:disabled),
+.editor-button[aria-pressed="true"] { border-color: rgba(212, 175, 55, 0.6); }
+.editor-button--gold { border-color: rgba(212, 175, 55, 0.45); color: var(--color-gold); }
+.editor-primary { background: var(--color-gold); color: var(--color-ink); font-weight: 600; padding: 0 1.125rem; }
+.editor-button:disabled,
+.editor-primary:disabled { cursor: default; opacity: 0.45; }
+.editor-link-button { color: var(--color-gold); font-size: 0.75rem; padding: 0.375rem 0; text-align: left; }
+.editor-link-button:hover { text-decoration: underline; }
+.editor-danger { color: #f87171; }
+.editor-icon-button { color: var(--color-ash); font-size: 1.25rem; height: 2.25rem; width: 2.25rem; }
+.editor-icon-button:hover { color: var(--color-bone); }
+
+.editor-segmented {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+}
+.editor-segmented > button {
+  border-radius: 4px;
+  font-size: 0.8rem;
+  height: 2.125rem;
+  padding: 0 0.875rem;
+}
+.editor-segmented > button[aria-pressed="true"],
+.editor-segmented > button[aria-selected="true"] { background: var(--color-gold); color: var(--color-ink); }
+.editor-segmented--small { align-self: flex-start; }
+.editor-segmented--small > button { font-size: 0.75rem; height: 1.875rem; }
+
+/* A field drawn as the text it holds. Font comes from the class it is given
+   (.post-title, .post-margin-label…), never from here. */
+.editor-field {
+  background: transparent;
+  border: 0;
+  color: inherit;
+  display: block;
+  outline: none;
+  overflow: hidden;
+  padding: 0;
+  resize: none;
+  width: 100%;
+}
+.editor-field::placeholder { color: var(--color-ash); opacity: 0.7; }
+.editor-margin-input { letter-spacing: inherit; text-align: inherit; text-transform: inherit; }
+/* A day's own number, shown as the label's placeholder in the label's colour. */
+.editor-margin-default::placeholder { color: var(--color-gold); opacity: 1; }
+.editor-tip-title { flex: 1; letter-spacing: inherit; text-transform: inherit; }
+.editor-list-group { letter-spacing: inherit; text-transform: inherit; }
+.editor-caption {
+  border-bottom: 1px solid var(--color-hairline);
+  color: var(--color-bone);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+  padding: 0.375rem 0;
+  text-transform: uppercase;
+}
+.editor-url {
+  border-bottom: 1px solid var(--color-hairline);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  padding: 0.375rem 0;
+}
+
+/* Rich text in place. The empty paragraph's prompt is TipTap's Placeholder. */
+.editor-prose { min-height: var(--line); outline: none; }
+.editor-prose p.is-editor-empty:first-child::before {
+  color: var(--color-ash);
+  content: attr(data-placeholder);
+  float: left;
+  font-style: italic;
+  height: 0;
+  pointer-events: none;
+}
+
+/* The selected block, and the bar that floats above it. */
+.editor-cell {
+  border-radius: 2px;
+  outline: 1px solid transparent;
+  outline-offset: 0.5rem;
+  position: relative;
+}
+.editor-cell[data-selected] { outline-color: rgba(212, 175, 55, 0.55); }
+/* The second row of the sticky bar, holding the selected block's toolbar
+   (BlockToolbar portals into it). Always the same height, so selecting a block
+   never shifts the page under the pointer. */
+.editor-context {
+  align-items: center;
+  border-top: 1px solid var(--color-hairline);
+  display: flex;
+  flex-basis: 100%;
+  min-height: 2.75rem;
+  padding-top: 0.625rem;
+}
+.editor-toolbar {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  font-family: system-ui, -apple-system, sans-serif;
+  gap: 0.25rem;
+}
+.editor-toolbar-label {
+  color: var(--color-ash);
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.12em;
+  padding: 0 0.5rem;
+  text-transform: uppercase;
+}
+.editor-toolbar-label + .editor-toolbar-group { border-left: 0; padding-left: 0; }
+.editor-toolbar-group {
+  border-left: 1px solid var(--color-hairline);
+  display: flex;
+  gap: 2px;
+  padding-left: 0.375rem;
+}
+.editor-tool {
+  align-items: center;
+  border-radius: 4px;
+  color: var(--color-bone);
+  display: inline-flex;
+  font-size: 0.75rem;
+  height: 2rem;
+  justify-content: center;
+  min-width: 2rem;
+  padding: 0 0.625rem;
+}
+.editor-tool:hover { background: rgba(255, 255, 255, 0.08); }
+.editor-tool[data-active] { background: var(--color-gold); color: var(--color-ink); }
+
+/* Insert points: a + on the margin rule in the gap between two blocks. The
+   negative top margin cancels the row's bottom margin above and the bottom
+   margin puts the gap back, so the + is always centred in the gap rather than
+   wherever margin collapsing happens to leave a zero-height box. flow-root is
+   what makes that hold: without its own formatting context an empty box's top
+   and bottom margins collapse into each other, and with the row's margin the
+   three sum to nothing — the blocks closed up to touching. */
+.editor-insert {
+  display: flow-root;
+  height: 0;
+  margin-bottom: var(--line);
+  margin-top: calc(-1 * var(--line));
+  position: relative;
+}
+.editor-insert-plus {
+  align-items: center;
+  background: var(--color-film);
+  border: 1px solid rgba(212, 175, 55, 0.5);
+  border-radius: 999px;
+  color: var(--color-gold);
+  display: flex;
+  height: 1.75rem;
+  justify-content: center;
+  left: calc(var(--margin-col) + (var(--margin-gap) / 2) - 0.875rem);
+  opacity: 0.45;
+  position: absolute;
+  top: calc((var(--line) / 2) - 0.875rem);
+  transition: opacity 150ms, background 150ms, color 150ms;
+  width: 1.75rem;
+  z-index: 4;
+}
+.editor-insert-plus:hover,
+.editor-insert-plus:focus-visible,
+.editor-insert-plus[data-open] { background: var(--color-gold); color: var(--color-ink); opacity: 1; }
+.editor-insert-menu {
+  left: calc(var(--margin-col) + var(--margin-gap));
+  position: absolute;
+  top: calc(var(--line) / 2 + 1rem);
+  z-index: 30;
+}
+.editor-insert-end .post-cell { position: relative; }
+.editor-insert-menu--end { left: 0; top: calc(100% + 0.5rem); }
+.editor-add-block {
+  align-items: center;
+  border: 1px dashed rgba(255, 255, 255, 0.18);
+  border-radius: 4px;
+  color: var(--color-ash);
+  display: flex;
+  font-size: 0.8rem;
+  gap: 0.5rem;
+  height: 3rem;
+  justify-content: center;
+  width: 100%;
+}
+.editor-add-block:hover { border-color: rgba(212, 175, 55, 0.6); color: var(--color-gold); }
+
+.editor-menu {
+  background: var(--color-frame);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+  font-family: system-ui, -apple-system, sans-serif;
+  max-width: calc(100vw - 2rem);
+  padding: 0.375rem;
+  width: 21rem;
+}
+.editor-menu-heading {
+  color: var(--color-ash);
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.12em;
+  padding: 0.375rem 0.625rem 0.5rem;
+  text-transform: uppercase;
+}
+.editor-menu button {
+  align-items: flex-start;
+  border-radius: 5px;
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.5rem 0.625rem;
+  text-align: left;
+  width: 100%;
+}
+.editor-menu button:hover,
+.editor-menu button:focus-visible { background: rgba(255, 255, 255, 0.06); outline: none; }
+.editor-menu-glyph {
+  align-items: center;
+  border: 1px solid rgba(212, 175, 55, 0.3);
+  border-radius: 4px;
+  color: var(--color-gold);
+  display: flex;
+  flex: 0 0 1.75rem;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  height: 1.75rem;
+  justify-content: center;
+}
+.editor-menu-label { display: block; font-size: 0.8rem; font-weight: 600; }
+.editor-menu-hint { color: var(--color-ash); display: block; font-size: 0.75rem; }
+
+.editor-empty {
+  align-items: center;
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  color: var(--color-ash);
+  display: flex;
+  flex-direction: column;
+  font-size: 0.875rem;
+  gap: 0.75rem;
+  padding: 2.5rem 1.25rem;
+  text-align: center;
+}
+.editor-index-actions { display: flex; gap: 0.5rem; margin-top: 1rem; }
+.editor-index-actions .editor-button { flex: 1; font-size: 0.75rem; height: 2.25rem; }
+
+.editor-tag { align-items: center; display: inline-flex; gap: 0.375rem; justify-content: flex-end; }
+.editor-tag button { color: var(--color-ash); }
+.editor-tag button:hover { color: var(--color-gold); }
+
+.editor-photo-panel { display: flex; flex-direction: column; gap: 0.75rem; margin-top: 1rem; }
+.editor-photo-strip { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.editor-photo-strip li { width: 6rem; }
+.editor-photo-strip img,
+.editor-photo-missing { aspect-ratio: 1; border-radius: 2px; object-fit: cover; width: 100%; }
+.editor-photo-missing {
+  align-items: center;
+  background: var(--color-frame);
+  color: var(--color-ash);
+  display: flex;
+  font-size: 0.7rem;
+  justify-content: center;
+}
+.editor-photo-strip li > div { display: flex; justify-content: space-between; }
+.editor-photo-strip button { color: var(--color-ash); font-size: 0.9rem; height: 1.75rem; width: 1.75rem; }
+.editor-photo-strip button:hover:not(:disabled) { color: var(--color-gold); }
+.editor-photo-strip button:disabled { opacity: 0.3; }
+.editor-remove { color: var(--color-ash); font-size: 1rem; }
+.editor-remove:hover { color: #f87171; }
+.post-list-group .editor-link-button { margin-top: 0.25rem; }
+.post-list .editor-button { margin-top: 1rem; }
+.editor-pick-grid {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr));
+  width: 100%;
+}
+.editor-pick-grid button { border: 1px solid var(--color-hairline); border-radius: 3px; overflow: hidden; }
+.editor-pick-grid button:hover { border-color: var(--color-gold); }
+.editor-pick-grid img { aspect-ratio: 16 / 9; object-fit: cover; width: 100%; }
+.editor-embed { display: flex; flex-direction: column; gap: 0.75rem; }
+
+.editor-toast {
+  align-items: center;
+  background: var(--color-mat);
+  border-radius: 6px;
+  bottom: 1.5rem;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  color: var(--color-matink);
+  display: flex;
+  font-size: 0.8rem;
+  gap: 1rem;
+  left: 50%;
+  max-width: calc(100% - 2rem);
+  padding: 0.75rem 1.125rem;
+  position: fixed;
+  transform: translateX(-50%);
+  z-index: 60;
+}
+.editor-toast button { font-weight: 600; text-decoration: underline; }
+
+/* The photo tray: a drawer over the page, so the sheet underneath keeps the
+   width it will be published at. */
+.editor-tray {
+  background: var(--color-film);
+  border-left: 1px solid rgba(255, 255, 255, 0.12);
+  bottom: 0;
+  box-shadow: -24px 0 60px rgba(0, 0, 0, 0.55);
+  display: flex;
+  flex-direction: column;
+  max-width: 100%;
+  position: fixed;
+  right: 0;
+  top: 0;
+  width: 27rem;
+  z-index: 50;
+}
+.editor-tray-head { align-items: center; display: flex; gap: 0.75rem; justify-content: space-between; padding: 1rem 1rem 0.5rem; }
+.editor-tray-target {
+  align-items: center;
+  background: rgba(212, 175, 55, 0.08);
+  border-radius: 4px;
+  color: var(--color-gold);
+  display: flex;
+  font-size: 0.75rem;
+  gap: 0.5rem;
+  justify-content: space-between;
+  margin: 0.25rem 1rem 0;
+  padding: 0.5rem 0.75rem;
+}
+.editor-tray-target button { color: var(--color-ash); }
+.editor-tray-body { display: flex; flex: 1; flex-direction: column; min-height: 0; overflow-y: auto; }
+.editor-tray-body[data-dragging] { outline: 2px dashed var(--color-gold); outline-offset: -8px; }
+.editor-tray-section { display: flex; flex-direction: column; gap: 0.75rem; padding: 0.75rem 1rem 0; }
+.editor-tray-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.editor-tray-actions > button { flex: 1 1 auto; }
+.editor-upload-status { color: var(--color-ash); display: flex; flex-direction: column; font-size: 0.75rem; gap: 0.25rem; }
+.editor-upload-status button { color: var(--color-gold); margin-left: 0.5rem; }
+.editor-chips { align-items: center; display: flex; flex-wrap: wrap; gap: 0.375rem; }
+.editor-chips > button {
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 999px;
+  font-size: 0.75rem;
+  height: 1.875rem;
+  padding: 0 0.625rem;
+}
+.editor-chips > button:hover { border-color: rgba(212, 175, 55, 0.6); }
+.editor-chips > button span { font-family: var(--font-mono); opacity: 0.65; }
+.editor-chips > button[aria-pressed="true"] { background: rgba(212, 175, 55, 0.14); border-color: rgba(212, 175, 55, 0.6); color: var(--color-gold); }
+.editor-chips-label {
+  color: var(--color-ash);
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.12em;
+  margin-right: 0.125rem;
+  text-transform: uppercase;
+}
+.editor-tray-groups { display: flex; flex-direction: column; gap: 1.25rem; padding: 1rem; }
+.editor-tray-group-head { align-items: baseline; display: flex; gap: 0.625rem; }
+.editor-tray-group-head h3 { font-size: 0.8rem; font-weight: 600; }
+.editor-tray-group-head span {
+  color: var(--color-ash);
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.editor-tray-group-head button { color: var(--color-gold); font-size: 0.75rem; }
+.editor-thumbs { display: grid; gap: 0.375rem; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 0.5rem; }
+.editor-thumb {
+  aspect-ratio: 1;
+  background: var(--color-frame);
+  border-radius: 3px;
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  overflow: hidden;
+  position: relative;
+}
+.editor-thumb[aria-pressed="true"] { outline-color: var(--color-gold); }
+.editor-thumb img { height: 100%; object-fit: cover; transition: filter 150ms; width: 100%; }
+.editor-thumb:hover img { filter: brightness(1.12); }
+.editor-thumb-tag,
+.editor-thumb-used {
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
+  letter-spacing: 0.06em;
+  padding: 1px 5px;
+  position: absolute;
+  text-transform: uppercase;
+}
+.editor-thumb-tag { background: rgba(11, 11, 13, 0.72); color: var(--color-bone); left: 0.375rem; top: 0.375rem; }
+.editor-thumb-tag[data-untagged] { background: rgba(11, 11, 13, 0.4); border: 1px dashed rgba(255, 255, 255, 0.6); }
+.editor-thumb-used { background: rgba(212, 175, 55, 0.9); bottom: 0.375rem; color: var(--color-ink); right: 0.375rem; }
+.editor-thumb-order {
+  align-items: center;
+  background: var(--color-gold);
+  border-radius: 999px;
+  color: var(--color-ink);
+  display: flex;
+  font-size: 0.7rem;
+  font-weight: 600;
+  height: 1.25rem;
+  justify-content: center;
+  position: absolute;
+  right: 0.375rem;
+  top: 0.375rem;
+  width: 1.25rem;
+}
+.editor-tray-foot {
+  background: var(--color-frame);
+  border-top: 1px solid var(--color-hairline);
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  margin-top: auto;
+  padding: 0.75rem 1rem 1rem;
+  position: sticky;
+}
+.editor-tray-foot-row { align-items: center; display: flex; font-size: 0.8rem; gap: 0.5rem; justify-content: space-between; }
+.editor-tray-foot-row button { color: var(--color-ash); font-size: 0.75rem; }
+.editor-tray-foot .editor-danger { color: #f87171; }
+
+@container post (max-width: 48rem) {
+  .editor-insert-plus { left: auto; right: -0.75rem; }
+  .editor-insert-menu { left: 0; }
 }

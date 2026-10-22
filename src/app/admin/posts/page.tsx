@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { db } from '@/lib/db';
-import { PostForm } from '@/components/admin/PostForm';
+import { NewPostButton } from '@/components/admin/NewPostButton';
 import { LABEL } from '@/components/admin/fields';
 import { formatPostDate } from '@/lib/post/date';
 
@@ -10,13 +10,14 @@ export default async function AdminPostsPage() {
   // Drafts first, then newest published — the drafts are the ones needing work.
   const posts = await db.blogPost.findMany({
     orderBy: [{ draft: 'desc' }, { publishedAt: 'desc' }],
+    select: { id: true, title: true, slug: true, draft: true, publishedAt: true },
   });
 
   return (
     <div className="flex flex-col gap-10">
       <section>
         <h2 className={`mb-4 ${LABEL}`}>Write a post</h2>
-        <PostForm />
+        <NewPostButton />
       </section>
 
       <section>
@@ -32,7 +33,7 @@ export default async function AdminPostsPage() {
                 {post.draft ? 'draft' : 'live'}
               </span>
               <div className="min-w-0 flex-1">
-                <div className="truncate text-sm">{post.title}</div>
+                <div className="truncate text-sm">{post.title || 'Untitled'}</div>
                 <div className="truncate font-mono text-xs text-ash">
                   /journal/{post.slug} ·{' '}
                   {formatPostDate(post.publishedAt)}

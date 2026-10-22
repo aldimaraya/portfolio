@@ -15,11 +15,12 @@ export default async function JournalPage() {
   const posts = await db.blogPost.findMany({
     where: { draft: false },
     orderBy: { publishedAt: 'desc' },
+    select: { id: true, slug: true, title: true, content: true, markdownContent: true, publishedAt: true },
   });
 
   if (posts.length === 0) {
     return (
-      <main className="mx-auto max-w-[62rem]">
+      <main>
         <div className="journal-sheet">
           <p className="text-sm text-ash">No posts published yet.</p>
         </div>
@@ -29,8 +30,9 @@ export default async function JournalPage() {
 
   return (
     // The contents page of the same notebook: one sheet, entries ruled off from
-    // each other, dates in the margin the posts themselves use.
-    <main className="mx-auto max-w-[62rem]">
+    // each other, dates in the margin the posts themselves use. Full width, like
+    // a post's own sheet and the other surfaces; the excerpts keep their own cap.
+    <main>
       <div className="journal-sheet">
         <PostList posts={posts} />
       </div>

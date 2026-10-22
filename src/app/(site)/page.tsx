@@ -52,7 +52,7 @@ export default async function HomePage() {
       where: { draft: false },
       orderBy: { publishedAt: 'desc' },
       take: LATEST_POSTS,
-      select: { id: true, slug: true, title: true, markdownContent: true, publishedAt: true },
+      select: { id: true, slug: true, title: true, content: true, markdownContent: true, publishedAt: true },
     }),
     db.blogPost.count({ where: { draft: false } }),
     db.photo.findMany({
