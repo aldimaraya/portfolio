@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_EDGE, targetSize, webpFilename } from '@/lib/photo/compress';
+import { MAX_EDGE, encodedFilename, targetSize } from '@/lib/photo/compress';
 
 describe('targetSize', () => {
   it('leaves an image already within bounds untouched', () => {
@@ -32,20 +32,26 @@ describe('targetSize', () => {
   });
 });
 
-describe('webpFilename', () => {
+describe('encodedFilename', () => {
   it('swaps the extension', () => {
-    expect(webpFilename('DSCF1234.JPG')).toBe('DSCF1234.webp');
+    expect(encodedFilename('DSCF1234.JPG', 'image/webp')).toBe('DSCF1234.webp');
   });
 
   it('only replaces the final extension', () => {
-    expect(webpFilename('namsan.blue.hour.jpeg')).toBe('namsan.blue.hour.webp');
+    expect(encodedFilename('namsan.blue.hour.jpeg', 'image/webp')).toBe('namsan.blue.hour.webp');
   });
 
   it('appends when there is no extension', () => {
-    expect(webpFilename('untitled')).toBe('untitled.webp');
+    expect(encodedFilename('untitled', 'image/webp')).toBe('untitled.webp');
   });
 
   it('falls back to a name for a dotfile-only input', () => {
-    expect(webpFilename('.jpg')).toBe('photo.webp');
+    expect(encodedFilename('.jpg', 'image/webp')).toBe('photo.webp');
+  });
+
+  // Safari asked for WebP: the name has to follow the bytes it actually got.
+  it('names the format that was encoded, not the one that was asked for', () => {
+    expect(encodedFilename('IMG_0042.HEIC', 'image/jpeg')).toBe('IMG_0042.jpg');
+    expect(encodedFilename('IMG_0042.HEIC', 'image/png')).toBe('IMG_0042.png');
   });
 });
