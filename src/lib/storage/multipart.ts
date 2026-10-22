@@ -23,10 +23,23 @@ export interface CompletedPart {
 
 const PART_URL_TTL_SECONDS = 3600;
 
+/**
+ * Every key is minted fresh per upload (buildObjectKey) and nothing ever writes
+ * to one twice, so whatever is at a key is what will always be there. Without
+ * this the CDN hands browsers its four-hour default, and a returning visitor
+ * re-asks R2 about every sprite sheet and photo it already holds.
+ */
+const IMMUTABLE = 'public, max-age=31536000, immutable';
+
 /** Returns the R2 upload id. */
 export async function createMultipart(key: string, contentType: string): Promise<string> {
   const response = await r2().send(
-    new CreateMultipartUploadCommand({ Bucket: bucket(), Key: key, ContentType: contentType }),
+    new CreateMultipartUploadCommand({
+      Bucket: bucket(),
+      Key: key,
+      ContentType: contentType,
+      CacheControl: IMMUTABLE,
+    }),
   );
   if (!response.UploadId) throw new Error('R2 did not return an upload id');
   return response.UploadId;

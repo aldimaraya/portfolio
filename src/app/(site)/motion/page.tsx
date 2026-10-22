@@ -26,20 +26,22 @@ const GATED_CLIPS = 6;
  * neither a camera nor a location.
  *
  * The clips themselves live at /motion/[id], so this page mounts no video
- * element at all: arriving costs one sprite sheet per row and nothing else.
+ * element at all: arriving costs one poster per row and nothing else, and a
+ * row's sprite sheet waits until its preview is asked for — see SpritePreview.
  */
 export default async function MotionPage() {
   const [rolls, videos] = await Promise.all([
     loadRolls(),
     db.video.findMany({
       orderBy: [...CLIP_ORDER],
-      // Only what a row draws. The video and poster URLs belong to the clip
-      // page, and selecting them here would ship them to the browser for every
-      // clip nobody opens.
+      // Only what a row draws. The video URL belongs to the clip page, and
+      // selecting it here would ship it to the browser for every clip nobody
+      // opens.
       select: {
         id: true,
         rollId: true,
         spriteUrl: true,
+        posterImageUrl: true,
         spriteFrames: true,
         width: true,
         height: true,
@@ -70,7 +72,7 @@ export default async function MotionPage() {
 
       {grouped.length === 0 ? <p className="text-sm text-ash">No clips yet.</p> : null}
 
-      {/* The rows hold their cascade until the first sprite sheets are in, as the
+      {/* The rows hold their cascade until the first posters are in, as the
           stills wall does for its top row; the headings stay put, so the page
           has its shape the moment it arrives. */}
       <AssetGate className="relative flex flex-col gap-12 max-strip:gap-9">

@@ -83,7 +83,21 @@ body {
   background-color: #000;
 }
 
+/* Frame one on its own — the poster, drawn in the same pass as the sheet's first
+   frame, so the strip landing over it changes nothing until it starts to move.
+   See SpritePreview for why a row starts with this rather than the sheet. */
+.sprite-poster {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 .sprite-strip {
+  /* Positioned so it paints over the poster, which is absolutely positioned
+     and would otherwise sit on top of an in-flow strip. */
+  position: relative;
   display: block;
   height: 100%;
   /* The strip is deliberately wider than its window — without this, Preflight's
