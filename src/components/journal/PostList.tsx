@@ -1,11 +1,13 @@
 import Link from 'next/link';
-import { buildExcerpt } from '@/lib/excerpt';
 import { formatPostDate } from '@/lib/post/date';
+import { postExcerpt } from '@/lib/post/excerpt';
 
 export interface PostListItem {
   id: string;
   slug: string;
   title: string;
+  /** Both, because a post not yet saved as blocks is still summarised from its Markdown. */
+  content: unknown;
   markdownContent: string;
   publishedAt: Date;
 }
@@ -45,7 +47,7 @@ export function PostList({
                   an uncapped excerpt runs past 90 characters a line, which
                   is a long way past comfortable for a summary. */}
               <p className="font-journal mt-2 max-w-[58ch] text-sm leading-relaxed text-ash">
-                {buildExcerpt(post.markdownContent)}
+                {postExcerpt(post)}
               </p>
             </div>
           </Link>

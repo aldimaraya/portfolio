@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { db } from '@/lib/db';
-import { buildExcerpt } from '@/lib/excerpt';
+import { postExcerpt } from '@/lib/post/excerpt';
 import { siteUrl } from '@/lib/site-url';
 import {
   contentFor,
@@ -77,7 +77,7 @@ async function resolve(rows: AnnouncementRow[]): Promise<ResolvedBatch> {
   const [posts, clips, photos] = await Promise.all([
     db.blogPost.findMany({
       where: { id: { in: refs('journal') } },
-      select: { id: true, title: true, slug: true, markdownContent: true, draft: true },
+      select: { id: true, title: true, slug: true, content: true, markdownContent: true, draft: true },
     }),
     db.video.findMany({
       where: { id: { in: refs('motion') } },
@@ -113,7 +113,7 @@ async function resolve(rows: AnnouncementRow[]): Promise<ResolvedBatch> {
             id: post.id,
             title: post.title,
             slug: post.slug,
-            excerpt: buildExcerpt(post.markdownContent),
+            excerpt: postExcerpt(post),
           });
         }
       }

@@ -170,14 +170,53 @@ model SiteLink {
 }
 
 model BlogPost {
-  id              String   @id @default(cuid())
-  slug            String   @unique
-  title           String
-  markdownContent String
-  publishedAt     DateTime @default(now())
-  draft           Boolean  @default(true)
+  id    String @id @default(cuid())
+  slug  String @unique
+  title String
+
+  // The body as blocks — see PostContent in src/lib/post/content.ts. Null on a
+  // post last saved before the block editor existed, whose body is still the
+  // Markdown below and is converted on read (lib/markdown/legacy.ts). The first
+  // save from the editor fills this in, after which markdownContent is never
+  // read again. Kept rather than dropped so this stays additive: the deployed
+  // code reads it until the merge.
+  content         Json?
+  markdownContent String @default("")
+
+  publishedAt DateTime @default(now())
+  draft       Boolean  @default(true)
+
+  photos JournalPhoto[]
 
   @@index([draft, publishedAt])
+}
+
+// A photo uploaded into a journal post. Deliberately not a Photo: those are the
+// stills wall, which is curated, and a trip's snapshots do not belong on it.
+// Owned by one post and deleted with it (deletePost drops the R2 objects first).
+// A block refers to one by id — { kind: 'journal', id } in a photos block — so
+// a row with no block pointing at it is simply waiting in the tray.
+model JournalPhoto {
+  id       String       @id @default(cuid())
+  postId   String
+  post     BlogPost     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  imageUrl String
+  width    Int
+  height   Int
+
+  // From EXIF DateTimeOriginal at upload, for grouping a trip into days. Read
+  // before the re-encode strips it, like Photo.takenAt, and equally
+  // unrecoverable afterwards. Stored as the wall-clock time the camera recorded,
+  // in UTC fields — see lib/post/trip.ts for why the zone is ignored.
+  takenAt  DateTime?
+
+  // One of POST_CATEGORIES (lib/post/trip.ts), or null for untagged. A string
+  // rather than an enum so the list can change without a schema change.
+  category String?
+
+  createdAt DateTime @default(now())
+
+  @@index([postId, takenAt])
 }
 
 model Tag {

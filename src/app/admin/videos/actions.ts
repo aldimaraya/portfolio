@@ -222,6 +222,9 @@ export async function deleteVideo(id: string): Promise<{ error?: string }> {
     // and a reorder always does.
     revalidatePath('/motion', 'layout');
     revalidatePath('/');
+    // A clip block in a journal post refers to it by id; rebuilt, the post leaves
+    // it out rather than showing a player for a file that is gone.
+    revalidatePath('/journal', 'layout');
     return {};
   });
 }

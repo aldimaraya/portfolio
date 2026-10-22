@@ -169,6 +169,10 @@ export async function deletePhoto(id: string): Promise<{ error?: string }> {
     revalidatePath('/admin/photos');
     revalidatePath('/stills');
     revalidatePath('/');
+    // A journal post can show this photo (a photos block refers to it by id).
+    // The prerendered post would otherwise keep serving its now-404 image; rebuilt,
+    // the block simply leaves the photo out.
+    revalidatePath('/journal', 'layout');
     return {};
   });
 }
