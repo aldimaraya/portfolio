@@ -4,6 +4,7 @@ import Image from 'next/image';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { AdminEditLink } from '@/components/site/AdminEditLink';
+import { placeholderColor } from '@/lib/color/analyze';
 import { photoCaption } from '@/lib/photo/caption';
 import { editPhotoHref } from '@/lib/photo/lightbox-link';
 import type { PolaroidPhoto } from './Polaroid';
@@ -55,6 +56,11 @@ export function Lightbox({ photos, index, originFor, onClose, onNavigate }: Ligh
   /**
    * The overlay has to outlive the decision to close it, or there is nothing
    * left on screen to animate. Every dismissal sets this instead of unmounting,
+/** Starts the fade in, unless the photo was already marked as cached on mount. */
+function markLoaded(image: HTMLImageElement) {
+  if (!image.dataset.loaded) image.dataset.loaded = 'true';
+}
+
    * and the animation's own end event is what finally calls onClose.
    */
   const [closing, setClosing] = useState(false);
@@ -78,6 +84,14 @@ export function Lightbox({ photos, index, originFor, onClose, onNavigate }: Ligh
   /** Live touch: where the finger landed, and how far it has travelled. */
   const drag = useRef<{
     x: number;
+  /**
+   * The photo whose optimised copy failed, now being fetched straight from R2.
+   * The optimiser gives its own fetch of the original seven seconds, and a large
+   * original on a slow line runs out of them — the browser has no such limit.
+   * Without this the photo would wait on its colour forever, faded out with
+   * nothing coming. Held by id so the next photo starts optimised again.
+   */
+  const [direct, setDirect] = useState<string | null>(null);
     y: number;
     dx: number;
     dy: number;
@@ -142,6 +156,10 @@ export function Lightbox({ photos, index, originFor, onClose, onNavigate }: Ligh
 
   /**
    * The expand. FLIP, the same technique the wall uses for its re-flow: the mat
+    // Before paint, so a photo the browser already had never shows a frame of
+    // bare colour — see .lightbox-photo[data-loaded] for why it skips the fade.
+    if (node.complete && node.naturalWidth > 0) node.dataset.loaded = 'cached';
+
    * is already laid out at full size, so it is played back from the frame you
    * clicked — offset to that frame's centre and scaled down to its width —
    * which reads as the print being lifted off the wall rather than a new panel
@@ -364,22 +382,48 @@ export function Lightbox({ photos, index, originFor, onClose, onNavigate }: Ligh
           onTouchEnd={onTouchEnd}
           onTouchCancel={onTouchEnd}
         >
-          <Image
-            key={photo.id}
-            ref={imageRef}
-            src={photo.imageUrl}
-            alt={caption.label}
-            // Intrinsic dimensions rather than `fill`: the mat has to take its
-            // size from the picture, and a filled image contributes none.
-            width={photo.width}
-            height={photo.height}
-            sizes="100vw"
-            priority
-            // The picture is dragged by its mat, not on its own — without this,
-            // a swipe on the photo starts a native image drag instead.
-            draggable={false}
-            className="lightbox-photo"
-          />
+          {/* The wall's placeholder, carried up to the mat: the photo's average
+              colour fills its box until the pixels land, and the photo fades in
+              over it, so a slow load reads as the print developing rather than
+              an empty mat that suddenly fills. */}
+          <div
+            className="lightbox-print"
+            style={{ backgroundColor: placeholderColor(photo) }}
+          >
+            <Image
+              key={photo.id}
+              ref={imageRef}
+              src={photo.imageUrl}
+              alt={caption.label}
+              // Intrinsic dimensions rather than `fill`: the mat has to take its
+              // size from the picture, and a filled image contributes none.
+              width={photo.width}
+              height={photo.height}
+              sizes="100vw"
+              priority
+              // The picture is dragged by its mat, not on its own — without this,
+              // a swipe on the photo starts a native image drag instead.
+              draggable={false}
+              className="lightbox-photo"
+              // Written straight to the element rather than through state: the
+              // key above gives every photo a fresh <img>, so there is nothing to
+              // reset, and a re-render for a value only CSS reads buys nothing.
+              // Deliberately not on error: a photo that never arrives stays
+              // hidden, and its colour on the mat beats a broken-image icon.
+              onLoad={(event) => markLoaded(event.currentTarget)}
+              // One retry, past the optimiser — see `direct`. A failure from R2
+              // itself sets the same id again, which renders nothing new.
+              unoptimized={direct === photo.id}
+              onError={() => setDirect(photo.id)}
+              // The ratio and width size the box before load — see .lightbox-photo.
+              style={
+                {
+                  '--photo-ratio': `${photo.width} / ${photo.height}`,
+                  '--photo-width': `${photo.width}px`,
+                } as React.CSSProperties
+              }
+            />
+          </div>
           {/* Capped to the photo's own rendered width (captionWidth, tracked above),
               not the other way around — the mat sizes itself to its widest child, and
               without this a long caption on a narrow portrait photo would stretch the

@@ -411,21 +411,54 @@ body {
  * circular — the image would be waiting on a height the image itself decides.
  *
  * --lightbox-chrome is everything stacked around the picture: the counter row
- * above, the mat's own padding, and the caption printed across its foot. */
+ * above, the mat's own padding, and the caption printed across its foot.
+ *
+ * The width is worked out from the photo's stored ratio and width (set inline
+ * by Lightbox) rather than left `auto`: an `auto` image is 0×0 until its pixels
+ * arrive, so the mat opened as a thin strip and the photo burst it open on load,
+ * with nothing to paint its average colour on in the meantime. The three terms
+ * are the same three limits `auto` plus the max-* caps used to resolve to — the
+ * original's own width, the side budget, and the height budget converted
+ * through the ratio. */
 .lightbox-photo {
   --lightbox-chrome: 12rem;
-  max-height: calc(100dvh - var(--lightbox-chrome));
-  max-width: calc(100vw - 7rem);
-  width: auto;
+  --lightbox-side: 7rem;
+  aspect-ratio: var(--photo-ratio);
+  width: min(
+    var(--photo-width),
+    calc(100vw - var(--lightbox-side)),
+    calc((100dvh - var(--lightbox-chrome)) * var(--photo-ratio))
+  );
   height: auto;
   object-fit: contain;
-  /* The mat (figure) is a flex column with no width of its own, so by default
-     this stretches to fill whatever cross size the mat resolves to — which,
-     for a shrink-to-fit container, is circular: the photo's own rendered width
-     would depend on the mat's width at the same time the mat is trying to size
-     itself from the photo. Pinning this to its own aspect-ratio-derived size
-     breaks that loop, which is what the caption's width measurement below
-     depends on being stable. */
+  /* Hidden until its pixels have landed, over the average colour the frame
+     behind it is painted with — see .lightbox-print. */
+  opacity: 0;
+}
+
+/* `cached` is a photo that was already in the browser when it mounted — the
+   neighbour the lightbox prefetched, nearly always. It skips the fade: it
+   arrives under the slide's own fade, and making a photo that is already here
+   pretend to develop would only slow every arrow press down. */
+.lightbox-photo[data-loaded] {
+  opacity: 1;
+}
+
+.lightbox-photo[data-loaded='true'] {
+  transition: opacity 320ms ease-out;
+}
+
+/* The frame the photo fades in over, carrying its average colour. The colour
+   cannot sit on the image itself: fading the image would fade it out too.
+ *
+ * The mat (figure) is a flex column with no width of its own, so by default
+ * this stretches to fill whatever cross size the mat resolves to — which, for a
+ * shrink-to-fit container, is circular: the photo's own rendered width would
+ * depend on the mat's width at the same time the mat is trying to size itself
+ * from the photo. Centring it lets it shrink to the photo's aspect-ratio-derived
+ * size instead, which breaks that loop, and which the caption's width
+ * measurement depends on being stable. */
+.lightbox-print {
   align-self: center;
 }
 
@@ -433,7 +466,7 @@ body {
    over the mat, and there is no room to inset them as well. */
 @media (max-width: 40rem) {
   .lightbox-photo {
-    max-width: calc(100vw - 3rem);
+    --lightbox-side: 3rem;
   }
 }
 
