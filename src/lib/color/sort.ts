@@ -66,9 +66,10 @@ function randomFrom(seed: number): () => number {
   };
 }
 
-function shufflePhotos<T>(photos: T[], seed: number): T[] {
+/** Fisher–Yates on a copy. Exported for the home page, which deals from it too. */
+export function shuffle<T>(items: readonly T[], seed: number): T[] {
   const next = randomFrom(seed);
-  const result = [...photos];
+  const result = [...items];
   for (let i = result.length - 1; i > 0; i -= 1) {
     const j = Math.floor(next() * (i + 1));
     [result[i], result[j]] = [result[j], result[i]];
@@ -101,7 +102,7 @@ export function sortPhotosForWall<T extends SortablePhoto>(
   sort: WallSort = 'warm',
   seed = 1,
 ): T[] {
-  if (sort === 'random') return shufflePhotos(photos, seed);
+  if (sort === 'random') return shuffle(photos, seed);
   if (sort === 'newest' || sort === 'oldest') return sortPhotosByDate(photos, sort);
 
   const monochrome = photos

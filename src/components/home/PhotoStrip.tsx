@@ -5,7 +5,9 @@ import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { GateLoader, useGatedAsset, useGateHold } from '@/components/site/AssetGate';
 import { CARD_PADDING, Polaroid, type PolaroidPhoto } from '@/components/stills/Polaroid';
 import { justifyRows } from '@/lib/photo/justify';
+import { shuffle } from '@/lib/color/sort';
 import { OPEN_PHOTO_PARAM } from '@/lib/photo/lightbox-link';
+import { useVisitSeed } from './useVisitSeed';
 
 /** Matches the row's gap-5, as the wall's own GAP does. */
 const GAP = 20;
@@ -29,8 +31,10 @@ const NARROW_ROWS = 2;
 const CAPTION_ALLOWANCE = 58;
 
 /**
- * The newest stills as justified rows of the wall's own polaroids — the same
- * packing as /stills, cut off after the first row (two on a phone). Rows rather
+ * A fresh deal of stills on every load, as justified rows of the wall's own
+ * polaroids — the same packing as /stills, cut off after the first row (two on a
+ * phone). Shuffled before packing rather than after, so the rows are justified
+ * around the photos actually shown. Rows rather
  * than a fixed count: a row is complete at every width, where a fixed count
  * leaves a ragged end on one screen and an empty slot on another.
  *
@@ -57,10 +61,15 @@ export function PhotoStrip({ photos }: { photos: PolaroidPhoto[] }) {
   const narrow = width > 0 && width < NARROW_BELOW;
   const targetHeight = narrow ? NARROW_TARGET_HEIGHT : TARGET_HEIGHT;
 
+  const seed = useVisitSeed();
+
   const placed = useMemo(() => {
-    if (width === 0) return [];
+    // Nothing until the seed is in too: a frame placed from the unshuffled order
+    // would start fetching its image, and count into the gate, only to be
+    // replaced a render later.
+    if (width === 0 || seed === null) return [];
     const rows = justifyRows(
-      photos.map((photo) => ({
+      shuffle(photos, seed).map((photo) => ({
         id: photo.id,
         ratio: photo.height > 0 ? photo.width / photo.height : 1,
       })),
@@ -71,7 +80,7 @@ export function PhotoStrip({ photos }: { photos: PolaroidPhoto[] }) {
     // rather than stretched, so a short final row would end ragged.
     const complete = rows.length > 1 ? rows.slice(0, -1) : rows;
     return complete.slice(0, narrow ? NARROW_ROWS : 1).flat();
-  }, [photos, width, targetHeight, narrow]);
+  }, [photos, width, targetHeight, narrow, seed]);
 
   const byId = useMemo(() => new Map(photos.map((photo) => [photo.id, photo])), [photos]);
 

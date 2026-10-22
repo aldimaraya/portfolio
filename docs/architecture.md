@@ -32,10 +32,14 @@ One Next.js App Router application, four surfaces:
 | Admin | `/admin/**`, `/login` | One password-protected area managing all of it |
 
 `/` is a home page summarising the other three — the latest posts, a justified
-row of the newest stills, the newest clips, and the newsletter signup — and it
+row of stills and a few clips dealt at random on every load, and the newsletter
+signup — and it
 carries the `WebSite` and `Person` JSON-LD, since it is where a search for the
 name lands. It reuses each surface's own components rather than restyling them,
-and every action that revalidates a surface revalidates `/` too. The public
+and every action that revalidates a surface revalidates `/` too. The deal happens
+in the browser (`components/home/useVisitSeed.ts`) so that `/` stays static: the
+page ships the newest 120 stills and every clip, and picks from them after
+hydration. The public
 pages share chrome through the
 `(site)` route group — a group rather than a wrapper component, so a new public
 page cannot forget to include it. `/admin` and `/login` sit outside it with
