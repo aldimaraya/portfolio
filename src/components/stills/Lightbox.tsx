@@ -20,8 +20,14 @@ interface LightboxProps {
 
 const EASE = 'cubic-bezier(0.22, 1, 0.36, 1)';
 
-/** The expand out of the wall frame, and the shrink back into it. */
-const EXPAND_MS = 280;
+/**
+ * The expand out of the wall frame. Its own curve, not EASE: EASE does three
+ * quarters of its travel in the first quarter of its time, which suits a slide
+ * or a spring-back but turned the expand into a pop. This one starts gently and
+ * spends its time in the middle, so the print is seen leaving the wall.
+ */
+const EXPAND_MS = 360;
+const EXPAND_EASE = 'cubic-bezier(0.33, 0, 0.2, 1)';
 /** Kept in step with .lightbox[data-flip='true'][data-closing='true'] in globals.css. */
 const COLLAPSE_MS = 220;
 
@@ -50,22 +56,23 @@ function prefersReducedMotion(): boolean {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
+/** Starts the fade in, unless the photo was already marked as cached on mount. */
+function markLoaded(image: HTMLImageElement) {
+  if (!image.dataset.loaded) image.dataset.loaded = 'true';
+}
+
 export function Lightbox({ photos, index, originFor, onClose, onNavigate }: LightboxProps) {
   const photo = photos[index];
   const searchParams = useSearchParams();
   /**
    * The overlay has to outlive the decision to close it, or there is nothing
    * left on screen to animate. Every dismissal sets this instead of unmounting,
-/** Starts the fade in, unless the photo was already marked as cached on mount. */
-function markLoaded(image: HTMLImageElement) {
-  if (!image.dataset.loaded) image.dataset.loaded = 'true';
-}
-
    * and the animation's own end event is what finally calls onClose.
    */
   const [closing, setClosing] = useState(false);
   const requestClose = useCallback(() => setClosing(true), []);
 
+  const overlayRef = useRef<HTMLDivElement>(null);
   const figureRef = useRef<HTMLElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   /**
@@ -77,13 +84,6 @@ function markLoaded(image: HTMLImageElement) {
    * viewport, so no fixed number is right for every photo.
    */
   const [captionWidth, setCaptionWidth] = useState<number>();
-  /** Whether the expand ran, which is also whether the shrink should. */
-  const expanded = useRef(false);
-  /** The index the last render showed, for the direction of the slide. */
-  const shown = useRef(index);
-  /** Live touch: where the finger landed, and how far it has travelled. */
-  const drag = useRef<{
-    x: number;
   /**
    * The photo whose optimised copy failed, now being fetched straight from R2.
    * The optimiser gives its own fetch of the original seven seconds, and a large
@@ -92,6 +92,13 @@ function markLoaded(image: HTMLImageElement) {
    * nothing coming. Held by id so the next photo starts optimised again.
    */
   const [direct, setDirect] = useState<string | null>(null);
+  /** Whether the expand ran, which is also whether the shrink should. */
+  const expanded = useRef(false);
+  /** The index the last render showed, for the direction of the slide. */
+  const shown = useRef(index);
+  /** Live touch: where the finger landed, and how far it has travelled. */
+  const drag = useRef<{
+    x: number;
     y: number;
     dx: number;
     dy: number;
@@ -149,6 +156,10 @@ function markLoaded(image: HTMLImageElement) {
     const node = imageRef.current;
     if (!node) return;
 
+    // Before paint, so a photo the browser already had never shows a frame of
+    // bare colour — see .lightbox-photo[data-loaded] for why it skips the fade.
+    if (node.complete && node.naturalWidth > 0) node.dataset.loaded = 'cached';
+
     const observer = new ResizeObserver(([entry]) => setCaptionWidth(entry.contentRect.width));
     observer.observe(node);
     return () => observer.disconnect();
@@ -156,10 +167,6 @@ function markLoaded(image: HTMLImageElement) {
 
   /**
    * The expand. FLIP, the same technique the wall uses for its re-flow: the mat
-    // Before paint, so a photo the browser already had never shows a frame of
-    // bare colour — see .lightbox-photo[data-loaded] for why it skips the fade.
-    if (node.complete && node.naturalWidth > 0) node.dataset.loaded = 'cached';
-
    * is already laid out at full size, so it is played back from the frame you
    * clicked — offset to that frame's centre and scaled down to its width —
    * which reads as the print being lifted off the wall rather than a new panel
@@ -167,23 +174,41 @@ function markLoaded(image: HTMLImageElement) {
    *
    * Runs once, on open. Reduced motion, or a frame that is not on screen to
    * grow from, leaves this alone and the overlay's own fade carries the entry.
+   *
+   * The cleanup is load-bearing, not tidiness. Strict Mode runs this twice on
+   * mount, and the second run measures the mat while the first animation is
+   * still holding it over the wall frame — so it computes an expand of nothing,
+   * which, being the newer animation, overrides the real one.
    */
   useLayoutEffect(() => {
+    const overlay = overlayRef.current;
     const figure = figureRef.current;
     const origin = originFor?.(index);
-    if (!figure || !origin || prefersReducedMotion()) return;
+    if (!overlay || !figure || !origin || prefersReducedMotion()) return;
 
     const box = figure.getBoundingClientRect();
     if (box.width === 0 || origin.width === 0) return;
 
-    figure.animate(
+    const animation = figure.animate(
       [
         { transform: flipTransform(origin, box), opacity: 0.4 },
         { transform: 'none', opacity: 1 },
       ],
-      { duration: EXPAND_MS, easing: EASE },
+      { duration: EXPAND_MS, easing: EXPAND_EASE },
     );
     expanded.current = true;
+    // Tells the stylesheet the mat is carrying the motion itself, so the overlay
+    // fades in only its backdrop — see .lightbox[data-flip]. Set here, before
+    // paint, rather than rendered, because only this effect knows whether there
+    // was a frame to grow from; and written to the element for the same reason
+    // as the photo's data-loaded.
+    overlay.dataset.flip = 'true';
+
+    return () => {
+      animation.cancel();
+      expanded.current = false;
+      delete overlay.dataset.flip;
+    };
     // Open only — `index` is deliberately not a dependency, or every arrow press
     // would re-run the expand instead of the slide below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -320,6 +345,7 @@ function markLoaded(image: HTMLImageElement) {
 
   return (
     <div
+      ref={overlayRef}
       role="dialog"
       aria-modal="true"
       aria-label={caption.label}
@@ -327,10 +353,6 @@ function markLoaded(image: HTMLImageElement) {
       // tells you which regions dismiss and which do not.
       className="lightbox fixed inset-0 z-50 flex cursor-zoom-out flex-col bg-black/95 backdrop-blur-sm"
       data-closing={closing ? 'true' : undefined}
-      // Tells the stylesheet the mat is carrying the motion itself, so the
-      // overlay drops its own scale and just dissolves — two scales at once
-      // would read as a lens breathing.
-      data-flip={originFor ? 'true' : undefined}
       onClick={requestClose}
       // Scoped to this element: the entry animation on a child would otherwise
       // bubble up here and tear the overlay down the moment it opened.
@@ -338,7 +360,7 @@ function markLoaded(image: HTMLImageElement) {
         if (closing && event.target === event.currentTarget) onClose();
       }}
     >
-      <div className="flex items-center justify-between px-5 py-4 text-xs">
+      <div className="lightbox-chrome flex items-center justify-between px-5 py-4 text-xs">
         <div className="font-mono tracking-[0.05em] text-ash">
           {index + 1} / {photos.length}
         </div>
@@ -450,7 +472,7 @@ function markLoaded(image: HTMLImageElement) {
             part of the print. */}
         <p
           aria-hidden
-          className={`pointer-events-none absolute inset-x-0 bottom-1 text-center font-mono text-[0.65rem] tracking-[0.08em] text-ash/70 uppercase transition-opacity duration-500 sm:hidden ${
+          className={`lightbox-chrome pointer-events-none absolute inset-x-0 bottom-1 text-center font-mono text-[0.65rem] tracking-[0.08em] text-ash/70 uppercase transition-opacity duration-500 sm:hidden ${
             hint ? 'opacity-100' : 'opacity-0'
           }`}
         >
@@ -542,7 +564,7 @@ function NavButton({
       // Hidden on a phone, where they had nowhere to sit but on top of the
       // photograph and the swipe already does the job better. A pointer has no
       // swipe, so from sm up they stay.
-      className={`absolute ${side === 'left' ? 'left-2' : 'right-2'} z-10 hidden h-12 w-12 items-center justify-center rounded-full bg-frame/70 text-2xl text-ash transition hover:bg-frame hover:text-gold sm:flex`}
+      className={`lightbox-chrome absolute ${side === 'left' ? 'left-2' : 'right-2'} z-10 hidden h-12 w-12 items-center justify-center rounded-full bg-frame/70 text-2xl text-ash transition hover:bg-frame hover:text-gold sm:flex`}
     >
       {side === 'left' ? '‹' : '›'}
     </button>

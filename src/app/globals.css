@@ -477,12 +477,29 @@ body {
 }
 
 /* Set once the mat is expanding out of its wall frame under its own animation
-   (see Lightbox). The backdrop then only dissolves: two scales running at once
-   — the overlay's and the mat's — read as a lens breathing rather than as one
-   print being lifted. The closing duration is what unmounts the overlay, so it
+   (see Lightbox). The overlay then fades in only its backdrop, not itself: two
+   scales running at once — the overlay's and the mat's — read as a lens
+   breathing, and fading the whole overlay fades the mat with it, which hid the
+   expand — it is front-loaded, so most of it ran while everything was still
+   nearly transparent. The closing duration is what unmounts the overlay, so it
    must outlast the shrink; COLLAPSE_MS in Lightbox is the number to match. */
 .lightbox[data-flip='true'] {
-  animation-name: page-fade;
+  animation-name: lightbox-backdrop-in;
+}
+
+/* The counter, close button and arrows are not part of the print, so they
+   take the dissolve the overlay no longer gives them. */
+.lightbox[data-flip='true'] .lightbox-chrome {
+  animation: page-fade 200ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+/* No `to`: it settles on the overlay's own background and blur, so the colour
+   lives in one place — the Tailwind classes on the element. */
+@keyframes lightbox-backdrop-in {
+  from {
+    background-color: transparent;
+    backdrop-filter: none;
+  }
 }
 
 .lightbox[data-flip='true'][data-closing='true'] {
