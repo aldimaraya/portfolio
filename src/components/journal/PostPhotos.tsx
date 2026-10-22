@@ -30,9 +30,8 @@ export function shownImages(block: BlockOf<'photos'>, media: PostMedia): ShownIm
 }
 
 /**
- * A photos block: its pictures on the warm mat a still is printed on, laid out
- * as the block says. Returns nothing when every photo it named has since been
- * deleted, rather than an empty mat.
+ * A photos block: its pictures laid out as the block says. Returns nothing when
+ * every photo it named has since been deleted, rather than an empty figure.
  */
 export function PostPhotos({ block, media }: { block: BlockOf<'photos'>; media: PostMedia }) {
   const images = shownImages(block, media);
