@@ -1,7 +1,7 @@
 import Link from 'next/link';
+import { ClipSample } from '@/components/home/ClipSample';
 import { PhotoStrip } from '@/components/home/PhotoStrip';
 import { PostList } from '@/components/journal/PostList';
-import { ClipRow } from '@/components/motion/ClipRow';
 import { SubscribeForm } from '@/components/newsletter/SubscribeForm';
 import { AssetGate } from '@/components/site/AssetGate';
 import { JsonLd } from '@/components/site/JsonLd';
@@ -22,19 +22,24 @@ export const metadata: Metadata = {
 };
 
 const LATEST_POSTS = 3;
-const LATEST_CLIPS = 3;
+const SAMPLE_CLIPS = 3;
 /**
- * More than the strip will ever hold. PhotoStrip keeps only its first complete
- * rows, and how many photos fit depends on the width and on how many of these
- * are portrait.
+ * What the strip deals from: the newest this many, which today is the whole
+ * library. PhotoStrip shuffles them and keeps only its first complete rows. A
+ * cap rather than every photo, because the whole pool is shipped in the page so
+ * that the deal can happen in the browser, and a front door's payload should not
+ * grow with the archive.
  */
-const STRIP_CANDIDATES = 12;
+const STRIP_POOL = 120;
 
 /**
- * The front door: a little of everything, newest first in each kind, in the
- * nav's own order so the page reads as a preview of the tabs above it.
- * Statically rendered like the pages it summarises, and revalidated by the same
- * post, photo and video actions that rebuild them.
+ * The front door: a little of everything, in the nav's own order so the page
+ * reads as a preview of the tabs above it. The posts are the newest; the stills
+ * and clips are dealt at random on every load (useVisitSeed), so a return visit
+ * shows a different corner of the work. Statically rendered like the pages it
+ * summarises, and revalidated by the same post, photo and video actions that
+ * rebuild them — the shuffle runs in the browser rather than making this page
+ * dynamic.
  *
  * Every section links on to the full surface it was cut from, and none of them
  * re-implements its surface: the posts are the journal's own list, the frames the
@@ -52,7 +57,7 @@ export default async function HomePage() {
     db.blogPost.count({ where: { draft: false } }),
     db.photo.findMany({
       orderBy: { createdAt: 'desc' },
-      take: STRIP_CANDIDATES,
+      take: STRIP_POOL,
       select: {
         id: true,
         imageUrl: true,
@@ -71,8 +76,9 @@ export default async function HomePage() {
       },
     }),
     loadRolls(),
-    // Every clip, not just the newest few: a clip's frame code is its place on its
-    // roll, so the rolls have to be laid out in full before any can be quoted.
+    // Every clip: a clip's frame code is its place on its roll, so the rolls have
+    // to be laid out in full before any can be quoted — and every one is in the
+    // deal anyway.
     db.video.findMany({
       orderBy: [...CLIP_ORDER],
       select: {
@@ -91,10 +97,11 @@ export default async function HomePage() {
     }),
   ]);
 
-  const latestClips = groupIntoRolls(rolls, videos)
+  // Newest first, which is only what the prerendered HTML shows until the deal —
+  // see ClipSample.
+  const clips = groupIntoRolls(rolls, videos)
     .flatMap((roll) => roll.clips.map((clip, index) => ({ clip, index, letter: roll.letter })))
-    .sort((a, b) => b.clip.createdAt.getTime() - a.clip.createdAt.getTime())
-    .slice(0, LATEST_CLIPS);
+    .sort((a, b) => b.clip.createdAt.getTime() - a.clip.createdAt.getTime());
 
   const strip = photos.map((photo) => ({ ...photo, settings: toSettings(photo.settings) }));
 
@@ -120,7 +127,7 @@ export default async function HomePage() {
           </section>
         ) : null}
 
-        {latestClips.length > 0 ? (
+        {clips.length > 0 ? (
           <section aria-labelledby="home-motion">
             <SectionHeading
               id="home-motion"
@@ -129,16 +136,7 @@ export default async function HomePage() {
               href="/motion"
               more="Every roll"
             />
-            {/* The roll's own row markup, minus the rail: the perforations are the
-                motion page's set piece, and a three-row stub of them reads as a
-                broken version of it rather than a preview. */}
-            <ul>
-              {latestClips.map(({ clip, index, letter }) => (
-                <li key={clip.id} className="border-b border-hairline first:border-t">
-                  <ClipRow clip={clip} index={index} letter={letter} gated />
-                </li>
-              ))}
-            </ul>
+            <ClipSample clips={clips} count={SAMPLE_CLIPS} />
           </section>
         ) : null}
       </AssetGate>
