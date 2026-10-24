@@ -14,7 +14,7 @@ export default async function EditPostPage({ params }: { params: Promise<{ id: s
       // Every photo uploaded into the post, used by a block or not: the tray
       // shows them all.
       photos: {
-        select: { id: true, imageUrl: true, width: true, height: true, takenAt: true, category: true },
+        select: { id: true, imageUrl: true, width: true, height: true, takenAt: true, category: true, fingerprint: true, place: true },
         orderBy: [{ takenAt: 'asc' }, { createdAt: 'asc' }],
       },
     },

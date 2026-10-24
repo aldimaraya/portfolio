@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useRef, useState } from 'react';
-import { deleteJournalPhotos, tagJournalPhotos, type JournalPhotoRow } from '@/app/admin/posts/actions';
+import { deleteJournalPhotos, placeJournalPhotos, tagJournalPhotos, type JournalPhotoRow } from '@/app/admin/posts/actions';
 import type { PhotoRef } from '@/lib/post/content';
 import type { ResolvedImage } from '@/lib/post/media';
 import {
@@ -10,16 +10,23 @@ import {
   formatDayKey,
   groupByCategory,
   groupByDay,
+  groupByPlace,
   isPostCategory,
   POST_CATEGORIES,
   type TrayPhoto,
 } from '@/lib/post/trip';
 import { useLibrary } from './fields';
-import { useTripUploads } from './useTripUploads';
+import { batchFraction, useTripUploads, type UploadStage } from './useTripUploads';
 
 type Tab = 'trip' | 'wall';
-type Grouping = 'day' | 'category';
+type Grouping = 'day' | 'category' | 'place';
 type Filter = 'all' | 'untagged' | (typeof POST_CATEGORIES)[number]['id'];
+
+const STAGE_LABEL: Record<UploadStage, string> = {
+  preparing: 'Preparing',
+  uploading: 'Uploading',
+  saving: 'Adding',
+};
 
 interface Props {
   postId: string;
@@ -30,7 +37,10 @@ interface Props {
   targetLabel: string | null;
   onClearTarget: () => void;
   onUploaded: (photo: JournalPhotoRow) => void;
+  /** A stored photo that a skipped duplicate's original gave a date or place. */
+  onFilled: (photo: JournalPhotoRow) => void;
   onTagged: (ids: string[], category: string | null) => void;
+  onPlaced: (ids: string[], place: string | null) => void;
   onDeleted: (ids: string[]) => void;
   /** Puts photos into the post; stills come with what is needed to draw them. */
   onAdd: (refs: PhotoRef[], stills?: Record<string, ResolvedImage>) => void;
@@ -80,15 +90,29 @@ export function PhotoTray(props: Props) {
   );
 }
 
-function TripTab({ postId, photos, used, onUploaded, onTagged, onDeleted, onAdd, onLayoutDays, targetLabel }: Props) {
+function TripTab({
+  postId,
+  photos,
+  used,
+  onUploaded,
+  onFilled,
+  onTagged,
+  onPlaced,
+  onDeleted,
+  onAdd,
+  onLayoutDays,
+  targetLabel,
+}: Props) {
   const [grouping, setGrouping] = useState<Grouping>('day');
   const [filter, setFilter] = useState<Filter>('all');
   const [picked, setPicked] = useState<string[]>([]);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [error, setError] = useState('');
   const [dragging, setDragging] = useState(false);
+  const [placeDraft, setPlaceDraft] = useState('');
   const input = useRef<HTMLInputElement>(null);
-  const uploads = useTripUploads(postId, onUploaded);
+  const uploads = useTripUploads(postId, onUploaded, onFilled);
+  const knownPlaces = useMemo(() => groupByPlace(photos).flatMap((group) => (group.place ? [group.place] : [])), [photos]);
 
   const visible = useMemo(
     () =>
@@ -99,6 +123,16 @@ function TripTab({ postId, photos, used, onUploaded, onTagged, onDeleted, onAdd,
   );
 
   const groups = useMemo(() => {
+    if (grouping === 'place') {
+      return groupByPlace(visible).map((group) => ({
+        key: group.place ?? 'unplaced',
+        title: group.place ?? 'No place',
+        sub: group.place
+          ? `${group.photos.length} ${group.photos.length === 1 ? 'photo' : 'photos'}`
+          : `${group.photos.length} without a location — select and set a place`,
+        photos: group.photos,
+      }));
+    }
     if (grouping === 'category') {
       return groupByCategory(visible).map((group) => ({
         key: group.id ?? 'untagged',
@@ -137,6 +171,19 @@ function TripTab({ postId, photos, used, onUploaded, onTagged, onDeleted, onAdd,
     onTagged(ids, category);
     const result = await tagJournalPhotos({ postId, ids, category });
     if (result.error) setError(result.error);
+  }
+
+  async function setPlace(place: string | null) {
+    const ids = picked;
+    setError('');
+    const result = await placeJournalPhotos({ postId, ids, place });
+    if (result.error) {
+      setError(result.error);
+      return;
+    }
+    // The server's tidied name, so the tray groups by exactly what was stored.
+    onPlaced(ids, result.place ?? null);
+    setPlaceDraft('');
   }
 
   async function remove() {
@@ -205,33 +252,66 @@ function TripTab({ postId, photos, used, onUploaded, onTagged, onDeleted, onAdd,
 
         {progress.total ? (
           <div className="editor-upload-status" role="status">
+            <div
+              className="editor-upload-bar"
+              role="progressbar"
+              aria-label="Upload progress"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(batchFraction(progress) * 100)}
+              data-failed={(!progress.current && progress.failed.length > 0) || undefined}
+            >
+              <span style={{ width: `${batchFraction(progress) * 100}%` }} />
+            </div>
             {progress.current ? (
               <span>
-                Uploading {Math.min(progress.done + 1, progress.total)} of {progress.total} · {progress.current.percent}%
+                {Math.min(progress.done + 1, progress.total)} of {progress.total} · {STAGE_LABEL[progress.current.stage]}{' '}
+                {progress.current.name}
+                {progress.current.stage === 'uploading' ? ` · ${progress.current.percent}%` : '…'}
+                {progress.failed.length ? <span className="editor-error"> · {progress.failed.length} failed</span> : null}
               </span>
             ) : (
               <span>
-                Uploaded {progress.done - progress.failed.length} of {progress.total}
+                Uploaded {progress.done - progress.failed.length - progress.skipped.length} of {progress.total}
+                {progress.failed.length ? (
+                  <button type="button" onClick={uploads.retry}>
+                    Retry {progress.failed.length} failed
+                  </button>
+                ) : null}
                 <button type="button" onClick={uploads.dismiss}>
                   Dismiss
                 </button>
               </span>
             )}
-            {progress.failed.map((failure) => (
-              <span key={failure.name} className="editor-error">
+            {progress.failed.map((failure, index) => (
+              <span key={`${failure.name}-${index}`} className="editor-error">
                 {failure.name}: {failure.reason}
               </span>
             ))}
+            {progress.skipped.length ? (
+              <span>
+                Already in this post, so skipped:{' '}
+                {progress.skipped
+                  .map(({ name, filled }) => (filled.length ? `${name} (added its ${filled.join(' and ')})` : name))
+                  .join(', ')}
+                {progress.current ? null : (
+                  <button type="button" onClick={uploads.uploadSkipped}>
+                    Upload {progress.skipped.length === 1 ? 'it' : 'them'} anyway
+                  </button>
+                )}
+              </span>
+            ) : null}
           </div>
         ) : null}
 
         {photos.length ? (
-          <>
+          <div className="editor-tray-controls">
             <div role="group" aria-label="Group by" className="editor-segmented editor-segmented--small">
               {(
                 [
                   ['day', 'By day'],
                   ['category', 'By category'],
+                  ['place', 'By place'],
                 ] as const
               ).map(([id, label]) => (
                 <button key={id} type="button" aria-pressed={grouping === id} onClick={() => setGrouping(id)}>
@@ -252,7 +332,7 @@ function TripTab({ postId, photos, used, onUploaded, onTagged, onDeleted, onAdd,
                 </button>
               ))}
             </div>
-          </>
+          </div>
         ) : null}
       </div>
 
@@ -278,7 +358,8 @@ function TripTab({ postId, photos, used, onUploaded, onTagged, onDeleted, onAdd,
                     type="button"
                     className="editor-thumb"
                     aria-pressed={order >= 0}
-                    aria-label={`${categoryLabel(photo.category)} photo${order >= 0 ? ', selected' : ''}${used.has(photo.id) ? ', in the post' : ''}`}
+                    title={photo.place ?? undefined}
+                    aria-label={`${categoryLabel(photo.category)} photo${photo.place ? ` in ${photo.place}` : ''}${order >= 0 ? ', selected' : ''}${used.has(photo.id) ? ', in the post' : ''}`}
                     onClick={() => toggle(photo.id)}
                   >
                     {/* Plain <img>: an admin-only grid is not worth spending the
@@ -297,6 +378,15 @@ function TripTab({ postId, photos, used, onUploaded, onTagged, onDeleted, onAdd,
           </section>
         ))}
         {photos.length && !groups.length ? <p className="editor-muted">Nothing in this category yet.</p> : null}
+        {/* Nominatim's terms ask for this wherever its names are shown. */}
+        {knownPlaces.length ? (
+          <p className="editor-muted editor-attribution">
+            Place names from{' '}
+            <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">
+              © OpenStreetMap contributors
+            </a>
+          </p>
+        ) : null}
       </div>
 
       {error ? <p className="editor-error editor-tray-section">{error}</p> : null}
@@ -322,6 +412,35 @@ function TripTab({ postId, photos, used, onUploaded, onTagged, onDeleted, onAdd,
               Untag
             </button>
           </div>
+          <form
+            className="editor-place-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (placeDraft.trim()) void setPlace(placeDraft);
+            }}
+          >
+            <span className="editor-chips-label">Place</span>
+            <input
+              type="text"
+              value={placeDraft}
+              onChange={(event) => setPlaceDraft(event.target.value)}
+              placeholder={knownPlaces[0] ? `e.g. ${knownPlaces[0]}` : 'e.g. Kyoto'}
+              list="editor-known-places"
+              maxLength={80}
+              aria-label="Place for the selected photos"
+            />
+            <datalist id="editor-known-places">
+              {knownPlaces.map((place) => (
+                <option key={place} value={place} />
+              ))}
+            </datalist>
+            <button type="submit" disabled={!placeDraft.trim()}>
+              Set
+            </button>
+            <button type="button" onClick={() => setPlace(null)}>
+              Clear
+            </button>
+          </form>
           <button type="button" className="editor-primary" onClick={add}>
             {targetLabel
               ? `Add ${picked.length} to the block`

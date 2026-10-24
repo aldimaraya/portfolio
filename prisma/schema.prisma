@@ -214,6 +214,21 @@ model JournalPhoto {
   // rather than an enum so the list can change without a schema change.
   category String?
 
+  // Perceptual hash of the picture (lib/photo/fingerprint.ts), so the tray can
+  // spot the same photo uploaded into the post twice. A hash of the image rather
+  // than the file, because only the re-encoded copy is ever stored. Null on rows
+  // from before it existed until scripts/fingerprint-journal.mjs fills them.
+  fingerprint String?
+
+  // Where it was taken, read from EXIF GPS before the re-encode strips it from
+  // the file (lib/geo/place.ts). Rounded to ~110 m on the way in, and never
+  // selected into anything a browser receives: the coordinates exist only so the
+  // place can be looked up, and `place` — a town-sized name, or whatever was
+  // typed over it in the tray — is all that is ever shown.
+  latitude  Float?
+  longitude Float?
+  place     String?
+
   createdAt DateTime @default(now())
 
   @@index([postId, takenAt])

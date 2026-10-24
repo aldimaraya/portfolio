@@ -6,6 +6,9 @@ import { z } from 'zod';
 import { db } from '@/lib/db';
 import { storageEnv } from '@/lib/env';
 import { isAuthenticated } from '@/lib/auth/guard';
+import { MAX_PLACE_LENGTH, normalizePlace, roundCoordinates, type Coordinates } from '@/lib/geo/place';
+import { lookUpPlace } from '@/lib/geo/reverse';
+import { findDuplicate, isFingerprint } from '@/lib/photo/fingerprint';
 import { slugify } from '@/lib/slug';
 import { attempt, attemptOr } from '@/lib/actions/errors';
 import { announce } from '@/lib/newsletter/queue';
@@ -189,8 +192,11 @@ export interface JournalPhotoRow {
   height: number;
   takenAt: Date | null;
   category: string | null;
+  fingerprint: string | null;
+  place: string | null;
 }
 
+/** Deliberately without latitude and longitude — see the schema. */
 const JOURNAL_PHOTO_SELECT = {
   id: true,
   imageUrl: true,
@@ -198,7 +204,31 @@ const JOURNAL_PHOTO_SELECT = {
   height: true,
   takenAt: true,
   category: true,
+  fingerprint: true,
+  place: true,
 } as const;
+
+/** Raw EXIF readings; validated and rounded by roundCoordinates, not here. */
+const coordinateFields = {
+  latitude: z.number().nullable().default(null),
+  longitude: z.number().nullable().default(null),
+};
+
+/**
+ * The name for a point. The database is the lookup's durable cache: a photo
+ * already stored at the same rounded point — from this trip or an earlier one —
+ * lends its name, typed corrections included, so a street photographed fifty
+ * times costs Nominatim one request, ever.
+ */
+async function placeFor(coordinates: Coordinates | null): Promise<string | null> {
+  if (!coordinates) return null;
+  const known = await db.journalPhoto.findFirst({
+    where: { ...coordinates, place: { not: null } },
+    select: { place: true },
+    orderBy: { createdAt: 'desc' },
+  });
+  return known?.place ?? (await lookUpPlace(coordinates));
+}
 
 const addPhotoSchema = z.object({
   postId: z.string().min(1),
@@ -207,6 +237,8 @@ const addPhotoSchema = z.object({
   height: z.number().int().positive(),
   // ISO string, already wall-clock-as-UTC (lib/post/trip.ts), or null.
   takenAt: z.iso.datetime().nullable(),
+  fingerprint: z.string().refine(isFingerprint).nullable().default(null),
+  ...coordinateFields,
 });
 
 /**
@@ -223,7 +255,7 @@ export async function addJournalPhoto(
 
     const parsed = addPhotoSchema.safeParse(input);
     if (!parsed.success) return { error: 'That upload could not be recorded' };
-    const { postId, imageUrl, width, height, takenAt } = parsed.data;
+    const { postId, imageUrl, width, height, takenAt, fingerprint, latitude, longitude } = parsed.data;
 
     const key = objectKeyFromUrl(imageUrl, storageEnv().R2_PUBLIC_BASE_URL);
     if (!key?.startsWith('journal/')) return { error: 'That image is not a journal upload' };
@@ -231,11 +263,129 @@ export async function addJournalPhoto(
     const post = await db.blogPost.findUnique({ where: { id: postId }, select: { id: true } });
     if (!post) return { error: 'That post no longer exists' };
 
+    const coordinates = roundCoordinates(latitude, longitude);
     const photo = await db.journalPhoto.create({
-      data: { postId, imageUrl, width, height, takenAt: takenAt ? new Date(takenAt) : null },
+      data: {
+        postId,
+        imageUrl,
+        width,
+        height,
+        takenAt: takenAt ? new Date(takenAt) : null,
+        fingerprint,
+        ...coordinates,
+        place: await placeFor(coordinates),
+      },
       select: JOURNAL_PHOTO_SELECT,
     });
     return { photo };
+  });
+}
+
+const duplicateSchema = z.object({
+  postId: z.string().min(1),
+  fingerprint: z.string().refine(isFingerprint),
+});
+
+/**
+ * The stored trip photo an upload looks like, if any — asked of the database
+ * before a byte is sent rather than of the tray's copy of the rows. That copy is
+ * whatever the page loaded with: a tab opened before the fingerprint backfill,
+ * or a second tab uploading into the same post, holds rows the check can never
+ * match, and the duplicate went straight through.
+ */
+export async function findJournalDuplicate(
+  input: z.input<typeof duplicateSchema>,
+): Promise<{ photo?: JournalPhotoRow | null; error?: string }> {
+  return attempt('findJournalDuplicate', async () => {
+    if (!(await isAuthenticated())) return { error: 'Unauthorized' };
+
+    const parsed = duplicateSchema.safeParse(input);
+    if (!parsed.success) return { error: 'That fingerprint is not valid' };
+    const { postId, fingerprint } = parsed.data;
+
+    // A post's photos number in the tens, so comparing in memory beats teaching
+    // Postgres Hamming distance.
+    const photos = await db.journalPhoto.findMany({
+      where: { postId, fingerprint: { not: null } },
+      select: JOURNAL_PHOTO_SELECT,
+    });
+    return { photo: findDuplicate(fingerprint, photos) ?? null };
+  });
+}
+
+const fillPhotoSchema = z.object({
+  postId: z.string().min(1),
+  id: z.string().min(1),
+  takenAt: z.iso.datetime().nullable(),
+  ...coordinateFields,
+});
+
+/**
+ * Fills in what a stored trip photo is missing from a fresh read of its
+ * original — the tray sends this when an upload is skipped as a duplicate. A
+ * stored copy has had its EXIF stripped, so re-picking the originals is the only
+ * way a capture date or a location ever comes back; this is how that works
+ * without uploading anything twice.
+ *
+ * Only ever fills a gap. A date or place already on the row — typed or read —
+ * is left exactly as it is; a photo with no gaps returns untouched.
+ */
+export async function fillJournalPhoto(
+  input: z.input<typeof fillPhotoSchema>,
+): Promise<{ photo?: JournalPhotoRow; error?: string }> {
+  return attempt('fillJournalPhoto', async () => {
+    if (!(await isAuthenticated())) return { error: 'Unauthorized' };
+
+    const parsed = fillPhotoSchema.safeParse(input);
+    if (!parsed.success) return { error: 'That photo could not be updated' };
+    const { postId, id, takenAt, latitude, longitude } = parsed.data;
+
+    const existing = await db.journalPhoto.findFirst({
+      where: { id, postId },
+      select: { takenAt: true, latitude: true, place: true },
+    });
+    if (!existing) return { error: 'That photo is no longer in the post' };
+
+    const data: Prisma.JournalPhotoUpdateInput = {};
+    if (!existing.takenAt && takenAt) data.takenAt = new Date(takenAt);
+    const coordinates = existing.latitude === null ? roundCoordinates(latitude, longitude) : null;
+    if (coordinates) {
+      Object.assign(data, coordinates);
+      if (!existing.place) data.place = await placeFor(coordinates);
+    }
+
+    const photo = Object.keys(data).length
+      ? await db.journalPhoto.update({ where: { id }, data, select: JOURNAL_PHOTO_SELECT })
+      : await db.journalPhoto.findUniqueOrThrow({ where: { id }, select: JOURNAL_PHOTO_SELECT });
+    return { photo };
+  });
+}
+
+const placeSchema = z.object({
+  postId: z.string().min(1),
+  ids: z.array(z.string().min(1)).min(1),
+  place: z.string().max(MAX_PLACE_LENGTH * 2).nullable(),
+});
+
+/**
+ * Names where a set of a post's trip photos were taken, or clears it with null.
+ * For the photos with no GPS at all, and for overruling the geocoder — which
+ * names central Tokyo "Chiyoda" — so it takes the writer's word over anything
+ * the coordinates said, and the next photo from the same spot inherits it.
+ */
+export async function placeJournalPhotos(
+  input: z.input<typeof placeSchema>,
+): Promise<{ place?: string | null; error?: string }> {
+  return attempt('placeJournalPhotos', async () => {
+    if (!(await isAuthenticated())) return { error: 'Unauthorized' };
+
+    const parsed = placeSchema.safeParse(input);
+    if (!parsed.success) return { error: 'That place name is too long' };
+    const { postId, ids } = parsed.data;
+    const place = normalizePlace(parsed.data.place);
+
+    await db.journalPhoto.updateMany({ where: { postId, id: { in: ids } }, data: { place } });
+    return { place };
   });
 }
 
