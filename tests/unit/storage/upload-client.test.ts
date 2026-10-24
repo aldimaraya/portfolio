@@ -213,6 +213,40 @@ describe('uploadFile', () => {
     expect(attempts).toBe(1);
   });
 
+  it("says a PUT that never completed did not reach storage, naming the origin CORS must allow", async () => {
+    let attempts = 0;
+    vi.stubGlobal(
+      'fetch',
+      routes({
+        part: () => {
+          attempts += 1;
+          // What Safari throws for a dropped connection and a CORS refusal alike.
+          throw new TypeError('Load failed');
+        },
+      }),
+    );
+
+    const failure = uploadFile(new Blob(['hi']), 'a.jpg', 'photos');
+    await expect(failure).rejects.toThrow(/never reached storage \(Load failed\)/);
+    await expect(failure).rejects.toThrow(location.origin);
+    expect(attempts).toBe(PART_ATTEMPTS);
+  });
+
+  it('names the route when a same-origin request never completes', async () => {
+    vi.stubGlobal(
+      'fetch',
+      routes({
+        create: () => {
+          throw new TypeError('Load failed');
+        },
+      }),
+    );
+
+    await expect(uploadFile(new Blob(['hi']), 'a.jpg', 'photos')).rejects.toThrow(
+      'Could not reach /api/upload/create (Load failed)',
+    );
+  });
+
   it('weights progress by bytes, so a short final part is not a whole step', async () => {
     vi.stubGlobal('fetch', routes({}));
 

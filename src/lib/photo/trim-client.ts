@@ -41,6 +41,13 @@ function drawToCanvas(
 
   const context = canvas.getContext('2d', { willReadFrequently: true });
   if (!context) throw new Error('Could not get a 2D canvas context');
+  // The default 'low' shrinks a 4000px frame to the 100px colour sample by
+  // all but skipping pixels, so the sample aliases — the likeliest reason a
+  // re-upload's fingerprint (lib/photo/fingerprint.ts) measured 5 bits from the
+  // one the backfill computed with sharp, which averages properly, against 0–2
+  // between two sharp reads. It also makes the stored copy's own downscale
+  // cleaner.
+  context.imageSmoothingQuality = 'high';
 
   if (source) {
     context.drawImage(

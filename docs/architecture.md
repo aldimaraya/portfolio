@@ -259,7 +259,25 @@ links held to http(s), mailto and on-site targets.
   ([`lib/post/trip.ts`](../src/lib/post/trip.ts)) — and by a fixed set of
   **categories** (food, sights, getting around, stay, people). *Lay out days*
   turns every day with no section yet into a numbered section with a text block
-  and the photos for each category, leaving only the words to write.
+  and the photos for each category, leaving only the words to write. An upload
+  that looks like a photo already in the post is **skipped before it is sent**,
+  with *Upload anyway* to override: each row carries a 64-bit perceptual hash
+  ([`lib/photo/fingerprint.ts`](../src/lib/photo/fingerprint.ts)) of the picture
+  rather than the file, since only the re-encoded copy is ever stored. A skipped
+  original still gives the stored copy any **date or location it is missing** —
+  re-picking the originals is how a photo uploaded before either was kept gets
+  them back.
+- **Places.** The GPS fix is read alongside the capture date, before the
+  re-encode strips it from the file, rounded to ~110 m, and kept on the row only
+  so it can be named: `addJournalPhoto` turns it into a town-sized place
+  ([`lib/geo/`](../src/lib/geo)) through OpenStreetMap's Nominatim — no key, one
+  request a second, server-side so it can identify itself, and the attribution
+  shown in the tray as its terms require. A stored row at the same rounded point
+  lends its name first, so the database is the lookup's cache and a typed
+  correction is inherited. **The coordinates are never selected into anything a
+  browser receives**, the admin included; only the name is shown. The tray
+  groups by place and sets one by hand for photos without GPS. Nothing public
+  shows places yet.
 - **The editor** (`components/admin/post-editor/`) draws the post on the same
   sheet, each block edited in place: text through TipTap with everything the
   schema cannot hold switched off, so a paste is reduced to what a post can
@@ -413,6 +431,8 @@ Columns whose *shape* carries a decision:
 | `BlogPost.markdownContent` | Read only for posts whose `content` is null, never written by the editor. Kept so the change stayed additive; droppable once every post has been saved from the editor. |
 | `JournalPhoto` | A post's own uploads, apart from `Photo` so a trip never reaches the stills wall. `onDelete: Cascade` from the post; the R2 objects are `deletePost`'s to remove. `category` is a string, not an enum, so the list can change without a schema change. |
 | `JournalPhoto.takenAt` | The camera's wall-clock time in UTC fields, so a trip's days are the same on every machine. Like `Photo.takenAt`, unrecoverable once the upload has stripped EXIF. |
+| `JournalPhoto.latitude` / `longitude` / `place` | GPS rounded to three decimals, and the name it was given (or one typed over it). The coordinates stay server-side — `JOURNAL_PHOTO_SELECT` and every public select leave them out. Unrecoverable for photos uploaded before they were kept, except by re-picking the original. |
+| `JournalPhoto.fingerprint` | Difference hash of the stored image, for the tray's duplicate check. Null on rows from before it existed until `npm run backfill:fingerprints` fills them; a null never matches. |
 | `Announcement.refId` | Points at a `Photo`, `Video` or `BlogPost` depending on `kind`, so it cannot be a foreign key; deleted content is dropped when the batch resolves. |
 | `Announcement.dispatchId` | `onDelete: Restrict`. Deleting a dispatch must not put what it sent back into the queue. |
 | `Subscriber.lastDispatchId` | What makes a dispatch resumable. Not a relation, so dispatch history can never be blocked by it. |

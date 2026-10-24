@@ -418,6 +418,12 @@ export function PostEditor({ post, blocks: initialBlocks, media: initialMedia, t
             targetLabel={targetBlock ? 'Adding to the selected photo block' : null}
             onClearTarget={() => setTray((current) => ({ ...current, target: null }))}
             onUploaded={(photo: JournalPhotoRow) => setTrayPhotos((current) => [...current, photo])}
+            onFilled={(filled: JournalPhotoRow) =>
+              setTrayPhotos((current) => current.map((photo) => (photo.id === filled.id ? filled : photo)))
+            }
+            onPlaced={(ids, place) =>
+              setTrayPhotos((current) => current.map((photo) => (ids.includes(photo.id) ? { ...photo, place } : photo)))
+            }
             onTagged={(ids, category) =>
               setTrayPhotos((current) => current.map((photo) => (ids.includes(photo.id) ? { ...photo, category } : photo)))
             }

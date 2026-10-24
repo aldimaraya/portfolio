@@ -33,6 +33,10 @@ export interface TrayPhoto {
   /** Wall-clock capture time in UTC fields — see wallClockAsUtc. */
   takenAt: Date | null;
   category: string | null;
+  /** Perceptual hash — see lib/photo/fingerprint.ts. Null until backfilled. */
+  fingerprint: string | null;
+  /** Town-sized name, from GPS or typed — see lib/geo/place.ts. */
+  place: string | null;
 }
 
 /**
@@ -134,6 +138,37 @@ export function groupByCategory(photos: TrayPhoto[]): TrayCategoryGroup[] {
     photos: sorted.filter((photo) => !isPostCategory(photo.category)),
   });
   return groups.filter((group) => group.photos.length > 0);
+}
+
+export interface TrayPlaceGroup {
+  /** Null for the photos with no place, from GPS or typed. */
+  place: string | null;
+  photos: TrayPhoto[];
+}
+
+/**
+ * The tray's photos grouped by where they were taken, in the order the trip
+ * reached each place — by its earliest photo — so the groups read as the route.
+ * A place visited twice stays one group. Unplaced photos come last.
+ */
+export function groupByPlace(photos: TrayPhoto[]): TrayPlaceGroup[] {
+  const places = new Map<string, TrayPhoto[]>();
+  const unplaced: TrayPhoto[] = [];
+
+  for (const photo of [...photos].sort(byTakenAt)) {
+    if (!photo.place) {
+      unplaced.push(photo);
+      continue;
+    }
+    const list = places.get(photo.place) ?? [];
+    list.push(photo);
+    places.set(photo.place, list);
+  }
+
+  // A Map iterates in insertion order, and photos went in earliest first.
+  const grouped: TrayPlaceGroup[] = [...places].map(([place, list]) => ({ place, photos: list }));
+  if (unplaced.length) grouped.push({ place: null, photos: unplaced });
+  return grouped;
 }
 
 /** The layout a set of photos starts in: alone, a row while they fit one, else a grid. */

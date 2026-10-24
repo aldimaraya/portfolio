@@ -79,11 +79,19 @@ export function backoffDelay(attempt: number, base = 300, cap = 8_000): number {
  * back to the status when there is no JSON body to read.
  */
 async function postJson<T>(path: string, payload: unknown): Promise<T> {
-  const response = await fetch(path, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
+  let response: Response;
+  try {
+    response = await fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+  } catch (cause) {
+    // Safari's whole account of a fetch that never completed is "Load failed",
+    // which names neither the request nor the server. Still a TypeError, so the
+    // part retry keeps classifying it as a network failure.
+    throw new TypeError(`Could not reach ${path} (${messageOf(cause)})`);
+  }
   if (!response.ok) {
     const message = await readErrorMessage(response);
     throw new UploadHttpError(
@@ -196,7 +204,12 @@ async function uploadPart(
         partNumber: range.partNumber,
       });
 
-      const response = await fetch(url, { method: 'PUT', body });
+      let response: Response;
+      try {
+        response = await fetch(url, { method: 'PUT', body });
+      } catch (cause) {
+        throw new TypeError(storageUnreachable(range.partNumber, cause));
+      }
       if (!response.ok) {
         throw new UploadHttpError(
           `Part ${range.partNumber} failed with status ${response.status}`,
@@ -221,6 +234,27 @@ async function uploadPart(
   }
 
   throw lastError;
+}
+
+/**
+ * The PUT is the one cross-origin request in an upload, so when it never
+ * completes while the same-origin routes around it answer fine, the bucket's
+ * CORS policy refusing this origin is the likeliest cause — the browser reports
+ * a CORS refusal exactly like a dropped connection, and says nothing more. The
+ * origin is named because that is the value to look for in the policy: a LAN
+ * address, a tailnet address, or a preview deployment's URL is not in it unless
+ * someone put it there.
+ */
+function storageUnreachable(partNumber: number, cause: unknown): string {
+  const origin = typeof location === 'undefined' ? 'this site' : location.origin;
+  return (
+    `Part ${partNumber} never reached storage (${messageOf(cause)}) — the connection dropped, ` +
+    `or the bucket's CORS policy does not allow ${origin}`
+  );
+}
+
+function messageOf(cause: unknown): string {
+  return cause instanceof Error ? cause.message : String(cause);
 }
 
 /**
