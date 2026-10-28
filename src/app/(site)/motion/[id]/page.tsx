@@ -81,10 +81,11 @@ export default async function ClipPage({ params }: Params) {
   return (
     // Capped rather than run across the full 1300px container: a player as wide
     // as the stills wall would put the controls a mouse-travel away from the
-    // frame, and the description beside it would run past a readable measure.
-    <main className="mx-auto max-w-[62rem]">
+    // frame. The description keeps its own 62ch measure, so this cap is the
+    // player's alone — theater mode is there for anyone who wants it wider.
+    <main className="mx-auto max-w-[76rem]">
       <JsonLd schema={videoSchema(clip)} />
-      <div className="mb-3 flex items-center justify-between gap-4">
+      <div className="mb-2 flex items-center justify-between gap-4">
         {/* To this clip's roll, not the top of the page: from the fourth roll,
             "back" means back to the fourth roll. */}
         <Link

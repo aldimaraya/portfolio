@@ -315,17 +315,20 @@ body {
    *retracted*, so a frame sized to it is cut off by the URL bar for as long as
    that bar is showing — which is exactly when the page has just loaded.
 
-   The reserved 23.5rem is everything the page puts around the frame — the site
-   header and its rule, the back row, the slate, the title line under it (with
-   the like pill on it, which is what the half rem is for: the pill stands a
-   little taller than the title) — plus
-   enough over that for the title to sit clear of the bottom edge rather than
-   flush against it, which reads as cut off even when all of it is showing.
+   The reserved 16.25rem is everything the page puts around the frame — the site
+   header and its rule, the back row, the slate, the title line under it with
+   the like pill on it — measured at 15.1rem, plus about a rem so the title
+   sits clear of the bottom edge rather than flush against it, which reads as
+   cut off even when all of it is showing. It is a measurement, not a guess:
+   anything that changes the header's height (Header.tsx, the layout's top
+   padding) has to be measured again and this moved with it.
    The floor matters more than the cap — on a short window the frame gives up
    height until it reaches 14rem, below which it would be too small to be worth
-   the space it is still taking, and the page scrolls instead. */
+   the space it is still taking, and the page scrolls instead. The cap is only
+   there so a tall display does not get a frame wider than the page's column
+   can hold anyway; theater mode (.clip-theater) is the way past all of it. */
 .clip-gate {
-  --gate-height: min(40rem, max(14rem, 100svh - 23.5rem));
+  --gate-height: min(54rem, max(14rem, 100svh - 16.25rem));
   /* calc() of a bare number by a length, which is why --frame-ratio must be set
      as a number and not a string. Falls back to 16:9 if it is ever missing.
 
@@ -344,8 +347,19 @@ body {
    pushed its own title out of view. */
 @media (max-width: 800px) {
   .clip-gate {
-    --gate-height: min(40rem, max(12rem, 100svh - 26rem));
+    --gate-height: min(54rem, max(12rem, 100svh - 24.5rem));
   }
+}
+
+/* Theater mode: the same panel, lifted out of the page to cover the window.
+   The same element rather than a copy in a portal, because moving the <video>
+   would remount it and drop the playback position mid-clip.
+
+   The frame is shaped by width alone, as in the gate: the height left after
+   the slate and padding, times the ratio, and never wider than the window.
+   4rem is that chrome — 2rem of padding, the slate line and its margin. */
+.clip-theater .clip-frame {
+  width: min(100%, calc((100svh - 4rem) * var(--frame-ratio, 1.7778)));
 }
 
 /* Light spilling from the gate, so a running clip sits in projection rather
