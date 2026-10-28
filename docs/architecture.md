@@ -370,7 +370,8 @@ and a weekly newsletter would mostly be empty. Code in
 - **`/admin/newsletter`** shows the pending batch with an estimate of when it
   goes out, lets an item be left out (or put back), renders the exact email as a
   preview, has **Send now** and **Email me a preview**, and lists subscribers
-  and past sends.
+  and past sends. An unconfirmed subscriber can be confirmed from there by hand,
+  for someone known to want it who never clicked the link.
 - **Double opt-in, no accounts.** A random token per subscriber is the whole
   credential behind the confirm, manage and unsubscribe links. Confirming takes
   a click on the page, not just a GET — mail scanners fetch every link in an

@@ -69,6 +69,24 @@ export async function setSkipped(announcementId: string, skipped: boolean): Prom
   });
 }
 
+/**
+ * Confirms a signup on the subscriber's behalf, for someone known to want it
+ * who never clicked the link. It skips the one check double opt-in exists for,
+ * so it is the admin's word that the address is theirs.
+ */
+export async function confirmSubscriber(id: string): Promise<{ error?: string }> {
+  return attempt('confirmSubscriber', async () => {
+    if (!(await isAuthenticated())) return { error: 'Unauthorized' };
+    if (!idSchema.safeParse(id).success) return { error: 'Unknown subscriber' };
+
+    // confirmedAt: null, so confirming twice keeps the first date — the
+    // dispatch reads it as when they joined.
+    await db.subscriber.updateMany({ where: { id, confirmedAt: null }, data: { confirmedAt: new Date() } });
+    revalidatePath('/admin/newsletter');
+    return {};
+  });
+}
+
 export async function removeSubscriber(id: string): Promise<{ error?: string }> {
   return attempt('removeSubscriber', async () => {
     if (!(await isAuthenticated())) return { error: 'Unauthorized' };

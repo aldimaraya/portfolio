@@ -1,7 +1,7 @@
 import { db } from '@/lib/db';
 import { DeleteButton } from '@/components/admin/DeleteButton';
 import { LABEL } from '@/components/admin/fields';
-import { BatchActions, LocalTime, SkipToggle } from '@/components/admin/NewsletterControls';
+import { BatchActions, ConfirmSubscriber, LocalTime, SkipToggle } from '@/components/admin/NewsletterControls';
 import { KIND_LABELS } from '@/lib/newsletter/kinds';
 import { pendingBatch, renderPendingPreview, skippedItems } from '@/lib/newsletter/queue';
 import { estimatedSendTime, QUIET_HOURS } from '@/lib/newsletter/schedule';
@@ -158,6 +158,7 @@ export default async function AdminNewsletterPage() {
                     )}
                   </div>
                 </div>
+                {subscriber.confirmedAt ? null : <ConfirmSubscriber id={subscriber.id} />}
                 <DeleteButton
                   id={subscriber.id}
                   action={removeSubscriber}
