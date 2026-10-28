@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { emailPreview, sendNow, setSkipped } from '@/app/admin/newsletter/actions';
+import { confirmSubscriber, emailPreview, sendNow, setSkipped } from '@/app/admin/newsletter/actions';
 import { BUTTON } from './fields';
 
 /** "Send now" and "Email me a preview", with the outcome reported inline. */
@@ -96,6 +96,39 @@ export function SkipToggle({ id, skipped }: { id: string; skipped: boolean }) {
         }`}
       >
         {skipped ? 'Put back' : 'Leave out'}
+      </button>
+      {error ? <span className="text-xs text-red-400">{error}</span> : null}
+    </span>
+  );
+}
+
+/**
+ * Confirms an unconfirmed signup by hand. One click, no second step: unlike
+ * Remove it is undone by removing them.
+ */
+export function ConfirmSubscriber({ id }: { id: string }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  async function confirm() {
+    setBusy(true);
+    setError('');
+    const result = await confirmSubscriber(id);
+    setBusy(false);
+    if (result.error) setError(result.error);
+    else router.refresh();
+  }
+
+  return (
+    <span className="flex shrink-0 items-center gap-2">
+      <button
+        type="button"
+        onClick={confirm}
+        disabled={busy}
+        className="text-sm text-gold transition hover:text-bone disabled:opacity-50"
+      >
+        {busy ? 'Confirming…' : 'Confirm'}
       </button>
       {error ? <span className="text-xs text-red-400">{error}</span> : null}
     </span>

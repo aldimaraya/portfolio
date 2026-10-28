@@ -1167,6 +1167,74 @@ body {
   }
 }
 
+/* The "confirm your email" panel after a signup. It plays once, as a sequence
+   that tells the story in order — the envelope is drawn, sealed, sent off with
+   a hop, and the panel pulses once — because the whole point of the panel is
+   that it is noticed: readers kept taking a quiet line of text for a finished
+   signup. Reduced motion gets the dissolve alone, as .page-enter does.
+
+   Fill modes are `backwards`, so nothing is held once the sequence ends. The
+   strokes rely on pathLength="1" on the SVG elements, which is what lets one
+   dash of length 1 cover a rect and a path alike. The hidden dash starts a
+   little past the path's start, not on it, so its round cap is not left
+   showing as a dot before the line is drawn. */
+.signup-sent {
+  animation: page-fade 200ms ease-out backwards;
+}
+
+@keyframes signup-draw {
+  from {
+    stroke-dasharray: 1 2;
+    stroke-dashoffset: 1.1;
+  }
+  to {
+    stroke-dasharray: 1 2;
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes signup-hop {
+  0%,
+  100% {
+    transform: none;
+  }
+  40% {
+    transform: translate(2px, -4px) rotate(-8deg);
+  }
+}
+
+@keyframes signup-glow {
+  from {
+    box-shadow: 0 0 0 0 rgb(212 175 55 / 0.45);
+  }
+  to {
+    box-shadow: 0 0 0 14px rgb(212 175 55 / 0);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .signup-sent {
+    animation:
+      page-enter 320ms cubic-bezier(0.22, 1, 0.36, 1) backwards,
+      signup-glow 900ms ease-out 850ms;
+  }
+  .signup-sent__body {
+    animation: signup-draw 550ms ease-in-out 120ms backwards;
+  }
+  .signup-sent__flap {
+    animation: signup-draw 280ms ease-out 620ms backwards;
+  }
+  .signup-sent__envelope {
+    animation: signup-hop 450ms cubic-bezier(0.34, 1.56, 0.64, 1) 880ms;
+  }
+  .signup-sent__text > * {
+    animation: page-enter 360ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+  .signup-sent__text > :nth-child(1) { animation-delay: 250ms; }
+  .signup-sent__text > :nth-child(2) { animation-delay: 350ms; }
+  .signup-sent__text > :nth-child(3) { animation-delay: 450ms; }
+}
+
 /* ── The journal editor ──────────────────────────────────────────────────────
  *
  * Admin only. The editor draws the post on the same .post-sheet it is published

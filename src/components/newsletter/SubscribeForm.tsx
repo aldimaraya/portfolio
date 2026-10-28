@@ -51,14 +51,38 @@ export function SubscribeForm({
   }
 
   if (done) {
-    // Worded to be true in every case the action reports as success — including
-    // an address already subscribed, which it deliberately does not reveal.
+    // Written for the case that matters — a new signup — because readers took
+    // the old hedged wording ("if … isn't already subscribed") for a finished
+    // signup and never clicked the link. It still reveals nothing: an address
+    // already subscribed sees the same words, and is simply sent no email.
+    //
+    // A gold panel rather than a line of copy: in plain text it sat in the same
+    // grey as the intro above it and read as part of the page, not as a step.
+    // The entrance sequence is in globals.css under .signup-sent.
     return (
-      <p role="status" className="text-sm leading-relaxed text-bone">
-        Check your inbox. If <span className="text-gold">{email.trim()}</span> isn’t
-        already subscribed, a confirmation link is on its way. Nothing else is sent
-        until it’s clicked.
-      </p>
+      <div role="status" className="signup-sent flex gap-4 rounded border border-gold bg-gold/10 p-5 sm:p-6">
+        <svg
+          aria-hidden
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={1.5}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="signup-sent__envelope mt-0.5 size-7 shrink-0 text-gold"
+        >
+          <rect className="signup-sent__body" pathLength={1} x="3" y="5" width="18" height="14" rx="2" />
+          <path className="signup-sent__flap" pathLength={1} d="m3 7 9 6 9-6" />
+        </svg>
+        <div className="signup-sent__text flex min-w-0 flex-col gap-2">
+          <p className="text-xl font-semibold tracking-tight text-bone">Confirm your email to finish</p>
+          <p className="text-base leading-relaxed text-bone">
+            We sent a link to <span className="break-all text-gold">{email.trim()}</span>.
+            You’re not subscribed until you click it.
+          </p>
+          <p className="text-sm text-ash">Can’t find it? Check your spam folder.</p>
+        </div>
+      </div>
     );
   }
 
