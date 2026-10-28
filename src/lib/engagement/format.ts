@@ -1,7 +1,7 @@
 /**
  * A count as it is printed: `7`, `1.2k`, `34k`, `1.5m`. Zero is an empty
- * string, not "0" — a heart with nothing beside it reads as an invitation, and
- * "0 views" reads as a verdict.
+ * string, not "0" — a heart with nothing beside it reads as an invitation.
+ * Views are the exception; see formatViews.
  */
 export function formatCount(count: number): string {
   if (!Number.isFinite(count) || count <= 0) return '';
@@ -22,9 +22,13 @@ function compact(value: number, unit: string): string {
   return `${floored.toFixed(digits).replace(/\.0$/, '')}${unit}`;
 }
 
-/** "1 view", "1.2k views", or nothing at all. */
+/**
+ * "0 views", "1 view", "1.2k views". Zero is printed here, unlike a like
+ * count: with nothing shown until the first view landed, the counter looked
+ * missing rather than empty — and views are only recorded on production, so
+ * outside it a page never got past nothing.
+ */
 export function formatViews(count: number): string {
-  const printed = formatCount(count);
-  if (!printed) return '';
+  const printed = formatCount(count) || '0';
   return `${printed} ${count === 1 ? 'view' : 'views'}`;
 }

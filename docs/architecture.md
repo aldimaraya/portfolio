@@ -414,10 +414,13 @@ and a weekly newsletter would mostly be empty. Code in
 
 ### Likes and views
 
-A still can be **liked** in the lightbox; a clip and a journal post can be
-liked and show how many times they have been **viewed** — the clip on the line
-under its title, the post's views in its margin under the date and its like at
-the foot. Both counts are public. Code in
+A still can be **liked** in the lightbox, under its caption; a clip and a
+journal post can be liked and show how many times they have been **viewed** —
+the clip's like and views on its title line, the post's views in its margin
+under the date and its like both under the title and at the foot. Both counts
+are public. A like count of zero prints nothing beside the heart; a view count
+of zero prints "0 views", because a counter that is blank until the first view
+reads as missing. Code in
 [`lib/engagement/`](../src/lib/engagement), served by `/api/engagement`.
 
 - **Counts are fetched after hydration, never rendered into the page.** Every

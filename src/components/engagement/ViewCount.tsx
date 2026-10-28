@@ -5,7 +5,8 @@ import { formatViews } from '@/lib/engagement/format';
 import { useEngagement } from './useEngagement';
 
 /**
- * "1.2k views", or nothing — before the count arrives, and while it is zero.
+ * "1.2k views", or nothing until the count arrives — not "0 views" in the
+ * meantime, which would be a claim about a number nobody has read yet.
  * Always records the view: it only belongs on the page that is the item.
  */
 export function ViewCount({
@@ -18,8 +19,7 @@ export function ViewCount({
   className?: string;
 }) {
   const { counts } = useEngagement(kind, id, { view: true });
-  const printed = formatViews(counts?.views ?? 0);
-  if (!printed) return null;
+  if (!counts) return null;
 
-  return <span className={`tabular-nums ${className}`}>{printed}</span>;
+  return <span className={`tabular-nums ${className}`}>{formatViews(counts.views ?? 0)}</span>;
 }

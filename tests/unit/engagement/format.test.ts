@@ -33,7 +33,8 @@ describe('formatViews', () => {
     expect(formatViews(1250)).toBe('1.2k views');
   });
 
-  it('prints nothing for zero', () => {
-    expect(formatViews(0)).toBe('');
+  it('prints zero rather than nothing, so the counter never looks missing', () => {
+    expect(formatViews(0)).toBe('0 views');
+    expect(formatViews(Number.NaN)).toBe('0 views');
   });
 });
