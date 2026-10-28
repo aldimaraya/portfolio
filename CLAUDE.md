@@ -75,6 +75,10 @@ Load-bearing constraints — these are why the code is shaped this way:
   that way — the perforation pitch and the spool's gearing are two readings of one number, so a change to
   `PERFORATION_PITCH` must stay in step with `.film-rail`'s `background-size`. The gate spool on a clip
   page is the exception that loops, and only while `data-playing` is true.
+- **Likes and views are fetched after hydration, never rendered into a page** (`components/engagement/`,
+  `app/api/engagement/*`): the pages are static and shared by every visitor, so their HTML cannot say who
+  liked what. Views are recorded only when `VERCEL_ENV` is `production` — dev and previews share the live
+  DB — and never for the admin. No IP or cookie value is stored, only hashes (`lib/engagement/visitor.ts`).
 - **Video encoding is a manual pre-upload step** (local 1080p H.264, ~5–8 Mbps). 4K masters stay offline.
 
 ## Conventions that bite

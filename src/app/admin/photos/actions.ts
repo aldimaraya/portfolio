@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { db } from '@/lib/db';
+import { forgetEngagement } from '@/lib/engagement/counts';
 import { isAuthenticated } from '@/lib/auth/guard';
 import { pruneUnusedTags, tagConnections } from '@/lib/tags';
 import { photoSettingsSchema } from '@/lib/photo/settings';
@@ -157,6 +158,7 @@ export async function deletePhoto(id: string): Promise<{ error?: string }> {
     // costing pennies of storage, and logged below with the URL so it can still be
     // swept up by hand.
     await db.photo.delete({ where: { id } });
+    await forgetEngagement('stills', id);
 
     try {
       await deleteObjectsByUrl([photo.imageUrl]);

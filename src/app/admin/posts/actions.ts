@@ -4,6 +4,7 @@ import type { Prisma } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { db } from '@/lib/db';
+import { forgetEngagement } from '@/lib/engagement/counts';
 import { storageEnv } from '@/lib/env';
 import { isAuthenticated } from '@/lib/auth/guard';
 import { MAX_PLACE_LENGTH, normalizePlace, roundCoordinates, type Coordinates } from '@/lib/geo/place';
@@ -466,6 +467,7 @@ export async function deletePost(id: string): Promise<{ error?: string }> {
     // The cascade drops the trip photos' rows with the post; their objects are
     // this action's to remove, after the rows, for the reason given above.
     await db.blogPost.delete({ where: { id } });
+    await forgetEngagement('journal', id);
 
     if (post.photos.length) {
       try {

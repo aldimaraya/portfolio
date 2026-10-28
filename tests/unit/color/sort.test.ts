@@ -129,9 +129,38 @@ describe('sortPhotosForWall warm to cool', () => {
   });
 });
 
+describe('sortPhotosForWall popular', () => {
+  const dated = (id: string, takenAt: string) => ({ ...photo(id, 0, 0.5), takenAt: new Date(takenAt) });
+
+  it('puts the most liked first', () => {
+    const input = [photo('a', 0, 0.5), photo('b', 0, 0.5), photo('c', 0, 0.5)];
+    const result = sortPhotosForWall(input, 'popular', 1, { a: 1, b: 5, c: 3 });
+    expect(result.map((p) => p.id)).toEqual(['b', 'c', 'a']);
+  });
+
+  it('breaks ties — including no likes at all — newest first', () => {
+    const input = [dated('old', '2020-01-01'), dated('liked', '2019-01-01'), dated('new', '2024-01-01')];
+    const result = sortPhotosForWall(input, 'popular', 1, { liked: 2 });
+    expect(result.map((p) => p.id)).toEqual(['liked', 'new', 'old']);
+  });
+
+  it('reads as newest first when there are no likes to go on', () => {
+    const input = [dated('old', '2020-01-01'), dated('new', '2024-01-01')];
+    expect(sortPhotosForWall(input, 'popular').map((p) => p.id)).toEqual(
+      sortPhotosForWall(input, 'newest').map((p) => p.id),
+    );
+  });
+
+  it('does not reorder the input in place', () => {
+    const input = [photo('a', 0, 0.5), photo('b', 0, 0.5)];
+    sortPhotosForWall(input, 'popular', 1, { b: 1 });
+    expect(input.map((p) => p.id)).toEqual(['a', 'b']);
+  });
+});
+
 describe('parseSort', () => {
-  it('accepts the four known modes', () => {
-    for (const mode of ['warm', 'cool', 'newest', 'oldest'] as const) {
+  it('accepts every known mode', () => {
+    for (const mode of ['warm', 'cool', 'newest', 'oldest', 'popular', 'random'] as const) {
       expect(parseSort(mode)).toBe(mode);
     }
   });

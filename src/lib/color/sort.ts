@@ -1,4 +1,5 @@
 export interface SortablePhoto {
+  id: string;
   avgLightness: number;
   warmth: number;
   isMonochrome: boolean;
@@ -7,13 +8,14 @@ export interface SortablePhoto {
 }
 
 /** The wall orders the visitor can pick between, as stored in `?sort=`. */
-export type WallSort = 'warm' | 'cool' | 'newest' | 'oldest' | 'random';
+export type WallSort = 'warm' | 'cool' | 'newest' | 'oldest' | 'popular' | 'random';
 
 export const DEFAULT_SORT: WallSort = 'newest';
 
 export const SORT_LABELS: Record<WallSort, string> = {
   newest: 'Newest first',
   oldest: 'Oldest first',
+  popular: 'Most liked',
   warm: 'Cool → Warm',
   cool: 'Warm → Cool',
   random: 'Shuffle',
@@ -27,12 +29,13 @@ export const SORT_LABELS: Record<WallSort, string> = {
 export const SORT_SHORT_LABELS: Record<WallSort, string> = {
   newest: 'Newest',
   oldest: 'Oldest',
+  popular: 'Popular',
   warm: 'Warmer',
   cool: 'Cooler',
   random: 'Shuffled',
 };
 
-export const SORT_ORDER: WallSort[] = ['newest', 'oldest', 'warm', 'cool', 'random'];
+export const SORT_ORDER: WallSort[] = ['newest', 'oldest', 'popular', 'warm', 'cool', 'random'];
 
 export function parseSort(value: string | null | undefined): WallSort {
   return SORT_ORDER.includes(value as WallSort) ? (value as WallSort) : DEFAULT_SORT;
@@ -101,9 +104,14 @@ export function sortPhotosForWall<T extends SortablePhoto>(
   // colour order, and callers that want the wall's default say so explicitly.
   sort: WallSort = 'warm',
   seed = 1,
+  // Likes by photo id, for 'popular' — fetched after hydration rather than
+  // stored on the row (see useWallLikes), so the caller passes them in. A photo
+  // missing from it has none.
+  likes: Readonly<Record<string, number>> = {},
 ): T[] {
   if (sort === 'random') return shuffle(photos, seed);
   if (sort === 'newest' || sort === 'oldest') return sortPhotosByDate(photos, sort);
+  if (sort === 'popular') return sortPhotosByLikes(photos, likes);
 
   const monochrome = photos
     .filter((p) => p.isMonochrome)
@@ -134,4 +142,17 @@ function sortPhotosByDate<T extends SortablePhoto>(
     if (right === undefined) return -1;
     return (left - right) * direction;
   });
+}
+
+/**
+ * Most liked first. Ties — and on a young library most photos tie at none —
+ * fall back to newest first rather than to arrival order, so the long tail of
+ * the popular wall reads as the default wall and not as noise. Array#sort is
+ * stable, which is what lets the date order survive underneath.
+ */
+function sortPhotosByLikes<T extends SortablePhoto>(
+  photos: T[],
+  likes: Readonly<Record<string, number>>,
+): T[] {
+  return sortPhotosByDate(photos, 'newest').sort((a, b) => (likes[b.id] ?? 0) - (likes[a.id] ?? 0));
 }

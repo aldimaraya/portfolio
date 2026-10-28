@@ -315,15 +315,17 @@ body {
    *retracted*, so a frame sized to it is cut off by the URL bar for as long as
    that bar is showing — which is exactly when the page has just loaded.
 
-   The reserved 23rem is everything the page puts around the frame — the site
-   header and its rule, the back row, the slate, the title block under it — plus
+   The reserved 23.5rem is everything the page puts around the frame — the site
+   header and its rule, the back row, the slate, the title line under it (with
+   the like pill on it, which is what the half rem is for: the pill stands a
+   little taller than the title) — plus
    enough over that for the title to sit clear of the bottom edge rather than
    flush against it, which reads as cut off even when all of it is showing.
    The floor matters more than the cap — on a short window the frame gives up
    height until it reaches 14rem, below which it would be too small to be worth
    the space it is still taking, and the page scrolls instead. */
 .clip-gate {
-  --gate-height: min(40rem, max(14rem, 100svh - 23rem));
+  --gate-height: min(40rem, max(14rem, 100svh - 23.5rem));
   /* calc() of a bare number by a length, which is why --frame-ratio must be set
      as a number and not a string. Falls back to 16:9 if it is ever missing.
 
@@ -425,7 +427,9 @@ body {
  * circular — the image would be waiting on a height the image itself decides.
  *
  * --lightbox-chrome is everything stacked around the picture: the counter row
- * above, the mat's own padding, and the caption printed across its foot.
+ * above, the mat's own padding, and the caption printed across its foot — the
+ * like pill included, which is what the last 2.5rem is for. Without it a wide
+ * photo sized to the full height pushes the pill off the bottom of the screen.
  *
  * The width is worked out from the photo's stored ratio and width (set inline
  * by Lightbox) rather than left `auto`: an `auto` image is 0×0 until its pixels
@@ -435,7 +439,7 @@ body {
  * original's own width, the side budget, and the height budget converted
  * through the ratio. */
 .lightbox-photo {
-  --lightbox-chrome: 12rem;
+  --lightbox-chrome: 14.5rem;
   --lightbox-side: 7rem;
   aspect-ratio: var(--photo-ratio);
   width: min(
@@ -1164,6 +1168,30 @@ body {
 @media (prefers-reduced-motion: no-preference) {
   .newsletter-prompt[open] {
     animation: page-enter 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+}
+
+/* A pill set at the start of a text column. Its box can sit exactly on the
+   column's edge and still read as indented: the rounded end only touches the
+   edge at its midpoint, and the eye measures from where the curve has some
+   mass, a few pixels in. Pulled left by about that much, it lines up with the
+   letter stems above and below it. */
+.pill-optical-start {
+  margin-left: -0.3rem;
+}
+
+/* A like. The heart swells once on the click that fills it — data-popped is
+   set by the click, never by counts arriving, so a heart already filled on load
+   sits still. Reduced motion gets the fill alone. */
+@media (prefers-reduced-motion: no-preference) {
+  .like-button[data-popped='true'] .like-heart {
+    animation: like-pop 280ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+}
+
+@keyframes like-pop {
+  40% {
+    transform: scale(1.3);
   }
 }
 

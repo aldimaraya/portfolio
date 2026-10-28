@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { db } from '@/lib/db';
+import { forgetEngagement } from '@/lib/engagement/counts';
 import { isAuthenticated } from '@/lib/auth/guard';
 import { pruneUnusedTags, tagConnections } from '@/lib/tags';
 import { deleteObjectsByUrl } from '@/lib/storage/r2';
@@ -206,6 +207,7 @@ export async function deleteVideo(id: string): Promise<{ error?: string }> {
     // at a clip that will not play.
     const objects = [video.videoUrl, video.posterImageUrl, video.spriteUrl];
     await db.video.delete({ where: { id } });
+    await forgetEngagement('motion', id);
 
     try {
       await deleteObjectsByUrl(objects);
