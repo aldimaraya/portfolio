@@ -4,6 +4,8 @@ import { cache } from 'react';
 import { PostBody } from '@/components/journal/PostBody';
 import { PostSheet } from '@/components/journal/PostSheet';
 import { PostSignup } from '@/components/newsletter/PostSignup';
+import { LikeButton } from '@/components/engagement/LikeButton';
+import { ViewCount } from '@/components/engagement/ViewCount';
 import { AdminEditLink } from '@/components/site/AdminEditLink';
 import { db } from '@/lib/db';
 import { formatPostDate } from '@/lib/post/date';
@@ -102,10 +104,37 @@ export default async function JournalPostPage({ params }: Params) {
 
       <PostSheet
         frameClassName="mt-6"
-        margin={<time dateTime={post.publishedAt.toISOString()}>{formatPostDate(post.publishedAt)}</time>}
-        title={<h1 className="post-title">{post.title}</h1>}
+        margin={
+          <>
+            <time dateTime={post.publishedAt.toISOString()}>{formatPostDate(post.publishedAt)}</time>
+            {/* Fetched after hydration, never in the HTML — see useEngagement. */}
+            <ViewCount kind="journal" id={post.id} className="post-margin-tag" />
+          </>
+        }
+        title={
+          <>
+            <h1 className="post-title">{post.title}</h1>
+            {/* One under the title for a reader who already knows, and one at
+                the foot for one who has just finished. Both read the same
+                entry in the engagement store, so a like at either fills both,
+                and the page still makes one request between them. */}
+            <LikeButton kind="journal" id={post.id} view variant="pill" className="pill-optical-start mt-4" />
+          </>
+        }
         index={indexEntries(post.content.blocks)}
-        after={<PostSignup />}
+        after={
+          <>
+            {/* At the foot, where a reader who liked it has just finished it,
+                and on the sheet's grid so it lines up with the text column. */}
+            <div className="journal-grid mt-12">
+              <div className="journal-margin" aria-hidden />
+              <div>
+                <LikeButton kind="journal" id={post.id} view variant="pill" className="pill-optical-start" />
+              </div>
+            </div>
+            <PostSignup />
+          </>
+        }
       >
         <PostBody blocks={post.content.blocks} media={post.media} />
       </PostSheet>

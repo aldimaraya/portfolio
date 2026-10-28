@@ -72,6 +72,35 @@ test('a clip on the roll opens its own page, and comes back', async ({ page }) =
   await expect(page).toHaveURL(/\/motion$/);
 });
 
+test('a clip can be liked, and the like taken back', async ({ page }) => {
+  await page.goto('/motion');
+
+  const rows = page.locator('ul a[href^="/motion/"]');
+  if ((await rows.count()) === 0) test.skip(true, 'No clips on the roll');
+
+  await rows.first().click();
+  await expect(page).toHaveURL(/\/motion\/[^/]+$/);
+
+  // Disabled until the counts arrive after hydration, so this is also the check
+  // that they do. A fresh browser context has no visitor cookie, so it starts
+  // unliked whatever anyone else has done.
+  const like = page.getByRole('button', { name: /^Like/ });
+  await expect(like).toBeEnabled();
+  await expect(like).toHaveAttribute('aria-pressed', 'false');
+
+  // Round trip, and it must end where it started: this runs against the live
+  // database, so a like left behind would be a real one.
+  const saved = page.waitForResponse((response) => response.url().endsWith('/api/engagement/like'));
+  await like.click();
+  await expect(like).toHaveAttribute('aria-pressed', 'true');
+  expect((await saved).ok()).toBe(true);
+
+  const removed = page.waitForResponse((response) => response.url().endsWith('/api/engagement/like'));
+  await like.click();
+  await expect(like).toHaveAttribute('aria-pressed', 'false');
+  expect((await removed).ok()).toBe(true);
+});
+
 test('an unknown clip id is a 404', async ({ page }) => {
   const response = await page.goto('/motion/no-such-clip-exists');
   expect(response?.status()).toBe(404);

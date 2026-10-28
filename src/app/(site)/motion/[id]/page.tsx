@@ -1,8 +1,9 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { AdminEditLink } from '@/components/site/AdminEditLink';
+import { LikeButton } from '@/components/engagement/LikeButton';
+import { ViewCount } from '@/components/engagement/ViewCount';
 import { ClipStage } from '@/components/motion/ClipStage';
-import { FilmRail } from '@/components/motion/FilmRail';
 import { db } from '@/lib/db';
 import { formatDuration } from '@/lib/video/duration';
 import { JsonLd } from '@/components/site/JsonLd';
@@ -97,42 +98,54 @@ export default async function ClipPage({ params }: Params) {
 
       <ClipStage clip={clip} index={index} letter={roll.letter} />
 
-      {/* The same rail as the roll, so the clip reads as a place on the film
-          rather than a page of its own. Static — nothing is transporting here. */}
-      <div className="mt-4 flex">
-        <FilmRail />
-        <div className="min-w-0 flex-1 pl-6 max-strip:pl-4">
-          {/* Title and identifiers on one line where there is room for them: the
-              23rem this page reserves for its own chrome is only affordable if
-              the block under the frame is genuinely compact, and a heading with
-              its metadata stacked underneath is two lines saying one thing. */}
-          <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+      {/* No film rail down this side, unlike the roll: there it carries the
+          clips and turns with the scroll, and here, with one clip and nothing
+          moving, it was only a stripe beside the text. */}
+      <div className="mt-4">
+        {/* Title, like and identifiers on one line where there is room for
+            them: the 23.5rem this page reserves for its own chrome is only
+            affordable if the block under the frame is genuinely compact — every
+            row here is height taken from the frame. The like sits with the
+            title rather than on a row of its own for exactly that reason; the
+            frame line stays apart from it, because that is the clip's identity
+            and a count that changes under the reader does not belong in it.
+            The counts are fetched after hydration, never in the HTML — the
+            page is static and shared by every visitor (see useEngagement). */}
+        <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-1">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
             <h2 className="text-xl font-semibold tracking-tight text-balance uppercase">
               {clip.title}
             </h2>
-            <p className="font-mono text-[0.7rem] tracking-[0.1em] text-gold uppercase tabular-nums">
-              Frame {frameCode(index, roll.letter)} · {index + 1} of {roll.clips.length}
-              {runtime ? ` · ${runtime}` : ''}
-            </p>
+            {/* A labelled pill, not a bare heart: set small, it read as decoration. */}
+            <LikeButton kind="motion" id={clip.id} view variant="pill" />
+            <ViewCount
+              kind="motion"
+              id={clip.id}
+              className="font-mono text-[0.7rem] tracking-[0.05em] text-ash"
+            />
           </div>
-
-          {clip.description ? (
-            <p className="mt-2 max-w-[62ch] font-mono text-sm leading-relaxed text-ash">
-              {clip.description}
-            </p>
-          ) : null}
-
-          {/* Prev/next along the roll rather than a grid of "more clips": the
-              order is deliberate, so the useful next thing is the next one. It
-              stops at the roll's ends rather than running into the next roll —
-              see locateClip.
-              Below the fold by design — it is what you want after the clip, not
-              during it, so it is not charged to the height budget above. */}
-          <nav className="mt-6 flex gap-4 border-t border-hairline pt-5">
-            <ClipLink clip={previous} label="Previous" />
-            <ClipLink clip={next} label="Next" align="right" />
-          </nav>
+          <p className="font-mono text-[0.7rem] tracking-[0.1em] text-gold uppercase tabular-nums">
+            Frame {frameCode(index, roll.letter)} · {index + 1} of {roll.clips.length}
+            {runtime ? ` · ${runtime}` : ''}
+          </p>
         </div>
+
+        {clip.description ? (
+          <p className="mt-2 max-w-[62ch] font-mono text-sm leading-relaxed text-ash">
+            {clip.description}
+          </p>
+        ) : null}
+
+        {/* Prev/next along the roll rather than a grid of "more clips": the
+            order is deliberate, so the useful next thing is the next one. It
+            stops at the roll's ends rather than running into the next roll —
+            see locateClip.
+            Below the fold by design — it is what you want after the clip, not
+            during it, so it is not charged to the height budget above. */}
+        <nav className="mt-6 flex gap-4 border-t border-hairline pt-5">
+          <ClipLink clip={previous} label="Previous" />
+          <ClipLink clip={next} label="Next" align="right" />
+        </nav>
       </div>
     </main>
   );

@@ -352,3 +352,46 @@ model Dispatch {
 
   @@index([completedAt])
 }
+
+// ── Engagement ──────────────────────────────────────────────────────────────
+// Likes on all three surfaces, views on clips and posts. Both are counted as
+// rows rather than kept as counters on the content tables: the rows are needed
+// anyway to stop one visitor counting twice, and a count derived from them can
+// never drift from them. There are no visitor accounts — see "Likes and views"
+// in docs/architecture.md for what stands in for one.
+//
+// refId is a Photo, Video or BlogPost id, and deliberately not a foreign key,
+// for the same reason as Announcement.refId. The delete actions clear an item's
+// rows; one they miss is invisible, because counts are only ever asked for by id.
+
+model Like {
+  kind  ContentKind
+  refId String
+
+  // sha256 of the random id in the visitor's cookie (lib/engagement/visitor.ts).
+  // The id itself is never stored, so this table cannot be used to act as anyone.
+  visitor String
+
+  createdAt DateTime @default(now())
+
+  // No separate index on (kind, refId): it is the leading prefix of this key,
+  // so every count by item is already served by the key's own index.
+  @@id([kind, refId, visitor])
+}
+
+model View {
+  kind  ContentKind
+  refId String
+
+  // The UTC day the view fell on. One row per visitor per item per day is what
+  // "a view" means here.
+  day DateTime @db.Date
+
+  // A keyed hash of the address and user agent under a key that changes every
+  // day (lib/engagement/visitor.ts). No cookie is set for a view, no address is
+  // stored, and two days' hashes of one visitor cannot be matched up.
+  visitor String
+
+  // Counted by (kind, refId), the leading prefix of the key — see Like.
+  @@id([kind, refId, day, visitor])
+}
