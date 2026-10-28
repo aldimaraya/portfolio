@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import { DeleteButton } from '@/components/admin/DeleteButton';
 import { PostBody } from '@/components/journal/PostBody';
 import { PostSheet } from '@/components/journal/PostSheet';
@@ -10,9 +10,12 @@ import type { Block, PhotoRef } from '@/lib/post/content';
 import { formatPostDate } from '@/lib/post/date';
 import {
   addPhotos,
+  dropGap,
   insertBlocks,
+  isNoopDrop,
   makeBlock,
   moveBlock,
+  moveBlockTo,
   removeBlock,
   removePhotoRefs,
   usedJournalPhotos,
@@ -74,6 +77,9 @@ export function PostEditor({ post, blocks: initialBlocks, media: initialMedia, t
 
   const [selected, setSelected] = useState<string | null>(null);
   const [insertAt, setInsertAt] = useState<number | null>(null);
+  // The block being dragged by its handle, and the gap it would land in.
+  const [dragging, setDragging] = useState<string | null>(null);
+  const [dropAt, setDropAt] = useState<number | null>(null);
   const [mode, setMode] = useState<'edit' | 'preview'>('edit');
   const [width, setWidth] = useState<'desktop' | 'phone'>('desktop');
   const [tray, setTray] = useState<{ open: boolean; target: string | null }>({ open: false, target: null });
@@ -208,6 +214,24 @@ export function PostEditor({ post, blocks: initialBlocks, media: initialMedia, t
     });
   }
 
+  function endDrag() {
+    setDragging(null);
+    setDropAt(null);
+  }
+
+  /** The gap under the pointer, from the rows as they are drawn right now. */
+  function gapAtPointer(event: DragEvent<HTMLElement>) {
+    const rows = event.currentTarget.querySelectorAll<HTMLElement>(':scope > .editor-row');
+    const middles = [...rows].map((row) => {
+      const box = row.getBoundingClientRect();
+      return box.top + box.height / 2;
+    });
+    return dropGap(middles, event.clientY);
+  }
+
+  const dragFrom = dragging ? blocks.findIndex((block) => block.id === dragging) : -1;
+  const pendingDrop = dragFrom >= 0 && dropAt !== null && !isNoopDrop(dragFrom, dropAt) ? dropAt : null;
+
   const targetBlock = tray.target ? blocks.find((block) => block.id === tray.target) : undefined;
 
   // ── Rendering ─────────────────────────────────────────────────────────────
@@ -301,7 +325,7 @@ export function PostEditor({ post, blocks: initialBlocks, media: initialMedia, t
           )}
           {mode === 'edit' ? (
             <div className="editor-context" ref={setToolbarSlot}>
-              {selected ? null : <span className="editor-muted">Select a block to format it, change its layout, or move it.</span>}
+              {selected ? null : <span className="editor-muted">Select a block to format it or change its layout. Hover one to drag or delete it.</span>}
             </div>
           ) : null}
         </header>
@@ -359,43 +383,79 @@ export function PostEditor({ post, blocks: initialBlocks, media: initialMedia, t
                   </div>
                 ) : null}
 
-                {blocks.map((block, at) => (
-                  <Fragment key={block.id}>
-                    <div id={`block-${block.id}`} className="editor-block-anchor" />
-                    <EditorBlock
-                      block={block}
-                      entry={sections.get(block.id)}
-                      media={media}
-                      selected={selected === block.id}
-                      onSelect={() => {
-                        setSelected(block.id);
-                        setInsertAt(null);
-                      }}
-                      onChange={change}
-                      onMove={(delta) => setBlocks((current) => moveBlock(current, block.id, delta))}
-                      onDelete={() => remove(block.id)}
-                      onChoosePhotos={() => setTray({ open: true, target: block.id })}
-                      onClipChosen={(id: string, clip: ResolvedClip) =>
-                        setLibrary((current) => ({ ...current, clips: { ...current.clips, [id]: clip } }))
-                      }
-                    />
-                    {at < blocks.length - 1 ? (
-                      <InsertPoint
-                        last={false}
-                        open={insertAt === at + 1}
-                        onToggle={() => setInsertAt((current) => (current === at + 1 ? null : at + 1))}
-                        onPick={(kind) => insert(kind, at + 1)}
+                {/* One drop target for every block, gaps included. Its handlers run
+                    in the capture phase and stop there, so a block dragged across
+                    a text block never reaches the rich-text editor, which would
+                    otherwise draw its own drop caret in the prose. */}
+                <div
+                  className="editor-blocks"
+                  data-dragging={dragging ? '' : undefined}
+                  onDragOverCapture={(event) => {
+                    if (!dragging) return;
+                    // Without preventDefault the drop event never fires.
+                    event.preventDefault();
+                    event.stopPropagation();
+                    event.dataTransfer.dropEffect = 'move';
+                    const gap = gapAtPointer(event);
+                    if (gap !== dropAt) setDropAt(gap);
+                  }}
+                  onDropCapture={(event) => {
+                    if (!dragging) return;
+                    event.preventDefault();
+                    event.stopPropagation();
+                    const gap = gapAtPointer(event);
+                    setBlocks((current) => moveBlockTo(current, dragging, gap));
+                    endDrag();
+                  }}
+                  onDragLeave={(event) => {
+                    if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDropAt(null);
+                  }}
+                >
+                  {blocks.map((block, at) => (
+                    <Fragment key={block.id}>
+                      <div id={`block-${block.id}`} className="editor-block-anchor" />
+                      <EditorBlock
+                        block={block}
+                        entry={sections.get(block.id)}
+                        media={media}
+                        selected={selected === block.id}
+                        onSelect={() => {
+                          setSelected(block.id);
+                          setInsertAt(null);
+                        }}
+                        onChange={change}
+                        onMove={(delta) => setBlocks((current) => moveBlock(current, block.id, delta))}
+                        onDelete={() => remove(block.id)}
+                        dragging={dragging === block.id}
+                        drop={pendingDrop === at ? 'before' : pendingDrop === at + 1 && at === blocks.length - 1 ? 'after' : undefined}
+                        onDragStart={() => {
+                          setDragging(block.id);
+                          setInsertAt(null);
+                        }}
+                        onDragEnd={endDrag}
+                        onChoosePhotos={() => setTray({ open: true, target: block.id })}
+                        onClipChosen={(id: string, clip: ResolvedClip) =>
+                          setLibrary((current) => ({ ...current, clips: { ...current.clips, [id]: clip } }))
+                        }
                       />
-                    ) : null}
-                  </Fragment>
-                ))}
+                      {at < blocks.length - 1 ? (
+                        <InsertPoint
+                          last={false}
+                          open={insertAt === at + 1}
+                          onToggle={() => setInsertAt((current) => (current === at + 1 ? null : at + 1))}
+                          onPick={(kind) => insert(kind, at + 1)}
+                        />
+                      ) : null}
+                    </Fragment>
+                  ))}
 
-                <InsertPoint
-                  last
-                  open={insertAt === blocks.length}
-                  onToggle={() => setInsertAt((current) => (current === blocks.length ? null : blocks.length))}
-                  onPick={(kind) => insert(kind, blocks.length)}
-                />
+                  <InsertPoint
+                    last
+                    open={insertAt === blocks.length}
+                    onToggle={() => setInsertAt((current) => (current === blocks.length ? null : blocks.length))}
+                    onPick={(kind) => insert(kind, blocks.length)}
+                  />
+                </div>
               </PostSheet>
             )}
           </div>

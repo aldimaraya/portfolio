@@ -24,6 +24,12 @@ export interface EditorBlockProps {
   onChange: (block: Block) => void;
   onMove: (delta: -1 | 1) => void;
   onDelete: () => void;
+  /** This block is the one being dragged. */
+  dragging: boolean;
+  /** Where the drop line sits against this block while another is dragged. */
+  drop?: 'before' | 'after';
+  onDragStart: () => void;
+  onDragEnd: () => void;
   /** Opens the photo tray to fill this block. */
   onChoosePhotos: () => void;
   /** A clip picked from the reel, so the editor can resolve it without a reload. */
@@ -84,31 +90,70 @@ export function EditorBlock(props: EditorBlockProps) {
   }
 }
 
-/** The row every block sits in, with its selection outline and toolbar. */
+/**
+ * The row every block sits in, with its selection outline and toolbar, and the
+ * handle that shows under the pointer — drag to move, or delete — so neither
+ * needs the block selected first.
+ */
 function Row({
   block,
   selected,
   onSelect,
   onMove,
   onDelete,
+  dragging,
+  drop,
+  onDragStart,
+  onDragEnd,
   label,
   tools,
   margin,
   children,
 }: EditorBlockProps & { label: string; tools?: ReactNode; margin?: ReactNode; children: ReactNode }) {
+  // The handle never selects its block: selecting a photo block opens its
+  // caption and strip, which would shift the page under a drag just starting.
+  const fromHandle = (target: EventTarget) => target instanceof Element && target.closest('.editor-handle') !== null;
+
   return (
-    <div id={rowAnchor(block)} className={`${rowClass(block)} editor-row`}>
+    <div id={rowAnchor(block)} className={`${rowClass(block)} editor-row`} data-dragging={dragging || undefined} data-drop={drop}>
       <div className="post-margin">{margin}</div>
       <div
         className="post-cell editor-cell"
         data-selected={selected || undefined}
-        onMouseDownCapture={() => {
-          if (!selected) onSelect();
+        onMouseDownCapture={(event) => {
+          if (!selected && !fromHandle(event.target)) onSelect();
         }}
-        onFocusCapture={() => {
-          if (!selected) onSelect();
+        onFocusCapture={(event) => {
+          if (!selected && !fromHandle(event.target)) onSelect();
         }}
       >
+        <div className="editor-handle">
+          {/* A div, not a button: Firefox never starts a drag from a button.
+              The keyboard's way to move a block is the toolbar's arrows. */}
+          <div
+            className="editor-handle-grip"
+            draggable
+            title="Drag to move"
+            onDragStart={(event) => {
+              const cell = event.currentTarget.closest('.editor-cell');
+              if (cell) {
+                const box = cell.getBoundingClientRect();
+                event.dataTransfer.setDragImage(cell, event.clientX - box.left, event.clientY - box.top);
+              }
+              event.dataTransfer.effectAllowed = 'move';
+              // Firefox starts no drag without data. A type of our own, so a drop
+              // that strays into a text field has nothing to paste.
+              event.dataTransfer.setData('application/x-journal-block', block.id);
+              onDragStart();
+            }}
+            onDragEnd={onDragEnd}
+          >
+            <Icon d="M9 5h.01M15 5h.01M9 12h.01M15 12h.01M9 19h.01M15 19h.01" weight={3.2} />
+          </div>
+          <button type="button" className="editor-handle-delete" title={`Delete ${label.toLowerCase()}`} aria-label={`Delete ${label.toLowerCase()} block`} onClick={onDelete}>
+            <Icon d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" />
+          </button>
+        </div>
         {selected ? (
           <BlockToolbar label={label} onUp={() => onMove(-1)} onDown={() => onMove(1)} onDelete={onDelete}>
             {tools}
@@ -506,5 +551,13 @@ function EmbedEditor(props: EditorBlockProps & { block: BlockOf<'embed'> }) {
         ) : null}
       </div>
     </Row>
+  );
+}
+
+function Icon({ d, weight = 1.8 }: { d: string; weight?: number }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={weight} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d={d} />
+    </svg>
   );
 }

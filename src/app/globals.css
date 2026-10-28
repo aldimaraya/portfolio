@@ -1329,6 +1329,71 @@ body {
   position: relative;
 }
 .editor-cell[data-selected] { outline-color: rgba(212, 175, 55, 0.55); }
+
+/* The block under the pointer: a fainter outline than a selected one, and its
+   handle — drag to move, or delete — on the outline's top-right corner, where
+   it hangs into the gap above rather than over the writing. Hidden handles take
+   no pointer, so they never catch a click meant for the block beneath. */
+.editor-row { position: relative; }
+.editor-row:hover > .editor-cell:not([data-selected]) { outline-color: rgba(255, 255, 255, 0.14); }
+.editor-handle {
+  align-items: center;
+  background: var(--color-film);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  display: flex;
+  gap: 1px;
+  opacity: 0;
+  padding: 2px;
+  pointer-events: none;
+  position: absolute;
+  right: -0.5rem;
+  top: -0.5rem;
+  transform: translateY(-50%);
+  transition: opacity 120ms;
+  z-index: 5;
+}
+.editor-row:hover .editor-handle,
+.editor-cell:focus-within .editor-handle,
+.editor-cell[data-selected] .editor-handle { opacity: 1; pointer-events: auto; }
+.editor-handle-grip,
+.editor-handle-delete {
+  align-items: center;
+  border-radius: 4px;
+  color: var(--color-ash);
+  display: flex;
+  height: 1.625rem;
+  justify-content: center;
+  width: 1.625rem;
+}
+.editor-handle-grip { cursor: grab; }
+.editor-handle-grip:active { cursor: grabbing; }
+.editor-handle-grip:hover { background: rgba(255, 255, 255, 0.08); color: var(--color-bone); }
+.editor-handle-delete:hover { background: rgba(248, 113, 113, 0.12); color: #f87171; }
+/* A full-bleed row has no gap at its edge to hang into, so the handle sits
+   inside the photo instead. */
+.post-row--full > .editor-cell .editor-handle { right: 0.75rem; top: 0.75rem; transform: none; }
+
+/* Mid-drag: the block being carried fades, every other handle and + steps out
+   of the way, and a gold line marks the gap it will land in — centred in the
+   line of space between rows, or in a section's double space above it. */
+.editor-row[data-dragging] { opacity: 0.4; }
+.editor-blocks[data-dragging] .editor-row:not([data-dragging]) .editor-handle,
+.editor-blocks[data-dragging] .editor-insert-plus { opacity: 0; pointer-events: none; }
+.editor-row[data-drop]::before {
+  background: var(--color-gold);
+  border-radius: 1px;
+  content: "";
+  height: 2px;
+  left: 0;
+  pointer-events: none;
+  position: absolute;
+  right: 0;
+  z-index: 5;
+}
+.editor-row[data-drop="before"]::before { top: calc(var(--line) / -2 - 1px); }
+.post-row--section.editor-row[data-drop="before"]::before { top: -1px; }
+.editor-row[data-drop="after"]::before { bottom: calc(var(--line) / -2 - 1px); }
 /* The second row of the sticky bar, holding the selected block's toolbar
    (BlockToolbar portals into it). Always the same height, so selecting a block
    never shifts the page under the pointer. */
@@ -1754,5 +1819,8 @@ body {
 
 @container post (max-width: 48rem) {
   .editor-insert-plus { left: auto; right: -0.75rem; }
+  /* The + moves to the right edge of the gap here, where the handle hangs, so
+     the handle drops inside the block's corner instead. */
+  .editor-handle { right: 0.25rem; top: 0.25rem; transform: none; }
   .editor-insert-menu { left: 0; }
 }

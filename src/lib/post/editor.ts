@@ -67,6 +67,37 @@ export function moveBlock(blocks: Block[], id: string, delta: -1 | 1): Block[] {
   return next;
 }
 
+/**
+ * Moves a block into a gap — 0 above the first block, `blocks.length` below the
+ * last — counted in the list as it stands before the move, because that is what
+ * the drop line is drawn against. The gaps directly above and below a block are
+ * both where it already is, so a drop into either is a no-op.
+ */
+export function moveBlockTo(blocks: Block[], id: string, gap: number): Block[] {
+  const from = blocks.findIndex((block) => block.id === id);
+  if (from < 0 || isNoopDrop(from, gap)) return blocks;
+  const next = blocks.slice();
+  const [moved] = next.splice(from, 1);
+  // Taking the block out closes its gap, so every gap below it moves up by one.
+  const at = gap > from ? gap - 1 : gap;
+  next.splice(Math.min(Math.max(at, 0), next.length), 0, moved);
+  return next;
+}
+
+export function isNoopDrop(from: number, gap: number): boolean {
+  return gap === from || gap === from + 1;
+}
+
+/**
+ * The gap a dragged block is pointing at: how many blocks' midpoints sit above
+ * the pointer. Measured against every block rather than the one under the
+ * pointer, so the space between blocks — the insert points — still lands
+ * somewhere instead of refusing the drop.
+ */
+export function dropGap(midpoints: number[], pointerY: number): number {
+  return midpoints.filter((middle) => middle < pointerY).length;
+}
+
 export function removeBlock(blocks: Block[], id: string): Block[] {
   return blocks.filter((block) => block.id !== id);
 }

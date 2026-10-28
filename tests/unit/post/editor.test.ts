@@ -4,8 +4,10 @@ import {
   addPhotos,
   INSERTABLE,
   insertBlocks,
+  dropGap,
   makeBlock,
   moveBlock,
+  moveBlockTo,
   movePhoto,
   removeBlock,
   removePhotoRefs,
@@ -48,6 +50,28 @@ describe('block list edits', () => {
     expect(moveBlock(blocks, 'b', -1).map((b) => b.id)).toEqual(['b', 'a', 'c']);
     expect(moveBlock(blocks, 'a', -1)).toBe(blocks);
     expect(moveBlock(blocks, 'c', 1)).toBe(blocks);
+  });
+
+  it('drops a block into a gap counted before the move', () => {
+    const ids = (next: Block[]) => next.map((b) => b.id);
+    expect(ids(moveBlockTo(blocks, 'a', 3))).toEqual(['b', 'c', 'a']);
+    expect(ids(moveBlockTo(blocks, 'a', 2))).toEqual(['b', 'a', 'c']);
+    expect(ids(moveBlockTo(blocks, 'c', 0))).toEqual(['c', 'a', 'b']);
+    expect(ids(moveBlockTo(blocks, 'c', 1))).toEqual(['a', 'c', 'b']);
+  });
+
+  it('leaves the list alone for a drop beside the block itself, or an unknown id', () => {
+    expect(moveBlockTo(blocks, 'b', 1)).toBe(blocks);
+    expect(moveBlockTo(blocks, 'b', 2)).toBe(blocks);
+    expect(moveBlockTo(blocks, 'x', 0)).toBe(blocks);
+  });
+
+  it('points at the gap below every midpoint above the pointer', () => {
+    const middles = [100, 300, 500];
+    expect(dropGap(middles, 50)).toBe(0);
+    expect(dropGap(middles, 200)).toBe(1);
+    expect(dropGap(middles, 450)).toBe(2);
+    expect(dropGap(middles, 900)).toBe(3);
   });
 
   it('removes by id', () => {
