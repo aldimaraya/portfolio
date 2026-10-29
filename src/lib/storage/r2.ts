@@ -25,7 +25,7 @@ export function bucket(): string {
   return storageEnv().R2_BUCKET;
 }
 
-export type MediaPrefix = 'photos' | 'videos' | 'posters' | 'sprites';
+export type MediaPrefix = 'photos' | 'videos' | 'posters' | 'sprites' | 'covers';
 
 function slugify(value: string): string {
   return value

@@ -26,6 +26,9 @@ import {
   probeVideo,
   transcodeVideo,
 } from '@/lib/video/transcode-client';
+import { isCustomPoster } from '@/lib/video/cover';
+import { prepareCover } from '@/lib/video/cover-client';
+import { encodedFilename } from '@/lib/photo/compress';
 import { missingRequiredFields, titleFromFilename } from '@/lib/video/form';
 import { listPhrase } from '@/lib/text';
 import { uploadFile } from '@/lib/storage/upload-client';
@@ -147,10 +150,29 @@ export function VideoForm({
    * mid-encode would land its result on the form of the clip that replaced it.
    */
   const pickId = useRef(0);
+  /**
+   * A hand-picked thumbnail, already re-encoded (see lib/video/cover-client) so
+   * the field previews and sizes exactly what will be uploaded. Optional: without
+   * one, the poster is the first preview frame, as it always was.
+   */
+  const [cover, setCover] = useState<File | null>(null);
+  const [preparingCover, setPreparingCover] = useState(false);
+  const [coverError, setCoverError] = useState('');
+  // Its own, so clearing the thumbnail does not also remount the video field.
+  const [coverKey, setCoverKey] = useState(0);
+  // Picking twice in quick succession must not let the slower first one win.
+  const coverPick = useRef(0);
+  /**
+   * Set when a stored cover is being swapped back for a grabbed frame. Needs a
+   * fresh grab to have a frame to swap in, which is why choosing it starts one.
+   */
+  const [dropCover, setDropCover] = useState(false);
   const [busy, setBusy] = useState(false);
   const [resetKey, setResetKey] = useState(0);
 
   const isEdit = Boolean(initial?.id);
+  /** The stored poster is a cover, and is staying. */
+  const keepsCover = isCustomPoster(form.posterImageUrl) && !dropCover;
   /**
    * Nothing below the picker means anything until there is a clip to describe —
    * a title and tags typed against no video are fields that cannot be saved, so
@@ -160,12 +182,20 @@ export function VideoForm({
 
   const missing = missingRequiredFields({
     hasVideo: Boolean(file) || Boolean(form.videoUrl),
-    hasPreview: Boolean(sprite) || Boolean(form.spriteUrl && form.posterImageUrl),
+    // A dropped cover leaves the stored poster pointing at it, so it counts for
+    // nothing until a grab has produced the frame that replaces it.
+    hasPreview:
+      Boolean(sprite) || Boolean(form.spriteUrl && form.posterImageUrl && !dropCover),
     title: form.title,
     hasRoll: Boolean(form.rollId),
   });
   const ready =
-    missing.length === 0 && !generating && !fetching && !transcoding && !inspecting;
+    missing.length === 0 &&
+    !generating &&
+    !fetching &&
+    !transcoding &&
+    !inspecting &&
+    !preparingCover;
 
   // Preview the freshly generated strip. Derived, and revoked on replacement, so
   // the blobs are not pinned in memory for the life of the page.
@@ -463,6 +493,42 @@ export function VideoForm({
     }
   }
 
+  async function handleCover(picked: File | null) {
+    const pick = ++coverPick.current;
+    setCover(null);
+    setCoverError('');
+    if (!picked) return;
+    setPreparingCover(true);
+    try {
+      const prepared = await prepareCover(picked);
+      if (pick === coverPick.current) setCover(prepared);
+    } catch {
+      if (pick !== coverPick.current) return;
+      // HEIC is the usual one: Safari decodes it, Chrome does not.
+      setCoverError('Could not read that image. Try a JPEG or PNG.');
+      setCoverKey((key) => key + 1);
+    } finally {
+      if (pick === coverPick.current) setPreparingCover(false);
+    }
+  }
+
+  function clearCover() {
+    coverPick.current += 1;
+    setCover(null);
+    setCoverError('');
+    setPreparingCover(false);
+    setCoverKey((key) => key + 1);
+  }
+
+  /**
+   * Swaps a stored cover back for a grabbed frame. There is no frame on hand on
+   * the edit page, so this grabs one — the same download Regenerate does.
+   */
+  function revertToFrame() {
+    setDropCover(true);
+    if (!sprite) void regenerate();
+  }
+
   /**
    * Re-grabs the frames from the clip already in R2, for a preview that came out
    * badly — or, as with the clips stored before the dimension columns existed, a
@@ -523,7 +589,11 @@ export function VideoForm({
     setTimeout(() => URL.revokeObjectURL(url), 60_000);
   }
 
-  async function upload(blob: Blob, name: string, prefix: 'videos' | 'posters' | 'sprites') {
+  async function upload(
+    blob: Blob,
+    name: string,
+    prefix: 'videos' | 'posters' | 'sprites' | 'covers',
+  ) {
     setStage(prefix);
     setProgress(0);
     try {
@@ -555,9 +625,24 @@ export function VideoForm({
       // Already the encode, if the clip needed one: that ran at pick time, and
       // `ready` holds save back until it has finished.
       if (file) videoUrl = await upload(file, file.name, 'videos');
+      // A cover wins over the grabbed frame, and a stored one survives a
+      // regenerate: the strip is redone, the hand-picked thumbnail is not.
+      if (cover) {
+        posterImageUrl = await upload(cover, encodedFilename(`${base}-cover.webp`, cover.type), 'covers');
+      } else if (sprite && !keepsCover) {
+        posterImageUrl = await upload(
+          sprite.posterBlob,
+          // Named after what the browser actually wrote — WebP, or JPEG on Safari.
+          encodedFilename(`${base}-poster.webp`, sprite.posterBlob.type),
+          'posters',
+        );
+      }
       if (sprite) {
-        posterImageUrl = await upload(sprite.posterBlob, `${base}-poster.webp`, 'posters');
-        spriteUrl = await upload(sprite.spriteBlob, `${base}-sprite.webp`, 'sprites');
+        spriteUrl = await upload(
+          sprite.spriteBlob,
+          encodedFilename(`${base}-sprite.webp`, sprite.spriteBlob.type),
+          'sprites',
+        );
       }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Upload failed');
@@ -576,6 +661,8 @@ export function VideoForm({
       setSprite(null);
       setEncoded(false);
       setTranscodeNote('');
+      clearCover();
+      setDropCover(false);
       setResetKey((key) => key + 1);
       setError(result.error);
       setBusy(false);
@@ -599,6 +686,8 @@ export function VideoForm({
     setSource(null);
     setSprite(null);
     setEncoded(false);
+    clearCover();
+    setDropCover(false);
     setWindowAt(0);
     setError('');
     setAudioWarning('');
@@ -621,6 +710,8 @@ export function VideoForm({
       ? 'Uploading clip'
       : stage === 'posters'
         ? 'Uploading poster'
+        : stage === 'covers'
+          ? 'Uploading thumbnail'
         : stage === 'sprites'
           ? 'Uploading preview'
           : 'Saving';
@@ -821,6 +912,42 @@ export function VideoForm({
           <p className="mt-2 font-mono text-xs text-ash">
             {form.spriteFrames} frames · {form.width}×{form.height}
           </p>
+        </div>
+      ) : null}
+
+      {/* After the strip rather than beside the video: it is the strip's first
+          frame that this replaces, and the two are judged against each other. */}
+      {hasClip ? (
+        <div className="flex flex-col gap-1">
+          <UploadField
+            key={coverKey}
+            label="Thumbnail (optional)"
+            accept="image/*"
+            // A grabbed frame is already shown as the strip's first cell; only a
+            // cover is worth showing again here.
+            value={keepsCover ? form.posterImageUrl : ''}
+            file={cover}
+            onSelect={handleCover}
+            onClear={busy ? undefined : clearCover}
+            hint="Shown until the clip is hovered, and before it plays. Without one, the first preview frame is used."
+          />
+          {preparingCover ? <p className="text-xs text-gold">Preparing the thumbnail…</p> : null}
+          {coverError ? <p className="text-xs text-amber-400">{coverError}</p> : null}
+          {keepsCover && !cover ? (
+            <button
+              type="button"
+              onClick={revertToFrame}
+              disabled={busy || fetching || generating}
+              className={`${BUTTON} self-start`}
+            >
+              Use a frame from the clip instead
+            </button>
+          ) : null}
+          {dropCover && !cover && !sprite ? (
+            <p className="text-xs text-ash">
+              The custom thumbnail goes once the frames are grabbed and you save.
+            </p>
+          ) : null}
         </div>
       ) : null}
 

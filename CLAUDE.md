@@ -104,6 +104,11 @@ Load-bearing constraints — these are why the code is shaped this way:
   needs the Neon adapter. `lib/db.ts` exports `db` as a lazy Proxy so importing a module that mixes pure
   helpers with queries does not demand a live `DATABASE_URL` (unit tests rely on this) — never replace it
   with a top-level `new PrismaClient()`.
+- **`revalidatePath(path, 'layout')` takes the route, not the URL.** The public pages sit in the `(site)`
+  group, and Next tags a page's layouts by route — `/(site)/motion/layout` — so `revalidatePath('/motion',
+  'layout')` matches nothing and fails silently; /motion updated only on deploys for months because of it.
+  Use `MOTION_LAYOUT` / `JOURNAL_LAYOUT` from `lib/revalidate.ts`. A plain `revalidatePath('/stills')`
+  matches the pathname tag and is fine.
 - **Auth is checked twice.** `proxy.ts` gates `/admin/*` pages, and every server action and route handler
   re-checks with `isAuthenticated()` / `requireSession()` (`lib/auth/guard.ts`), because server actions are
   publicly reachable endpoints regardless of which page rendered the form.

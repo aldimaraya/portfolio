@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { JOURNAL_LAYOUT, MOTION_LAYOUT } from '@/lib/revalidate';
 import { z } from 'zod';
 import { db } from '@/lib/db';
 import { forgetEngagement } from '@/lib/engagement/counts';
@@ -145,7 +146,7 @@ export async function saveVideo(input: VideoInput): Promise<{ error?: string }> 
     // Every one of them carries its own position on the roll — the frame code and
     // the prev/next pager — so a change to any clip can invalidate all of them,
     // and a reorder always does.
-    revalidatePath('/motion', 'layout');
+    revalidatePath(MOTION_LAYOUT, 'layout');
     revalidatePath('/');
     return {};
   });
@@ -185,7 +186,7 @@ export async function reorderVideos(rollId: string, ids: string[]): Promise<{ er
     // Every one of them carries its own position on the roll — the frame code and
     // the prev/next pager — so a change to any clip can invalidate all of them,
     // and a reorder always does.
-    revalidatePath('/motion', 'layout');
+    revalidatePath(MOTION_LAYOUT, 'layout');
     revalidatePath('/');
     return {};
   });
@@ -222,11 +223,11 @@ export async function deleteVideo(id: string): Promise<{ error?: string }> {
     // Every one of them carries its own position on the roll — the frame code and
     // the prev/next pager — so a change to any clip can invalidate all of them,
     // and a reorder always does.
-    revalidatePath('/motion', 'layout');
+    revalidatePath(MOTION_LAYOUT, 'layout');
     revalidatePath('/');
     // A clip block in a journal post refers to it by id; rebuilt, the post leaves
     // it out rather than showing a player for a file that is gone.
-    revalidatePath('/journal', 'layout');
+    revalidatePath(JOURNAL_LAYOUT, 'layout');
     return {};
   });
 }
@@ -260,7 +261,7 @@ export async function saveRoll(input: RollInput): Promise<{ error?: string }> {
 
     revalidatePath('/admin/videos');
     // A roll's name is printed on every clip page in it.
-    revalidatePath('/motion', 'layout');
+    revalidatePath(MOTION_LAYOUT, 'layout');
     revalidatePath('/');
     return {};
   });
@@ -282,7 +283,7 @@ export async function reorderRolls(ids: string[]): Promise<{ error?: string }> {
 
     revalidatePath('/admin/videos');
     // Reordering rolls re-letters them, which changes every clip's frame code.
-    revalidatePath('/motion', 'layout');
+    revalidatePath(MOTION_LAYOUT, 'layout');
     revalidatePath('/');
     return {};
   });
@@ -304,7 +305,7 @@ export async function deleteRoll(id: string): Promise<{ error?: string }> {
     await db.roll.delete({ where: { id } });
 
     revalidatePath('/admin/videos');
-    revalidatePath('/motion', 'layout');
+    revalidatePath(MOTION_LAYOUT, 'layout');
     revalidatePath('/');
     return {};
   });

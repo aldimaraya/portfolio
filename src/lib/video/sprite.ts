@@ -5,6 +5,7 @@ import {
   windowSpan,
   windowStart,
 } from './timestamps';
+import { encodeCanvas } from '../image/encode-client';
 
 /**
  * Browser-only sprite-sheet generation. The browser already holds the video file
@@ -12,7 +13,8 @@ import {
  * tiles them into one wide strip — which keeps the "no server-side transcoding"
  * constraint intact (no ffmpeg anywhere).
  *
- * The first frame doubles as the poster when none is supplied separately.
+ * The first frame doubles as the poster, unless a custom one was picked (see
+ * ./cover.ts).
  */
 
 export interface SpriteResult {
@@ -150,16 +152,6 @@ async function seekTo(video: HTMLVideoElement, time: number): Promise<void> {
   await seeked;
 }
 
-function toBlob(canvas: HTMLCanvasElement, type: string, quality: number): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    canvas.toBlob(
-      (blob) => (blob ? resolve(blob) : reject(new Error('Canvas produced no image'))),
-      type,
-      quality,
-    );
-  });
-}
-
 export async function generateSpriteSheet(
   file: File,
   {
@@ -225,15 +217,30 @@ export async function generateSpriteSheet(
         frameWidth,
         frameHeight,
       );
-      if (index === 0) {
-        posterContext.drawImage(video, 0, 0, frameWidth, frameHeight);
-      }
       onProgress?.(spriteProgress(index + 1, timestamps.length));
     }
 
+    // Copied out of the strip rather than drawn from the <video> a second time.
+    // Safari has produced a sheet with a good first frame beside a poster that
+    // came out blank — transparent, so black on the page until hover swaps the
+    // sheet in. A canvas-to-canvas copy does not touch the decoder at all, and is
+    // by construction the same frame the strip opens on.
+    posterContext.drawImage(
+      sprite,
+      0,
+      0,
+      frameWidth,
+      frameHeight,
+      0,
+      0,
+      frameWidth,
+      frameHeight,
+    );
+
+    // WebP, or JPEG on Safari — the caller names the files after blob.type.
     const [spriteBlob, posterBlob] = await Promise.all([
-      toBlob(sprite, 'image/webp', 0.8),
-      toBlob(poster, 'image/webp', 0.85),
+      encodeCanvas(sprite, 0.8),
+      encodeCanvas(poster, 0.85),
     ]);
 
     return {
