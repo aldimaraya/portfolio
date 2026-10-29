@@ -328,6 +328,14 @@ One password, one session. Photos, videos and posts each get a list and a form.
 - **Regenerate preview frames** on a clip's edit page pulls the stored clip back
   through `video-source` and re-grabs, which is how a preview is changed after
   upload and how a legacy row's missing dimensions get filled in.
+- **A custom thumbnail** can replace the grabbed poster, on upload or later from
+  the edit page: an image picked by hand, shown until the clip is hovered and
+  before it plays. It goes in the same `posterImageUrl`, so every reader picks it
+  up unchanged, and is always re-encoded through a canvas (1280px, WebP or JPEG)
+  so a phone photo's GPS is never published. Covers live under `covers/` rather
+  than `posters/`, which is how the form tells one from a grabbed frame without a
+  column ([`lib/video/cover.ts`](../src/lib/video/cover.ts)) — and why
+  Regenerate redoes the strip but leaves a cover in place.
 - **Rolls** are renamed, reordered and deleted on their own headings in the
   `/admin/videos` clip list, and added at its foot. A roll with clips on it
   cannot be deleted — the admin says so, and `onDelete: Restrict` guarantees

@@ -21,6 +21,12 @@ interface Props {
   /** The pending selection, owned by the parent so it can upload on save. */
   file: File | null;
   onSelect: (file: File | null) => void;
+  /**
+   * Drops the pending selection. Optional: without it the only way out of a
+   * wrong pick is to choose another file, which on this form means sitting
+   * through an unwanted re-encode first.
+   */
+  onClear?: () => void;
   hint?: string;
   warnAboveBytes?: number;
   /** Upload percentage while the parent is saving, or null when idle. */
@@ -49,6 +55,7 @@ export function UploadField({
   value,
   file,
   onSelect,
+  onClear,
   hint,
   warnAboveBytes,
   progress = null,
@@ -159,7 +166,25 @@ export function UploadField({
       ) : null}
 
       {media}
-      {caption ? <span className="truncate text-xs text-ash">{caption}</span> : null}
+      {caption ? (
+        <span className="flex items-baseline justify-between gap-3">
+          <span className="truncate text-xs text-ash">{caption}</span>
+          {/* Only ever offered for a pending pick. A stored file is cleared by
+              deleting the record, not by emptying a field that would then save
+              a row pointing at nothing. `type="button"` keeps it from
+              submitting, and being interactive content stops the click from
+              falling through to the label's file input and reopening it. */}
+          {preview && onClear ? (
+            <button
+              type="button"
+              onClick={onClear}
+              className="shrink-0 text-xs text-ash underline underline-offset-2 hover:text-gold"
+            >
+              Remove
+            </button>
+          ) : null}
+        </span>
+      ) : null}
 
       {warning ? <span className="text-xs text-amber-400">{warning}</span> : null}
       {progress !== null ? (

@@ -9,7 +9,7 @@
  * browser hides the ETag and the upload cannot be completed.
  */
 
-export type UploadPrefix = 'photos' | 'videos' | 'posters' | 'sprites' | 'journal';
+export type UploadPrefix = 'photos' | 'videos' | 'posters' | 'sprites' | 'covers' | 'journal';
 
 /** R2 requires every part except the last to be at least 5 MiB. */
 export const MIN_PART_SIZE = 5 * 1024 * 1024;
