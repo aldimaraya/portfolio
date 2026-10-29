@@ -8,6 +8,7 @@ import { PageHold } from '@/components/site/PageHold';
 import { PolaroidWall } from './PolaroidWall';
 import type { PolaroidPhoto } from './Polaroid';
 import { filterPhotos, optionsFromPhotos } from '@/lib/filters/apply';
+import { facetCounts, facetTotals } from '@/lib/filters/facets';
 import { parseFilters } from '@/lib/filters/parse';
 import { parseSeed, parseSort, sortPhotosForWall } from '@/lib/color/sort';
 import { OPEN_PHOTO_PARAM, withoutOpenPhoto } from '@/lib/photo/lightbox-link';
@@ -41,6 +42,8 @@ export function StillsGallery({ photos }: { photos: GalleryPhoto[] }) {
   // From the whole library, not the visible subset: a chip must not vanish from
   // under the cursor that just clicked it.
   const options = useMemo(() => optionsFromPhotos(photos), [photos]);
+  const totals = useMemo(() => facetTotals(photos), [photos]);
+  const counts = useMemo(() => facetCounts(photos, filters), [photos, filters]);
 
   const sort = useMemo(() => parseSort(searchParams.get('sort')), [searchParams]);
   const seed = useMemo(() => parseSeed(searchParams.get('seed')), [searchParams]);
@@ -74,7 +77,14 @@ export function StillsGallery({ photos }: { photos: GalleryPhoto[] }) {
 
   return (
     <>
-      <FilterBar options={options} active={filters} sort={sort} seed={seed} />
+      <FilterBar
+        options={options}
+        counts={counts}
+        totals={totals}
+        active={filters}
+        sort={sort}
+        seed={seed}
+      />
       {/* PageHold keeps the progress bar running through the wait. */}
       {waiting ? <PageHold /> : <PolaroidWall photos={visible} openPhotoId={openPhotoId} />}
     </>
