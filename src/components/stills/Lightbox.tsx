@@ -7,6 +7,7 @@ import { LikeButton } from '@/components/engagement/LikeButton';
 import { AdminEditLink } from '@/components/site/AdminEditLink';
 import { placeholderColor } from '@/lib/color/analyze';
 import { photoCaption } from '@/lib/photo/caption';
+import { gestureHintSeen, rememberGestureHint } from '@/lib/photo/gesture-hint';
 import { editPhotoHref } from '@/lib/photo/lightbox-link';
 import type { PolaroidPhoto } from './Polaroid';
 
@@ -44,8 +45,12 @@ const SWIPE_THRESHOLD = 60;
  * downward drag is also what a thumb does when it slips.
  */
 const DISMISS_THRESHOLD = 110;
-/** How long the gesture hint stays up before it stops being useful and starts being clutter. */
-const HINT_MS = 3600;
+/**
+ * How long the gesture hint is up: the delay plus the duration of the
+ * .gesture-hint timeline in globals.css (0.4s + 3.6s), which it must match — the
+ * timer is what unmounts it once the demonstration has finished.
+ */
+const HINT_MS = 4000;
 /**
  * The mat follows the finger at less than full speed. A drag that tracks 1:1
  * feels like the photo has come loose; damped, it reads as resistance that
@@ -108,9 +113,12 @@ export function Lightbox({ photos, index, originFor, onClose, onNavigate }: Ligh
   /**
    * The gesture hint. Shown on touch only, where the arrows are not, and only
    * until it has been read or acted on — a caption that never leaves is a
-   * caption on the photograph.
+   * caption on the photograph. And only on the first photo opened in a session
+   * (lib/photo/gesture-hint.ts). Read once, on mount: the lightbox only ever
+   * renders in the browser, opened from a click or from the URL after
+   * hydration, so there is no server render for this to disagree with.
    */
-  const [hint, setHint] = useState(true);
+  const [hint, setHint] = useState(() => !gestureHintSeen());
 
   // Wrapping keeps the arrows live at both ends, so holding a key never leaves
   // you stuck on the last frame wondering whether the control broke.
@@ -142,6 +150,9 @@ export function Lightbox({ photos, index, originFor, onClose, onNavigate }: Ligh
 
   useEffect(() => {
     if (!hint) return;
+    // Remembered as soon as it starts, not when it finishes: closing the
+    // lightbox halfway through still counts as having been shown it.
+    rememberGestureHint();
     const timer = setTimeout(() => setHint(false), HINT_MS);
     return () => clearTimeout(timer);
   }, [hint]);
@@ -397,7 +408,13 @@ export function Lightbox({ photos, index, originFor, onClose, onNavigate }: Ligh
           // touch-none because the mat now owns both axes: without it Safari
           // claims the vertical drag for its own overscroll bounce and the
           // dismiss never fires.
-          className="flex touch-none cursor-default flex-col rounded-sm bg-mat p-3 pb-2.5 shadow-[0_18px_50px_rgba(0,0,0,0.6)]"
+          // gesture-follow is the mat giving under the hint's finger; it comes
+          // off with the hint, at the first real touch, before any drag can
+          // write an inline transform for the CSS animation to override.
+          className={`flex touch-none cursor-default flex-col rounded-sm bg-mat p-3 pb-2.5 shadow-[0_18px_50px_rgba(0,0,0,0.6)] ${
+            hint ? 'gesture-follow' : ''
+          }`}
+          data-browse={photos.length > 1}
           // Clicks on the photo itself shouldn't dismiss — only the backdrop.
           onClick={(event) => event.stopPropagation()}
           onTouchStart={onTouchStart}
@@ -410,9 +427,10 @@ export function Lightbox({ photos, index, originFor, onClose, onNavigate }: Ligh
               over it, so a slow load reads as the print developing rather than
               an empty mat that suddenly fills. */}
           <div
-            className="lightbox-print"
+            className="lightbox-print relative"
             style={{ backgroundColor: placeholderColor(photo) }}
           >
+            {hint ? <GestureHint browse={photos.length > 1} /> : null}
             <Image
               key={photo.id}
               ref={imageRef}
@@ -473,18 +491,6 @@ export function Lightbox({ photos, index, originFor, onClose, onNavigate }: Ligh
         </figure>
         <NavButton side="right" disabled={photos.length < 2} onClick={() => step(1)} />
 
-        {/* The phone's replacement for the arrows: say what the gestures are,
-            once, then get out of the way. Positioned over the backdrop below the
-            mat rather than inside it — this is a note about the interface, not
-            part of the print. */}
-        <p
-          aria-hidden
-          className={`lightbox-chrome pointer-events-none absolute inset-x-0 bottom-1 text-center font-mono text-[0.65rem] tracking-[0.08em] text-ash/70 uppercase transition-opacity duration-500 sm:hidden ${
-            hint ? 'opacity-100' : 'opacity-0'
-          }`}
-        >
-          {photos.length > 1 ? 'Swipe to browse · ' : ''}Swipe down to close
-        </p>
       </div>
       <Prefetch photos={photos} index={index} />
     </div>
@@ -547,6 +553,39 @@ function flipTransform(origin: DOMRect, box: DOMRect): string {
   const dx = origin.left + origin.width / 2 - (box.left + box.width / 2);
   const dy = origin.top + origin.height / 2 - (box.top + box.height / 2);
   return `translate(${dx}px, ${dy}px) scale(${origin.width / box.width})`;
+}
+
+/**
+ * The phone's replacement for the arrows, acted out on the print itself: the
+ * translucent dot iPhone screen recordings use for a finger presses the photo
+ * and drags it — left, as if to the next photo, then down, as if to close —
+ * while the mat gives a little under it (.gesture-follow on the figure) and a
+ * line at the foot of the photo names each move. Shown rather than told: a
+ * line of text up by the counter was read as a caption and skipped, and
+ * arrows drawn on the print were either too stiff or too loud. Once, on open,
+ * then gone — anything that stays on a photograph is clutter on it.
+ *
+ * The dot is drawn three times, the two copies lagging behind it as a short
+ * motion trail. With a single photo there is nothing to browse to, so only the
+ * downward half plays. The timeline lives in .gesture-hint in globals.css.
+ */
+function GestureHint({ browse }: { browse: boolean }) {
+  return (
+    <div
+      aria-hidden
+      data-browse={browse}
+      className="gesture-hint pointer-events-none absolute inset-0 z-10 overflow-hidden sm:hidden"
+    >
+      <span className="gesture-touch gesture-trail-2" />
+      <span className="gesture-touch gesture-trail-1" />
+      <span className="gesture-touch" />
+      {browse ? <span className="gesture-label gesture-label-x">Swipe to browse</span> : null}
+      <span className="gesture-label gesture-label-y">Swipe down to close</span>
+      <span className="gesture-label gesture-label-calm">
+        {browse ? 'Swipe to browse · ' : ''}Swipe down to close
+      </span>
+    </div>
+  );
 }
 
 function NavButton({
