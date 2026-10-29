@@ -410,6 +410,11 @@ One password, one session. Photos, videos and posts each get a list and a form.
   than `posters/`, which is how the form tells one from a grabbed frame without a
   column ([`lib/video/cover.ts`](../src/lib/video/cover.ts)) — and why
   Regenerate redoes the strip but leaves a cover in place.
+- **A YouTube link** can be attached to any clip, for one whose 4K cut is on
+  YouTube — what reaches R2 is our own 1080p encode, and 4K masters stay offline.
+  The clip page offers it as a `YouTube ↗` link in the gate's slate rather than an
+  embedded player, so the page loads no YouTube script or cookie unless the
+  visitor follows it.
 - **Rolls** are renamed, reordered and deleted on their own headings in the
   `/admin/videos` clip list, and added at its foot. A roll with clips on it
   cannot be deleted — the admin says so, and `onDelete: Restrict` guarantees
@@ -561,6 +566,7 @@ Columns whose *shape* carries a decision:
 | `Photo.hueStrength` | **Dead column.** Left declared only so `db push` stays additive; dropping it needs `--accept-data-loss`. Safe to drop by hand. |
 | `Video.width/height` | Default 0, meaning "uploaded before these were stored". `FRAME_FALLBACK_RATIO` shapes those, and the clip page corrects itself from the file's own metadata. |
 | `Video.durationSeconds` | `Float`, default 0 meaning unknown. Rounding on the way in would make the roll's running total drift. |
+| `Video.youtubeId` | Default `""`, meaning no YouTube copy. Holds the 11-character id, never the pasted link, so share-link tracking parameters are not published; the clip page rebuilds the watch URL from it. |
 | `Video.sortOrder` | Videos *do* have a manual order, unlike photos — but only within their roll; values on different rolls are not comparable. |
 | `Video.rollId` (nullable) | Nullable only so the push stayed additive. `saveVideo` requires one; a clip without one (older than rolls, until `backfill:rolls` runs) is shown at the end of the first roll rather than dropped. |
 | `SiteLink` (no icon column) | The mark is derived from `href`'s host at render, so a row cannot name one brand's icon and point at another's site. |

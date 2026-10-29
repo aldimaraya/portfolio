@@ -104,6 +104,14 @@ model Video {
   // Optional: plenty of clips need no blurb beyond their title.
   description String @default("")
 
+  // The same clip on YouTube, where it can be watched at full resolution: the
+  // copy in R2 is our own 1080p encode (lib/video/transcode.ts), and 4K masters
+  // never go up at all. Optional — most clips have no YouTube twin. Stored as the
+  // 11-character id rather than the pasted URL, so a share link's tracking
+  // parameters (`?si=…`) are never published and every link is rebuilt in one
+  // canonical shape. Empty means none.
+  youtubeId String @default("")
+
   // Manual order *within its roll*, maintained by dragging rows in the admin
   // list rather than typed in by hand. Assigned on create — and on a move to
   // another roll — as (that roll's max + 1), so a clip lands at the end of its

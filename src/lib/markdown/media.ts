@@ -31,7 +31,7 @@ export function isVideoUrl(url: string): boolean {
 
 /**
  * The YouTube video id in a URL, or null for anything else — a watch link, a
- * youtu.be share link, an /embed/ or /shorts/ URL. Host is checked rather than
+ * youtu.be share link, an /embed/, /shorts/ or /live/ URL. Host is checked rather than
  * pattern-matched loosely, so an arbitrary link is never turned into an iframe
  * pointed at someone else's domain.
  */
@@ -50,7 +50,7 @@ export function youtubeId(url: string): string | null {
       : host === 'youtube.com' || host === 'm.youtube.com' || host === 'youtube-nocookie.com'
         ? parsed.pathname === '/watch'
           ? (parsed.searchParams.get('v') ?? '')
-          : /^\/(embed|shorts|v)\//.test(parsed.pathname)
+          : /^\/(embed|shorts|live|v)\//.test(parsed.pathname)
             ? parsed.pathname.split('/')[2]
             : ''
         : '';
@@ -63,6 +63,15 @@ export function youtubeId(url: string): string | null {
 /** The privacy-preserving embed URL for a video id. */
 export function youtubeEmbedUrl(id: string): string {
   return `https://www.youtube-nocookie.com/embed/${id}`;
+}
+
+/**
+ * The canonical watch URL for a video id — what a clip's YouTube link points at.
+ * Rebuilt from the id rather than kept as pasted, so it never carries a share
+ * link's tracking parameters.
+ */
+export function youtubeWatchUrl(id: string): string {
+  return `https://www.youtube.com/watch?v=${id}`;
 }
 
 /**

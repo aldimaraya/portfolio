@@ -5,6 +5,7 @@ import {
   posterFromTitle,
   youtubeEmbedUrl,
   youtubeId,
+  youtubeWatchUrl,
 } from '@/lib/markdown/media';
 
 describe('isVideoUrl', () => {
@@ -31,6 +32,7 @@ describe('youtubeId', () => {
     expect(youtubeId('https://youtu.be/dQw4w9WgXcQ')).toBe('dQw4w9WgXcQ');
     expect(youtubeId('https://www.youtube.com/embed/dQw4w9WgXcQ')).toBe('dQw4w9WgXcQ');
     expect(youtubeId('https://www.youtube.com/shorts/dQw4w9WgXcQ')).toBe('dQw4w9WgXcQ');
+    expect(youtubeId('https://www.youtube.com/live/dQw4w9WgXcQ?si=abc')).toBe('dQw4w9WgXcQ');
     expect(youtubeId('https://m.youtube.com/watch?v=dQw4w9WgXcQ&t=30s')).toBe('dQw4w9WgXcQ');
   });
 
@@ -54,6 +56,12 @@ describe('youtubeId', () => {
     expect(youtubeEmbedUrl('dQw4w9WgXcQ')).toBe(
       'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ',
     );
+  });
+
+  it('rebuilds a share link as a clean watch URL', () => {
+    const id = youtubeId('https://youtu.be/dQw4w9WgXcQ?si=tracking123');
+    expect(id).toBe('dQw4w9WgXcQ');
+    expect(youtubeWatchUrl(id!)).toBe('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
   });
 });
 
