@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { LikeButton } from '@/components/engagement/LikeButton';
 import { AdminEditLink } from '@/components/site/AdminEditLink';
 import { placeholderColor } from '@/lib/color/analyze';
 import { photoCaption } from '@/lib/photo/caption';
@@ -462,6 +463,12 @@ export function Lightbox({ photos, index, originFor, onClose, onNavigate }: Ligh
                 {caption.meta}
               </div>
             ) : null}
+            {/* On the print, under its caption, as a labelled pill — a bare
+                heart here read as an ornament, and in the control row above it
+                was too far from the photo it belongs to. Keyed by photo, so the
+                pop from liking one does not replay on the next one stepped to.
+                Its height is in --lightbox-chrome. */}
+            <LikeButton key={photo.id} kind="stills" id={photo.id} variant="pill" tone="mat" className="mt-2.5" />
           </figcaption>
         </figure>
         <NavButton side="right" disabled={photos.length < 2} onClick={() => step(1)} />

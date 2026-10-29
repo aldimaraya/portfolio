@@ -91,6 +91,10 @@ Load-bearing constraints — these are why the code is shaped this way:
   clip, and Safari before 26 has no audio classes at all. Regenerating preview frames must never
   re-encode: the stored clip already is the encode. 4K masters stay offline; the encode is lossy and
   one-way.
+- **Likes and views are fetched after hydration, never rendered into a page** (`components/engagement/`,
+  `app/api/engagement/*`): the pages are static and shared by every visitor, so their HTML cannot say who
+  liked what. Views are recorded only when `VERCEL_ENV` is `production` — dev and previews share the live
+  DB — and never for the admin. No IP or cookie value is stored, only hashes (`lib/engagement/visitor.ts`).
 
 ## Conventions that bite
 

@@ -315,15 +315,20 @@ body {
    *retracted*, so a frame sized to it is cut off by the URL bar for as long as
    that bar is showing — which is exactly when the page has just loaded.
 
-   The reserved 23rem is everything the page puts around the frame — the site
-   header and its rule, the back row, the slate, the title block under it — plus
-   enough over that for the title to sit clear of the bottom edge rather than
-   flush against it, which reads as cut off even when all of it is showing.
+   The reserved 16.25rem is everything the page puts around the frame — the site
+   header and its rule, the back row, the slate, the title line under it with
+   the like pill on it — measured at 15.1rem, plus about a rem so the title
+   sits clear of the bottom edge rather than flush against it, which reads as
+   cut off even when all of it is showing. It is a measurement, not a guess:
+   anything that changes the header's height (Header.tsx, the layout's top
+   padding) has to be measured again and this moved with it.
    The floor matters more than the cap — on a short window the frame gives up
    height until it reaches 14rem, below which it would be too small to be worth
-   the space it is still taking, and the page scrolls instead. */
+   the space it is still taking, and the page scrolls instead. The cap is only
+   there so a tall display does not get a frame wider than the page's column
+   can hold anyway; theater mode (.clip-theater) is the way past all of it. */
 .clip-gate {
-  --gate-height: min(40rem, max(14rem, 100svh - 23rem));
+  --gate-height: min(54rem, max(14rem, 100svh - 16.25rem));
   /* calc() of a bare number by a length, which is why --frame-ratio must be set
      as a number and not a string. Falls back to 16:9 if it is ever missing.
 
@@ -342,8 +347,19 @@ body {
    pushed its own title out of view. */
 @media (max-width: 800px) {
   .clip-gate {
-    --gate-height: min(40rem, max(12rem, 100svh - 26rem));
+    --gate-height: min(54rem, max(12rem, 100svh - 24.5rem));
   }
+}
+
+/* Theater mode: the same panel, lifted out of the page to cover the window.
+   The same element rather than a copy in a portal, because moving the <video>
+   would remount it and drop the playback position mid-clip.
+
+   The frame is shaped by width alone, as in the gate: the height left after
+   the slate and padding, times the ratio, and never wider than the window.
+   4rem is that chrome — 2rem of padding, the slate line and its margin. */
+.clip-theater .clip-frame {
+  width: min(100%, calc((100svh - 4rem) * var(--frame-ratio, 1.7778)));
 }
 
 /* Light spilling from the gate, so a running clip sits in projection rather
@@ -425,7 +441,9 @@ body {
  * circular — the image would be waiting on a height the image itself decides.
  *
  * --lightbox-chrome is everything stacked around the picture: the counter row
- * above, the mat's own padding, and the caption printed across its foot.
+ * above, the mat's own padding, and the caption printed across its foot — the
+ * like pill included, which is what the last 2.5rem is for. Without it a wide
+ * photo sized to the full height pushes the pill off the bottom of the screen.
  *
  * The width is worked out from the photo's stored ratio and width (set inline
  * by Lightbox) rather than left `auto`: an `auto` image is 0×0 until its pixels
@@ -435,7 +453,7 @@ body {
  * original's own width, the side budget, and the height budget converted
  * through the ratio. */
 .lightbox-photo {
-  --lightbox-chrome: 12rem;
+  --lightbox-chrome: 14.5rem;
   --lightbox-side: 7rem;
   aspect-ratio: var(--photo-ratio);
   width: min(
@@ -1165,6 +1183,98 @@ body {
   .newsletter-prompt[open] {
     animation: page-enter 220ms cubic-bezier(0.22, 1, 0.36, 1);
   }
+}
+
+/* A pill set at the start of a text column. Its box can sit exactly on the
+   column's edge and still read as indented: the rounded end only touches the
+   edge at its midpoint, and the eye measures from where the curve has some
+   mass, a few pixels in. Pulled left by about that much, it lines up with the
+   letter stems above and below it. */
+.pill-optical-start {
+  margin-left: -0.3rem;
+}
+
+/* A like. The heart swells once on the click that fills it — data-popped is
+   set by the click, never by counts arriving, so a heart already filled on load
+   sits still. Reduced motion gets the fill alone. */
+@media (prefers-reduced-motion: no-preference) {
+  .like-button[data-popped='true'] .like-heart {
+    animation: like-pop 280ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+}
+
+@keyframes like-pop {
+  40% {
+    transform: scale(1.3);
+  }
+}
+
+/* The "confirm your email" panel after a signup. It plays once, as a sequence
+   that tells the story in order — the envelope is drawn, sealed, sent off with
+   a hop, and the panel pulses once — because the whole point of the panel is
+   that it is noticed: readers kept taking a quiet line of text for a finished
+   signup. Reduced motion gets the dissolve alone, as .page-enter does.
+
+   Fill modes are `backwards`, so nothing is held once the sequence ends. The
+   strokes rely on pathLength="1" on the SVG elements, which is what lets one
+   dash of length 1 cover a rect and a path alike. The hidden dash starts a
+   little past the path's start, not on it, so its round cap is not left
+   showing as a dot before the line is drawn. */
+.signup-sent {
+  animation: page-fade 200ms ease-out backwards;
+}
+
+@keyframes signup-draw {
+  from {
+    stroke-dasharray: 1 2;
+    stroke-dashoffset: 1.1;
+  }
+  to {
+    stroke-dasharray: 1 2;
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes signup-hop {
+  0%,
+  100% {
+    transform: none;
+  }
+  40% {
+    transform: translate(2px, -4px) rotate(-8deg);
+  }
+}
+
+@keyframes signup-glow {
+  from {
+    box-shadow: 0 0 0 0 rgb(212 175 55 / 0.45);
+  }
+  to {
+    box-shadow: 0 0 0 14px rgb(212 175 55 / 0);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .signup-sent {
+    animation:
+      page-enter 320ms cubic-bezier(0.22, 1, 0.36, 1) backwards,
+      signup-glow 900ms ease-out 850ms;
+  }
+  .signup-sent__body {
+    animation: signup-draw 550ms ease-in-out 120ms backwards;
+  }
+  .signup-sent__flap {
+    animation: signup-draw 280ms ease-out 620ms backwards;
+  }
+  .signup-sent__envelope {
+    animation: signup-hop 450ms cubic-bezier(0.34, 1.56, 0.64, 1) 880ms;
+  }
+  .signup-sent__text > * {
+    animation: page-enter 360ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+  .signup-sent__text > :nth-child(1) { animation-delay: 250ms; }
+  .signup-sent__text > :nth-child(2) { animation-delay: 350ms; }
+  .signup-sent__text > :nth-child(3) { animation-delay: 450ms; }
 }
 
 /* ── The journal editor ──────────────────────────────────────────────────────

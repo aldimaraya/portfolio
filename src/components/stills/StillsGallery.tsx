@@ -2,7 +2,9 @@
 
 import { useEffect, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { useWallLikes } from '@/components/engagement/useEngagement';
 import { FilterBar } from '@/components/site/FilterBar';
+import { PageHold } from '@/components/site/PageHold';
 import { PolaroidWall } from './PolaroidWall';
 import type { PolaroidPhoto } from './Polaroid';
 import { filterPhotos, optionsFromPhotos } from '@/lib/filters/apply';
@@ -43,29 +45,38 @@ export function StillsGallery({ photos }: { photos: GalleryPhoto[] }) {
   const sort = useMemo(() => parseSort(searchParams.get('sort')), [searchParams]);
   const seed = useMemo(() => parseSeed(searchParams.get('seed')), [searchParams]);
 
+  // Likes are not in the static HTML (see useEngagement), so the popular order
+  // has to wait for them. The wall is held until they arrive rather than drawn
+  // newest-first and re-sorted: the lightbox tracks its photo by position, and
+  // a wall that re-packed under an open photo would swap it for another.
+  const likes = useWallLikes(sort === 'popular');
+  const waiting = sort === 'popular' && !likes;
+
   // Sorting joins filtering on the client for the same reason: the page arrives
   // already holding every photo, so re-ordering is an array operation, not a
   // re-render of the wall from the server.
   const visible = useMemo(
-    () => sortPhotosForWall(filterPhotos(photos, filters), sort, seed),
-    [photos, filters, sort, seed],
+    () => sortPhotosForWall(filterPhotos(photos, filters), sort, seed, likes),
+    [photos, filters, sort, seed, likes],
   );
 
   // Back from an edit that was opened in the lightbox. The wall opens the photo
   // during this same render; the request is then dropped from the URL — through
   // the History API, like FilterBar's changes, so it costs no server round-trip —
-  // or a reload after closing the lightbox would open it all over again.
+  // or a reload after closing the lightbox would open it all over again. Not
+  // while the wall is held for its likes: the wall is not mounted to open it yet.
   const openPhotoId = searchParams.get(OPEN_PHOTO_PARAM);
   useEffect(() => {
-    if (!openPhotoId) return;
+    if (!openPhotoId || waiting) return;
     const { pathname, search, hash } = window.location;
     window.history.replaceState(null, '', `${pathname}${withoutOpenPhoto(search)}${hash}`);
-  }, [openPhotoId]);
+  }, [openPhotoId, waiting]);
 
   return (
     <>
       <FilterBar options={options} active={filters} sort={sort} seed={seed} />
-      <PolaroidWall photos={visible} openPhotoId={openPhotoId} />
+      {/* PageHold keeps the progress bar running through the wait. */}
+      {waiting ? <PageHold /> : <PolaroidWall photos={visible} openPhotoId={openPhotoId} />}
     </>
   );
 }

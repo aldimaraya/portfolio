@@ -225,6 +225,13 @@ generation every time a preview was redone.
 ### Stills
 
 - **Colour-sorted wall.** Justified rows, order derived as described above.
+  The visitor can re-sort it — newest, oldest, **most liked**, cool → warm,
+  warm → cool, or a seeded shuffle — from `?sort=`, on the client. *Most liked*
+  holds the wall until the likes arrive (see [Likes and views](#likes-and-views))
+  rather than drawing it newest-first and re-sorting, because the lightbox
+  tracks its photo by position. Ties, which is most of a young library, fall
+  back to newest first. The order uses the likes as first fetched and does not
+  move as the visitor likes things, for the same reason.
 - **Filters** — camera, location, and tags. **OR within a type, AND across
   types**, held in the URL query string
   ([`lib/filters/parse.ts`](../src/lib/filters/parse.ts) ↔
@@ -434,7 +441,8 @@ and a weekly newsletter would mostly be empty. Code in
 - **`/admin/newsletter`** shows the pending batch with an estimate of when it
   goes out, lets an item be left out (or put back), renders the exact email as a
   preview, has **Send now** and **Email me a preview**, and lists subscribers
-  and past sends.
+  and past sends. An unconfirmed subscriber can be confirmed from there by hand,
+  for someone known to want it who never clicked the link.
 - **Double opt-in, no accounts.** A random token per subscriber is the whole
   credential behind the confirm, manage and unsubscribe links. Confirming takes
   a click on the page, not just a GET — mail scanners fetch every link in an
@@ -468,13 +476,60 @@ and a weekly newsletter would mostly be empty. Code in
   originals on R2 are full size. That spends image transformations, once per
   image.
 
+### Likes and views
+
+A still can be **liked** in the lightbox, under its caption; a clip and a
+journal post can be liked and show how many times they have been **viewed** —
+the clip's like and views on its title line, the post's views in its margin
+under the date and its like both under the title and at the foot. Both counts
+are public. A like count of zero prints nothing beside the heart; a view count
+of zero prints "0 views", because a counter that is blank until the first view
+reads as missing. Code in
+[`lib/engagement/`](../src/lib/engagement), served by `/api/engagement`.
+
+- **Counts are fetched after hydration, never rendered into the page.** Every
+  public page is static and its HTML is shared by every visitor, so it cannot
+  say whether *this* visitor liked something, and a count baked into it would
+  need a revalidation per click. [`useEngagement`](../src/components/engagement/useEngagement.ts)
+  asks the API once per item — in the same `useSyncExternalStore` shape as
+  `useIsAdmin` — and the heart sits faded and disabled until it hears back.
+  A clip or post page's one request is `POST /api/engagement/view`, which
+  records the view and answers with the counts; the lightbox asks for every
+  still's likes in one `GET`, the first time it opens.
+- **No accounts, so two stand-ins.** A like belongs to a random id in an
+  httpOnly cookie, set only on the first click — a cookie for something the
+  visitor asked for, not one that follows them around. The table holds a
+  sha256 of the id, never the id. A view sets no cookie: it is one row per
+  visitor per item per UTC day, the visitor being an HMAC of address and user
+  agent under a key HKDF-derived from `SESSION_SECRET` *and the day*, so a
+  reload does not count twice, no address is stored, and one day's hashes
+  cannot be matched to the next. Clearing cookies makes a visitor new, and that
+  is accepted: a like is a gesture, not a vote.
+- **A like is set, not toggled** — the request says `liked: true|false`, so two
+  clicks racing end where the last one left it, and the client sends at most
+  one request per item at a time. It is optimistic, and rolled back to what the
+  server last said if refused.
+- **Views count only in production, and never the admin's.** Development and
+  previews share production's database, and every reload while working on a
+  page would otherwise be a view. Likes are recorded everywhere, since the same
+  browser can take one back. Self-announced bots are not counted either.
+- **Abuse is made slow, not impossible.** Likes are only written for an item a
+  visitor could actually see (a draft post is not one), and each address has an
+  hourly budget for likes and for views
+  ([`throttle.ts`](../src/lib/engagement/throttle.ts), in-memory like the other
+  limiters, with the same accepted trade).
+- **Deleting content drops its rows** (`forgetEngagement`, called by the three
+  delete actions after the content row has gone, and unable to fail them).
+- **Comments are not built.** They were scoped out of the first pass; with no
+  accounts they would need moderation in `/admin` before anything was shown.
+
 ---
 
 ## Data model
 
-[`prisma/schema.prisma`](../prisma/schema.prisma). Twelve models: `Photo`, `Video`,
+[`prisma/schema.prisma`](../prisma/schema.prisma). Fourteen models: `Photo`, `Video`,
 `Roll`, `BlogPost`, `JournalPhoto`, `Tag`, the two join tables, the newsletter's
-`Subscriber`, `Announcement` and `Dispatch`, and `SiteLink`.
+`Subscriber`, `Announcement` and `Dispatch`, `SiteLink`, and `Like` and `View`.
 
 Columns whose *shape* carries a decision:
 
@@ -499,6 +554,8 @@ Columns whose *shape* carries a decision:
 | `JournalPhoto.fingerprint` | Difference hash of the stored image, for the tray's duplicate check. Null on rows from before it existed until `npm run backfill:fingerprints` fills them; a null never matches. |
 | `Announcement.refId` | Points at a `Photo`, `Video` or `BlogPost` depending on `kind`, so it cannot be a foreign key; deleted content is dropped when the batch resolves. |
 | `Announcement.dispatchId` | `onDelete: Restrict`. Deleting a dispatch must not put what it sent back into the queue. |
+| `Like` / `View` | Rows, not counter columns on the content tables: the rows are needed anyway to stop one visitor counting twice, and a count derived from them cannot drift. `refId` is not a foreign key, for `Announcement.refId`'s reason. The primary key leads with `(kind, refId)`, which is the index every count uses. |
+| `Like.visitor` / `View.visitor` | Hashes, never the cookie or the address — see [Likes and views](#likes-and-views). A `View` hash is only stable within its `day`. |
 | `Subscriber.lastDispatchId` | What makes a dispatch resumable. Not a relation, so dispatch history can never be blocked by it. |
 
 ---
