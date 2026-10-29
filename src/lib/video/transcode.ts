@@ -161,6 +161,15 @@ export function mp4Filename(name: string): string {
   return `${base || 'clip'}.mp4`;
 }
 
+/**
+ * The name an encode is offered under for download. Suffixed, because the encode
+ * of `blue-hour.mp4` is otherwise also `blue-hour.mp4` — and saved beside the
+ * master, which is where it is most likely to go, it would replace it.
+ */
+export function downloadFilename(name: string): string {
+  return mp4Filename(name).replace(/\.mp4$/, '-web.mp4');
+}
+
 /** Megabytes to one decimal, for the "482.3 MB → 96.1 MB" readout in the form. */
 export function formatMegabytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;

@@ -5,6 +5,7 @@ import {
   formatMbps,
   isHandheld,
   formatMegabytes,
+  downloadFilename,
   mp4Filename,
   shouldTranscode,
   TARGET_BITRATE,
@@ -241,5 +242,16 @@ describe('formatMbps', () => {
     // estimatedBitrate returns 0 for an unknown duration, and "0.0 Mbps" would
     // be a claim rather than an absence.
     expect(formatMbps(0)).toBe('');
+  });
+});
+
+describe('downloadFilename', () => {
+  it('suffixes the name, so saving it beside an .mp4 master cannot replace it', () => {
+    expect(downloadFilename('blue-hour.mp4')).toBe('blue-hour-web.mp4');
+    expect(downloadFilename('blue-hour.mov')).toBe('blue-hour-web.mp4');
+  });
+
+  it('names a nameless file too', () => {
+    expect(downloadFilename('.mov')).toBe('clip-web.mp4');
   });
 });

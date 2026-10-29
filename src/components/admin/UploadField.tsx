@@ -23,8 +23,7 @@ interface Props {
   onSelect: (file: File | null) => void;
   /**
    * Drops the pending selection. Optional: without it the only way out of a
-   * wrong pick is to choose another file, which on this form means sitting
-   * through an unwanted re-encode first.
+   * wrong pick is to choose another file.
    */
   onClear?: () => void;
   hint?: string;

@@ -13,6 +13,7 @@ import {
 } from '@/lib/video/sprite';
 import { inspectAudio } from '@/lib/video/audio';
 import {
+  downloadFilename,
   estimatedBitrate,
   formatMbps,
   formatMegabytes,
@@ -34,17 +35,6 @@ import { saveVideo, type VideoInput } from '@/app/admin/videos/actions';
 const LARGE_VIDEO_BYTES = 200 * 1024 * 1024;
 
 type Initial = Partial<VideoInput> & { id?: string };
-
-/**
- * What the save-time re-encode produced: the file to upload, and the dimensions
- * to store if they changed. Omitted when the original was kept, in which case
- * the dimensions already on the form still describe it.
- */
-interface EncodeResult {
-  file: File;
-  width?: number;
-  height?: number;
-}
 
 /**
  * The filename an R2 URL was stored under. Only used to name the regenerated
@@ -99,7 +89,8 @@ export function VideoForm({
     // files it where it was already being read.
     buildForm({ ...initial, rollId: initial?.rollId || rolls[0]?.id }),
   );
-  // The clip waits here until save — nothing reaches R2 before then.
+  // The clip waits here until save — nothing reaches R2 before then. Once a
+  // re-encode finishes this is the encode, not the pick: it is what gets uploaded.
   const [file, setFile] = useState<File | null>(null);
   const [sprite, setSprite] = useState<SpriteResult | null>(null);
   const [generating, setGenerating] = useState(false);
@@ -128,14 +119,9 @@ export function VideoForm({
   // is still a clip worth publishing if that is what the admin intends.
   const [audioWarning, setAudioWarning] = useState('');
   /**
-   * The re-encode this clip needs, decided when it was picked and carried out on
-   * save. Null when the clip is already within target, could not be read, or is
-   * one this browser cannot decode — all of which upload as-is.
-   */
-  const [plan, setPlan] = useState<TranscodePlan | null>(null);
-  /**
-   * Running that re-encode, during save. On the hardware encoder, but a long clip
-   * is still minutes, so it reports progress and can be cancelled.
+   * Re-encoding the picked clip, which starts as soon as it is picked. On the
+   * hardware encoder, but a long clip is still minutes, so it reports progress and
+   * can be cancelled — and the title and tags can be filled in while it runs.
    */
   const [transcoding, setTranscoding] = useState(false);
   const [transcoded, setTranscoded] = useState(0);
@@ -146,9 +132,21 @@ export function VideoForm({
    * what makes the whole step look like it never ran.
    */
   const [inspecting, setInspecting] = useState(false);
+  /**
+   * Whether `file` is an encode rather than the pick itself — the only case worth
+   * offering for download, since the original is already on disk.
+   */
+  const [encoded, setEncoded] = useState(false);
   /** What the re-encode achieved, or why it was skipped. Shown, never blocking. */
   const [transcodeNote, setTranscodeNote] = useState('');
   const transcodeAbort = useRef<AbortController | null>(null);
+  /**
+   * Bumped by every pick and every Remove. Probing, encoding and frame-grabbing
+   * are all async and minutes can separate their start from their end, so each
+   * one checks this before writing anything back — otherwise a clip swapped out
+   * mid-encode would land its result on the form of the clip that replaced it.
+   */
+  const pickId = useRef(0);
   const [busy, setBusy] = useState(false);
   const [resetKey, setResetKey] = useState(0);
 
@@ -207,24 +205,42 @@ export function VideoForm({
     if (video.readyState >= 1) video.currentTime = windowAt;
   }, [windowAt, sourcePreview]);
 
+  // Navigating away mid-encode must stop the encoder, not just orphan its
+  // promise — otherwise it keeps the machine busy and the output pinned in memory.
+  useEffect(() => () => transcodeAbort.current?.abort(), []);
+
   function set<K extends keyof VideoInput>(key: K, value: VideoInput[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
+  /** Starts a new pick, stopping whatever the last one still had running. */
+  function supersede(): number {
+    transcodeAbort.current?.abort();
+    transcodeAbort.current = null;
+    setTranscoding(false);
+    setTranscoded(0);
+    setEncoded(false);
+    return ++pickId.current;
+  }
+
   /**
-   * Sizes up a picked clip and grabs its frames. Deliberately does *not*
-   * re-encode: that is minutes of the machine's fans for a clip that might be
-   * replaced or removed a moment later, so it waits for save, when the decision
-   * to publish has actually been made. All that happens here is a header read,
-   * which costs kilobytes and tells the admin up front what save will do.
+   * Sizes up a picked clip, re-encodes it if it needs it, and grabs its frames —
+   * all straight away, so the encode runs while the title and tags are being
+   * typed and save is only an upload. A clip swapped out or removed mid-encode
+   * stops it: the cost of an abandoned pick is the minutes already spent, never
+   * an upload.
+   *
+   * The frames come from the encode rather than the original, so the preview is
+   * of the bytes being published and the dimensions grabFrames records describe
+   * them without a second measurement.
    */
   async function handleSelect(picked: File | null) {
+    const pick = supersede();
     setFile(picked);
     setSource(picked);
     setError('');
     setAudioWarning('');
     setTranscodeNote('');
-    setPlan(null);
     setSprite(null);
     if (!picked) return;
 
@@ -241,42 +257,59 @@ export function VideoForm({
     // Phones do not re-encode at all, and are not even asked to size the clip up
     // — skipping the probe keeps the ~500 kB media library off a mobile
     // connection, since its only reader here is a decision already made.
+    let toUpload = picked;
     if (canTranscodeHere()) {
-      await inspect(picked);
+      const plan = await inspect(picked, pick);
+      if (pickId.current !== pick) return;
+      if (plan) {
+        try {
+          toUpload = await encode(picked, plan, pick);
+        } catch {
+          // Only a cancellation reaches here, and only a newer pick or a Remove
+          // cancels — either of which already owns the form.
+          return;
+        }
+        if (pickId.current !== pick) return;
+        setFile(toUpload);
+        setSource(toUpload);
+        setEncoded(toUpload !== picked);
+      }
     } else {
       setTranscodeNote(
-        'Re-encoding is skipped on phones, so this uploads at its original size. Save it from a desktop to have it compressed.',
+        'Re-encoding is skipped on phones, so this uploads at its original size. Pick it from a desktop to have it compressed.',
       );
     }
 
-    await grabFrames(picked);
+    await grabFrames(toUpload);
   }
 
   /**
-   * Reads the picked clip's shape and decides whether saving it should re-encode
-   * it, holding that verdict until then. Says what it found either way — a clip
-   * that was already encoded by hand is the common case, and with no note the
-   * check it just passed is indistinguishable from a step that never ran.
+   * Reads the picked clip's shape and decides whether it needs re-encoding. Says
+   * what it found either way — a clip that was already encoded by hand is the
+   * common case, and with no note the check it just passed is indistinguishable
+   * from a step that never ran.
    */
-  async function inspect(picked: File) {
+  async function inspect(picked: File, pick: number): Promise<TranscodePlan | null> {
     let probe;
     try {
       setInspecting(true);
       probe = await probeVideo(picked);
     } catch {
+      if (pickId.current !== pick) return null;
       // A container we cannot even read the header of. generateSpriteSheet gets
       // the same file next and will produce the real error if it is truly broken.
       setTranscodeNote('Could not read that clip to size it up, so it will be uploaded as-is.');
-      return;
+      return null;
     } finally {
-      setInspecting(false);
+      if (pickId.current === pick) setInspecting(false);
     }
+    if (pickId.current !== pick) return null;
 
     if (!probe.canDecode) {
       setTranscodeNote(
         'This browser cannot decode that clip, so it will be uploaded as-is. Encode it to H.264 locally first if it is a master.',
       );
-      return;
+      return null;
     }
 
     const rate = formatMbps(estimatedBitrate(picked.size, probe.durationSeconds));
@@ -291,29 +324,28 @@ export function VideoForm({
 
     if (!next) {
       setTranscodeNote(`Already within target (${found}) — will upload as-is.`);
-      return;
+      return null;
     }
 
-    setPlan(next);
     setTranscodeNote(
-      `${found}. Will be re-encoded to ${next.width}×${next.height} at ~${formatMbps(next.videoBitrate)} when you save.`,
+      `${found}. Re-encoding to ${next.width}×${next.height} at ~${formatMbps(next.videoBitrate)}.`,
     );
+    return next;
   }
 
   /**
    * Drops the picked clip and everything derived from it, putting the create
-   * form back where it started. Nothing has reached R2 at this point — and with
-   * the re-encode deferred to save, nothing expensive has been spent on it
-   * either, which is the point of deferring it.
+   * form back where it started. Nothing has reached R2 at this point. Stops a
+   * running re-encode too, which makes this the encode's Cancel as well.
    *
-   * Only reachable while idle: mid-save the field withdraws this, because the
-   * way out of a running encode is its own Cancel button.
+   * Only reachable while not saving: mid-save the field withdraws this, because
+   * clearing the field would not stop an upload already going.
    */
   function clearSelection() {
+    supersede();
     setFile(null);
     setSource(null);
     setSprite(null);
-    setPlan(null);
     setWindowAt(0);
     setError('');
     setAudioWarning('');
@@ -333,17 +365,14 @@ export function VideoForm({
   }
 
   /**
-   * Runs the re-encode decided at pick time. Called from submit, so this is the
-   * one place the machine does real work on a clip — by which point the clip is
-   * being published rather than merely looked at.
-   *
-   * Returns the file to upload and the dimensions to store with it. Falls back to
+   * Runs a picked clip's re-encode and returns the file to upload. Falls back to
    * the original on any failure: a clip the browser cannot re-encode is still a
    * clip worth publishing, and refusing to upload it would be a worse answer than
-   * spending the bytes. Cancelling is the one case that stops the save, and it
-   * throws so submit can abandon it without uploading anything.
+   * spending the bytes. A cancellation throws, so the caller can drop the pick
+   * without touching a form that now belongs to the next one.
    */
-  async function encode(picked: File, using: TranscodePlan): Promise<EncodeResult> {
+  async function encode(picked: File, using: TranscodePlan, pick: number): Promise<File> {
+    const current = () => pickId.current === pick;
     const controller = new AbortController();
     transcodeAbort.current = controller;
     setTranscoding(true);
@@ -352,45 +381,39 @@ export function VideoForm({
     try {
       const result = await transcodeVideo(picked, using, {
         signal: controller.signal,
-        onProgress: (fraction) => setTranscoded(Math.round(fraction * 100)),
+        onProgress: (fraction) => {
+          if (current()) setTranscoded(Math.round(fraction * 100));
+        },
       });
+      if (!current()) return picked;
 
       if (result === picked) {
         setTranscodeNote(
           `Kept the original — re-encoding it did not save anything (${formatMegabytes(picked.size)}).`,
         );
-        return { file: picked };
+        return picked;
       }
 
       setTranscodeNote(
         `Re-encoded: ${formatMegabytes(picked.size)} → ${formatMegabytes(result.size)}.`,
       );
-
-      // The stored dimensions have to describe the stored bytes, and the ones on
-      // the form came from the original. Read them back off the encode rather
-      // than trusting the plan — another header read, and the alternative is a
-      // row that quietly disagrees with the file it points at.
-      try {
-        const after = await probeVideo(result);
-        return { file: result, width: after.width, height: after.height };
-      } catch {
-        // The encode is still good; only the measurement failed. The plan's
-        // dimensions preserve the source aspect ratio, which is all the roll
-        // actually reads these columns for.
-        return { file: result, width: using.width, height: using.height };
-      }
+      return result;
     } catch (cause) {
-      if (isCancellation(cause)) throw cause;
+      if (isCancellation(cause) || !current()) throw cause;
       setTranscodeNote(
         `Could not re-encode this clip (${
           cause instanceof Error ? cause.message : 'unknown error'
-        }), so it was uploaded as-is.`,
+        }), so it will be uploaded as-is.`,
       );
-      return { file: picked };
+      return picked;
     } finally {
-      setTranscoding(false);
-      setTranscoded(0);
-      transcodeAbort.current = null;
+      // A superseded encode leaves this alone: supersede() already reset it, and
+      // the ref may by now hold the next pick's controller.
+      if (current()) {
+        setTranscoding(false);
+        setTranscoded(0);
+        transcodeAbort.current = null;
+      }
     }
   }
 
@@ -400,10 +423,18 @@ export function VideoForm({
    * duration — nothing server-side ever opens the stored copy.
    */
   async function grabFrames(from: File, startSeconds?: number) {
+    const pick = pickId.current;
+    const current = () => pickId.current === pick;
     try {
       setGenerating(true);
       setGrabbed(null);
-      const result = await generateSpriteSheet(from, { startSeconds, onProgress: setGrabbed });
+      const result = await generateSpriteSheet(from, {
+        startSeconds,
+        onProgress: (step) => {
+          if (current()) setGrabbed(step);
+        },
+      });
+      if (!current()) return;
       setSprite(result);
       // Where the grab actually landed after clamping, so the control below
       // agrees with the strip above it.
@@ -416,6 +447,7 @@ export function VideoForm({
         durationSeconds: result.durationSeconds,
       }));
     } catch (cause) {
+      if (!current()) return;
       // Leaves sprite null, which keeps the save button disabled rather than
       // storing a video with no scrub preview.
       setError(
@@ -424,8 +456,10 @@ export function VideoForm({
           : 'Could not build a preview',
       );
     } finally {
-      setGenerating(false);
-      setGrabbed(null);
+      if (current()) {
+        setGenerating(false);
+        setGrabbed(null);
+      }
     }
   }
 
@@ -471,6 +505,24 @@ export function VideoForm({
     }
   }
 
+  /**
+   * Saves the encode to disk. It otherwise lives only in this tab's memory until
+   * save uploads it, so this is the one way to keep it — to reuse, or to not have
+   * to encode again after a reload.
+   */
+  function downloadEncode() {
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = downloadFilename(file.name);
+    link.click();
+    // Not revoked synchronously: some browsers only begin reading the blob after
+    // click() returns, and a revoked URL fails the download outright. A minute is
+    // ample, and the encode is already held in state anyway.
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  }
+
   async function upload(blob: Blob, name: string, prefix: 'videos' | 'posters' | 'sprites') {
     setStage(prefix);
     setProgress(0);
@@ -495,38 +547,19 @@ export function VideoForm({
     setError('');
 
     let { videoUrl, posterImageUrl, spriteUrl } = form;
-    // Dimensions the encode may correct, so the row describes the stored bytes
-    // rather than the file that was picked. Left empty unless it actually
-    // resized — spreading an absent width over the form would wipe the one
-    // grabFrames measured.
-    let measured: { width: number; height: number } | null = null;
     try {
       // Names the poster and sprite after the clip, whether it is being uploaded
       // now or was uploaded some time ago and is only having its preview redone.
       const name = file?.name ?? (form.videoUrl ? storedName(form.videoUrl) : 'clip');
       const base = name.replace(/\.[^.]+$/, '');
-      if (file) {
-        // The re-encode happens here rather than at pick time, so the machine
-        // only does it for a clip actually being published.
-        const encoded: EncodeResult = plan ? await encode(file, plan) : { file };
-        if (encoded.width && encoded.height) {
-          measured = { width: encoded.width, height: encoded.height };
-        }
-        videoUrl = await upload(encoded.file, encoded.file.name, 'videos');
-      }
+      // Already the encode, if the clip needed one: that ran at pick time, and
+      // `ready` holds save back until it has finished.
+      if (file) videoUrl = await upload(file, file.name, 'videos');
       if (sprite) {
         posterImageUrl = await upload(sprite.posterBlob, `${base}-poster.webp`, 'posters');
         spriteUrl = await upload(sprite.spriteBlob, `${base}-sprite.webp`, 'sprites');
       }
     } catch (cause) {
-      // Cancelling the encode abandons the save without touching anything —
-      // the clip, the title and the tags are all still here to save again.
-      if (isCancellation(cause)) {
-        setTranscodeNote('Re-encode cancelled — nothing was uploaded.');
-        setBusy(false);
-        setStage('');
-        return;
-      }
       setError(cause instanceof Error ? cause.message : 'Upload failed');
       setBusy(false);
       setStage('');
@@ -534,22 +567,14 @@ export function VideoForm({
     }
     setStage('');
 
-    const result = await saveVideo({
-      ...form,
-      ...(measured ?? {}),
-      videoUrl,
-      posterImageUrl,
-      spriteUrl,
-    });
+    const result = await saveVideo({ ...form, videoUrl, posterImageUrl, spriteUrl });
     if (result.error) {
       // Everything is already in R2; keeping the URLs means a retry after fixing
       // the error does not re-upload the clip.
-      setForm((prev) => ({ ...prev, ...(measured ?? {}), videoUrl, posterImageUrl, spriteUrl }));
+      setForm((prev) => ({ ...prev, videoUrl, posterImageUrl, spriteUrl }));
       setFile(null);
       setSprite(null);
-      // The clip is in R2 now, so a retry must not re-encode what it already
-      // uploaded — the URLs above are what the retry saves.
-      setPlan(null);
+      setEncoded(false);
       setTranscodeNote('');
       setResetKey((key) => key + 1);
       setError(result.error);
@@ -573,7 +598,7 @@ export function VideoForm({
     setFile(null);
     setSource(null);
     setSprite(null);
-    setPlan(null);
+    setEncoded(false);
     setWindowAt(0);
     setError('');
     setAudioWarning('');
@@ -613,18 +638,22 @@ export function VideoForm({
         // button, and clearing the field would not stop an upload already going.
         onClear={busy ? undefined : clearSelection}
         previewAs="video"
-        warnAboveBytes={LARGE_VIDEO_BYTES}
+        // Not while encoding: "upload the compressed encode, not the master"
+        // beside a bar that is producing exactly that encode reads as an error.
+        warnAboveBytes={transcoding ? undefined : LARGE_VIDEO_BYTES}
         // Says "on desktop" rather than reading the device here: this renders
         // before anything is picked, and branching on navigator would differ
         // between the server render and the client one.
-        hint="Frames are grabbed in your browser, and on desktop clips over 1080p or ~6 Mbps are re-encoded there when you save — nothing touches a server."
+        hint="Frames are grabbed in your browser, and on desktop clips over 1080p or ~6 Mbps are re-encoded there as soon as you pick them — nothing touches a server."
         allowSelect={!isEdit}
       />
 
       {/* The encode runs before the frame grab and is much the longest thing
           that happens to a picked clip — minutes on a big one. A single line of
           text was too quiet for a wait that long, so this one gets a filled bar
-          and a way out. */}
+          and a way out. Cancel drops the pick outright rather than keeping the
+          original: uploading the unencoded master is the thing this guards
+          against. */}
       {transcoding ? (
         <div className="rounded border border-gold/40 bg-gold/5 p-3">
           <div className="flex items-baseline justify-between gap-3">
@@ -633,7 +662,7 @@ export function VideoForm({
             </p>
             <button
               type="button"
-              onClick={() => transcodeAbort.current?.abort()}
+              onClick={clearSelection}
               className="shrink-0 text-xs text-ash underline underline-offset-2 hover:text-gold"
             >
               Cancel
@@ -679,8 +708,17 @@ export function VideoForm({
       ) : null}
 
       {transcodeNote ? (
-        <p className="text-xs text-ash" aria-live="polite">
-          {transcodeNote}
+        <p className="flex items-baseline justify-between gap-3 text-xs text-ash">
+          <span aria-live="polite">{transcodeNote}</span>
+          {encoded && file ? (
+            <button
+              type="button"
+              onClick={downloadEncode}
+              className="shrink-0 underline underline-offset-2 hover:text-gold"
+            >
+              Download encode
+            </button>
+          ) : null}
         </p>
       ) : null}
 
@@ -842,26 +880,21 @@ export function VideoForm({
 
           <button type="submit" disabled={busy || !ready} className={BUTTON}>
             {busy
-              ? // The re-encode runs first and has its own percentage, which is
-                // not an upload percentage — saying "Uploading" through it would
-                // be a lie about where the time is going.
-                transcoding
-                ? `Re-encoding… ${transcoded}%`
-                : progress !== null
-                  ? `${uploadLabel}… ${progress}%`
-                  : 'Saving…'
+              ? progress !== null
+                ? `${uploadLabel}… ${progress}%`
+                : 'Saving…'
               : 'Save video'}
           </button>
 
           {!busy && !ready ? (
             <p className="text-xs text-ash">
-              {/* No re-encode branch here: that only runs during a save, when
-                  this hint is hidden behind `busy` and the button says so. */}
-              {inspecting
-                ? 'Sizing up the clip…'
-                : generating || fetching
-                  ? 'Building the preview…'
-                  : `Still needs ${listPhrase(missing)}.`}
+              {transcoding
+                ? `Save opens once the re-encode finishes (${transcoded}%).`
+                : inspecting
+                  ? 'Sizing up the clip…'
+                  : generating || fetching
+                    ? 'Building the preview…'
+                    : `Still needs ${listPhrase(missing)}.`}
             </p>
           ) : null}
         </>

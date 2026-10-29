@@ -76,21 +76,21 @@ Load-bearing constraints — these are why the code is shaped this way:
   that way — the perforation pitch and the spool's gearing are two readings of one number, so a change to
   `PERFORATION_PITCH` must stay in step with `.film-rail`'s `background-size`. The gate spool on a clip
   page is the exception that loops, and only while `data-playing` is true.
-- **Video is re-encoded in the browser on save**, not on a server: `lib/video/transcode-client.ts`
-  drives WebCodecs through mediabunny to hit 1080p H.264 at ~6 Mbps. Still no ffmpeg and no wasm, so the
-  no-server-side-processing rule holds. The trigger is **bitrate, not file size** (`lib/video/transcode.ts`)
-  — size cannot tell a fine ten-minute clip from an unencoded twenty-second one. **Picking a clip only
-  probes it** (a header read) and holds the verdict; the encode runs in `submit`, so a clip that gets
-  swapped out or removed never costs one. Because the sprite and dimensions are therefore derived from the
-  original, a resized clip is re-probed after encoding so the stored `width`/`height` describe the stored
-  bytes. **Desktop only** (`isHandheld`): the output is buffered whole in memory at ~45 MB/min, which kills
-  a phone tab — lifting that means a streaming target feeding the multipart uploader. Undecodable input
-  (ProRes), an encode that saves nothing, and an encode that throws all fall back to uploading the original
-  rather than blocking; only cancelling stops the save. **A dropped audio track is refused**, because
-  mediabunny leaves a conversion valid after discarding one — the default is a silently published silent
-  clip, and Safari before 26 has no audio classes at all. Regenerating preview frames must never
-  re-encode: the stored clip already is the encode. 4K masters stay offline; the encode is lossy and
-  one-way.
+- **Video is re-encoded in the browser as soon as it is picked**, not on a server:
+  `lib/video/transcode-client.ts` drives WebCodecs through mediabunny to hit 1080p H.264 at ~6 Mbps. Still
+  no ffmpeg and no wasm, so the no-server-side-processing rule holds. The trigger is **bitrate, not file
+  size** (`lib/video/transcode.ts`) — size cannot tell a fine ten-minute clip from an unencoded
+  twenty-second one. The encode runs **on pick**, while the form is filled in, and save waits for it;
+  swapping or removing the clip aborts it, and every async step checks the `pickId` counter so a superseded
+  pick never writes to the form. Frames are grabbed from the encode, so the preview and stored
+  `width`/`height` describe the uploaded bytes. **Desktop only** (`isHandheld`): the output is buffered
+  whole in memory at ~45 MB/min, which kills a phone tab — lifting that means a streaming target feeding the
+  multipart uploader. Undecodable input (ProRes), an encode that saves nothing, and an encode that throws
+  all fall back to uploading the original rather than blocking; Cancel drops the pick rather than uploading
+  the master. **A dropped audio track is refused**, because mediabunny leaves a conversion valid after
+  discarding one — the default is a silently published silent clip, and Safari before 26 has no audio
+  classes at all. Regenerating preview frames must never re-encode: the stored clip already is the encode.
+  4K masters stay offline; the encode is lossy and one-way.
 - **Likes and views are fetched after hydration, never rendered into a page** (`components/engagement/`,
   `app/api/engagement/*`): the pages are static and shared by every visitor, so their HTML cannot say who
   liked what. Views are recorded only when `VERCEL_ENV` is `production` — dev and previews share the live

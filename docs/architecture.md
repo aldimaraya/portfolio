@@ -149,7 +149,7 @@ them, parks the projector, and skips autoplay on a clip page. Every one of those
 is a deliberate choice repeated in `globals.css` and
 [`ClipStage`](../src/components/motion/ClipStage.tsx).
 
-### Video encoding happens in the browser, on save
+### Video encoding happens in the browser, on pick
 
 Clips are re-encoded to 1080p H.264 at ~6 Mbps before they reach R2, in the admin
 browser, by [`lib/video/transcode-client.ts`](../src/lib/video/transcode-client.ts)
@@ -165,15 +165,21 @@ tell a fine ten-minute clip from an unencoded twenty-second one — both land ne
 past 25% over target, or whenever the long edge exceeds 1920. A clip already
 within the band is uploaded untouched rather than paying for a second generation.
 
-**Decided when the clip is picked, run when it is saved.** Picking only reads the
-container header, which costs kilobytes and lets the form say up front what save
-will do; the encode itself is minutes of the machine's fans, and spending that on
-a clip that is then swapped out or removed is the one cost this design can
-actually avoid. The consequence is that the sprite sheet, poster and duration are
-all derived from the *original* file — which is fine, because the strip is a
-480 px-wide thumbnail either way and duration does not change — but the stored
-`width`/`height` would then describe the wrong bytes. So a clip that was resized
-is re-probed after encoding and the measured dimensions are what reach the row.
+**Run as soon as the clip is picked.** Picking reads the container header, says
+what it found, and starts the encode straight away, with a progress bar and a
+Cancel; the title and tags are filled in while it runs, and save — held back until
+it finishes — is then only an upload. An earlier version waited for save, so that
+a clip swapped out or removed never cost an encode, but in use that read as
+"nothing happens" for minutes and then a save that took minutes more. Swapping or
+removing the clip now aborts the running encode instead, so the cost of an
+abandoned pick is only the time already spent. Cancel drops the pick rather than
+keeping the original, because uploading the unencoded master is what this exists
+to prevent. Every async step checks a per-pick counter before writing back, so a
+clip replaced mid-encode cannot land its result on its successor's form.
+
+The frame grab runs *after* the encode and reads the encoded file, so the scrub
+preview shows the bytes being published and the `width`/`height` it records
+already describe them — no second measurement needed.
 
 This used to be a manual `ffmpeg` step enforced by nothing but a warning in the
 picker, which is a poor guard on a 10 GB bucket where media cannot be replaced in
