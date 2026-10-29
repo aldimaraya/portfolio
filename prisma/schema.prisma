@@ -19,6 +19,10 @@ model Photo {
   width  Int
   height Int
 
+  // Optional. When set it takes the caption's bold line and the location drops
+  // to the meta line beneath it (lib/photo/caption.ts); blank reads as before.
+  // Not a filter facet and offered no suggestions — titles are one-offs.
+  title    String @default("")
   location String
   camera   String
 
@@ -100,26 +104,134 @@ model Video {
   // Optional: plenty of clips need no blurb beyond their title.
   description String @default("")
 
-  // Manual wall order, maintained by dragging rows in the admin list rather than
-  // typed in by hand. Assigned on create as (current max + 1), so a new clip
-  // lands at the end instead of colliding on 0.
+  // Manual order *within its roll*, maintained by dragging rows in the admin
+  // list rather than typed in by hand. Assigned on create — and on a move to
+  // another roll — as (that roll's max + 1), so a clip lands at the end of its
+  // roll instead of colliding on 0. Values are only comparable inside one roll.
   sortOrder Int @default(0)
+
+  // Nullable only so `db push` stays additive against rows written before rolls
+  // existed; saveVideo refuses a clip without one. scripts/backfill-rolls.mjs
+  // files the stragglers, and until it runs they read as belonging to the first
+  // roll (lib/video/roll.ts) rather than vanishing from /motion. Restrict, not
+  // cascade: deleting a roll must never take its clips — and their R2 objects,
+  // which a cascade would orphan — with it.
+  rollId String?
+  roll   Roll?   @relation(fields: [rollId], references: [id], onDelete: Restrict)
 
   createdAt DateTime   @default(now())
   tags      VideoTag[]
+
+  @@index([rollId, sortOrder])
+}
+
+// A named group of clips, drawn on /motion as its own strip of film. Rolls are
+// lettered A, B, C… by position, and a clip's frame code carries its roll's
+// letter (01A, 01B…), so reordering rolls renumbers every clip on them.
+model Roll {
+  id   String @id @default(cuid())
+  name String
+
+  // Optional, like Video.description: a roll's name is often enough.
+  description String @default("")
+
+  // Manual, like Video.sortOrder, and for the same reason: the sequence is an
+  // editorial choice, not something derivable from the clips.
+  sortOrder Int @default(0)
+
+  createdAt DateTime @default(now())
+  videos    Video[]
+
+  @@index([sortOrder])
+}
+
+// An outbound link, drawn as an icon beside the wordmark and again in the
+// footer. Kept in the database rather than in code so adding one is an admin
+// edit, not a deploy. No icon column: the mark is derived from the URL's host
+// (lib/links/link.ts), so a link cannot name one icon and point somewhere else.
+model SiteLink {
+  id    String @id @default(cuid())
+  // The accessible name and tooltip under an icon, and the visible text for a
+  // host with no icon.
+  label String
+  href  String
+
+  // An account that *is* this person, rather than a place they point at — a
+  // shop, a print lab. Only profiles become the Person schema's sameAs and
+  // carry rel="me".
+  profile Boolean @default(false)
+
+  // Manual, like Roll.sortOrder: the order is an editorial choice.
+  sortOrder Int @default(0)
+
+  createdAt DateTime @default(now())
 
   @@index([sortOrder])
 }
 
 model BlogPost {
-  id              String   @id @default(cuid())
-  slug            String   @unique
-  title           String
-  markdownContent String
-  publishedAt     DateTime @default(now())
-  draft           Boolean  @default(true)
+  id    String @id @default(cuid())
+  slug  String @unique
+  title String
+
+  // The body as blocks — see PostContent in src/lib/post/content.ts. Null on a
+  // post last saved before the block editor existed, whose body is still the
+  // Markdown below and is converted on read (lib/markdown/legacy.ts). The first
+  // save from the editor fills this in, after which markdownContent is never
+  // read again. Kept rather than dropped so this stays additive: the deployed
+  // code reads it until the merge.
+  content         Json?
+  markdownContent String @default("")
+
+  publishedAt DateTime @default(now())
+  draft       Boolean  @default(true)
+
+  photos JournalPhoto[]
 
   @@index([draft, publishedAt])
+}
+
+// A photo uploaded into a journal post. Deliberately not a Photo: those are the
+// stills wall, which is curated, and a trip's snapshots do not belong on it.
+// Owned by one post and deleted with it (deletePost drops the R2 objects first).
+// A block refers to one by id — { kind: 'journal', id } in a photos block — so
+// a row with no block pointing at it is simply waiting in the tray.
+model JournalPhoto {
+  id       String       @id @default(cuid())
+  postId   String
+  post     BlogPost     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  imageUrl String
+  width    Int
+  height   Int
+
+  // From EXIF DateTimeOriginal at upload, for grouping a trip into days. Read
+  // before the re-encode strips it, like Photo.takenAt, and equally
+  // unrecoverable afterwards. Stored as the wall-clock time the camera recorded,
+  // in UTC fields — see lib/post/trip.ts for why the zone is ignored.
+  takenAt  DateTime?
+
+  // One of POST_CATEGORIES (lib/post/trip.ts), or null for untagged. A string
+  // rather than an enum so the list can change without a schema change.
+  category String?
+
+  // Perceptual hash of the picture (lib/photo/fingerprint.ts), so the tray can
+  // spot the same photo uploaded into the post twice. A hash of the image rather
+  // than the file, because only the re-encoded copy is ever stored. Null on rows
+  // from before it existed until scripts/fingerprint-journal.mjs fills them.
+  fingerprint String?
+
+  // Where it was taken, read from EXIF GPS before the re-encode strips it from
+  // the file (lib/geo/place.ts). Rounded to ~110 m on the way in, and never
+  // selected into anything a browser receives: the coordinates exist only so the
+  // place can be looked up, and `place` — a town-sized name, or whatever was
+  // typed over it in the tray — is all that is ever shown.
+  latitude  Float?
+  longitude Float?
+  place     String?
+
+  createdAt DateTime @default(now())
+
+  @@index([postId, takenAt])
 }
 
 model Tag {
@@ -145,4 +257,98 @@ model VideoTag {
   tag     Tag   @relation(fields: [tagId], references: [id], onDelete: Cascade)
 
   @@id([videoId, tagId])
+}
+
+// ── Newsletter ──────────────────────────────────────────────────────────────
+// Email is sent when something new goes up, not on a calendar: publishing
+// enqueues an Announcement, and the daily cron sends everything pending as one
+// Dispatch once nothing new has arrived for a while (lib/newsletter/schedule.ts).
+// See "Newsletter" in docs/architecture.md.
+
+// What an Announcement points at. Named for the surfaces a subscriber opts into,
+// not the tables — "stills" is a Photo, "motion" a Video, "journal" a BlogPost.
+enum ContentKind {
+  journal
+  motion
+  stills
+}
+
+model Subscriber {
+  id    String @id @default(cuid())
+  // Stored lowercased and trimmed (lib/newsletter/email.ts), so the unique
+  // index is what stops one inbox subscribing twice under two spellings.
+  email String @unique
+
+  // The only credential a subscriber has: it is in the confirm link, the manage
+  // link and every email's unsubscribe link. There are no accounts. Random, not
+  // derived from the id, so a leaked id cannot be turned into someone's link.
+  token String @unique
+
+  journal Boolean @default(true)
+  motion  Boolean @default(true)
+  stills  Boolean @default(true)
+
+  // Null until the confirmation link is followed — nothing is sent to an
+  // unconfirmed address but that one email. The cron deletes rows left
+  // unconfirmed for a week, so a stranger typing someone else's address in
+  // leaves nothing behind.
+  confirmedAt   DateTime?
+  // When the confirmation email last went out, so re-submitting the form cannot
+  // be used to mail-bomb an address (CONFIRM_RESEND_MS).
+  confirmSentAt DateTime
+
+  // The last Dispatch this subscriber has been handled for — emailed, or
+  // skipped because nothing in it matched their choices. What makes a dispatch
+  // resumable: a run that dies halfway, or hits the provider's daily cap, picks
+  // up with exactly the subscribers not yet marked.
+  lastDispatchId String?
+
+  createdAt DateTime @default(now())
+
+  @@index([confirmedAt])
+}
+
+// One piece of content queued to be emailed about. Enqueued by the admin save
+// actions on create (and on a post's first publish), never on an edit.
+model Announcement {
+  id    String      @id @default(cuid())
+  kind  ContentKind
+  // A Photo, Video or BlogPost id. Deliberately not a foreign key — it points at
+  // one of three tables — so a deleted item is dropped when the batch resolves
+  // rather than cascaded here.
+  refId String
+
+  createdAt DateTime @default(now())
+
+  // Taken out of the batch by hand in /admin/newsletter. Kept rather than
+  // deleted so the unique index below still stops it being queued again.
+  skipped Boolean @default(false)
+
+  // Null while pending. Restrict, because the alternative (SetNull) would turn
+  // deleting old dispatch history into putting already-sent items back in the
+  // queue, and the next cron run would email them all again.
+  dispatchId String?
+  dispatch   Dispatch? @relation(fields: [dispatchId], references: [id], onDelete: Restrict)
+
+  // One announcement per item, ever: unpublishing a post and publishing it
+  // again must not email everyone a second time.
+  @@unique([kind, refId])
+  @@index([dispatchId, skipped])
+}
+
+// One send of the pending batch to every subscriber.
+model Dispatch {
+  id String @id @default(cuid())
+
+  createdAt   DateTime  @default(now())
+  // Null while subscribers remain to be handled. An incomplete dispatch is
+  // resumed before any new one is started.
+  completedAt DateTime?
+
+  // Emails actually handed to the provider, for the admin history.
+  sent Int @default(0)
+
+  announcements Announcement[]
+
+  @@index([completedAt])
 }

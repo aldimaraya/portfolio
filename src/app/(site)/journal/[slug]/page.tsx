@@ -1,10 +1,18 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { PostMarkdown } from '@/components/markdown/PostMarkdown';
+import { cache } from 'react';
+import { PostBody } from '@/components/journal/PostBody';
+import { PostSheet } from '@/components/journal/PostSheet';
+import { PostSignup } from '@/components/newsletter/PostSignup';
 import { AdminEditLink } from '@/components/site/AdminEditLink';
 import { db } from '@/lib/db';
-import { buildExcerpt } from '@/lib/excerpt';
 import { formatPostDate } from '@/lib/post/date';
+import { contentExcerpt } from '@/lib/post/excerpt';
+import { loadPostBody } from '@/lib/post/load';
+import { firstImage } from '@/lib/post/media';
+import { indexEntries } from '@/lib/post/sections';
+import { JsonLd } from '@/components/site/JsonLd';
+import { articleSchema } from '@/lib/schema';
 
 // params is a Promise in Next 16 and must be awaited.
 type Params = { params: Promise<{ slug: string }> };
@@ -27,21 +35,40 @@ export async function generateStaticParams() {
   return posts.map((post) => ({ slug: post.slug }));
 }
 
-/** Drafts are unreachable, so a draft slug is a 404 rather than a private page. */
-async function publishedPost(slug: string) {
+/**
+ * Drafts are unreachable, so a draft slug is a 404 rather than a private page.
+ * Wrapped in cache() so generateMetadata and the page share one read of the
+ * post and its media rather than making two.
+ */
+const publishedPost = cache(async (slug: string) => {
   const post = await db.blogPost.findUnique({ where: { slug } });
-  return post && !post.draft ? post : null;
-}
+  if (!post || post.draft) return null;
+  return { ...post, ...(await loadPostBody(post)) };
+});
 
 export async function generateMetadata({ params }: Params) {
   const { slug } = await params;
   const post = await publishedPost(slug);
   if (!post) return { title: 'Journal' };
 
+  // The same summary the list uses, kept short enough for a link preview.
+  const description = contentExcerpt(post.content, 160);
+  // The post's own first photo, where it has one, rather than the site card:
+  // a trip shared in a chat should unfurl as the trip.
+  const image = firstImage(post.content.blocks, post.media);
+
   return {
     title: post.title,
-    // The same flattening the list uses, kept short enough for a link preview.
-    description: buildExcerpt(post.markdownContent, 160),
+    description,
+    alternates: { canonical: `/journal/${post.slug}` },
+    openGraph: {
+      type: 'article',
+      title: post.title,
+      description,
+      url: `/journal/${post.slug}`,
+      publishedTime: post.publishedAt.toISOString(),
+      ...(image ? { images: [{ url: image.url, width: image.width, height: image.height }] } : {}),
+    },
   };
 }
 
@@ -51,10 +78,18 @@ export default async function JournalPostPage({ params }: Params) {
   if (!post) notFound();
 
   return (
-    // Capped and centred rather than left-aligned across the full container: at
-    // 1300px the prose column inside the sheet would run well past a readable
-    // measure, which is the opposite of the problem this layout solves.
-    <main className="mx-auto max-w-[62rem]">
+    // The whole container, like the stills and motion pages. The text keeps a
+    // reading measure inside the sheet; the width beyond it goes to the margin,
+    // the index rail and photos set wide (see PostSheet).
+    <main>
+      <JsonLd
+        schema={articleSchema({
+          slug: post.slug,
+          title: post.title,
+          description: contentExcerpt(post.content, 160),
+          publishedAt: post.publishedAt,
+        })}
+      />
       <div className="flex items-center justify-between gap-4">
         <Link
           href="/journal"
@@ -65,23 +100,15 @@ export default async function JournalPostPage({ params }: Params) {
         <AdminEditLink href={`/admin/posts/${post.id}`} label="Edit post" />
       </div>
 
-      <article className="journal-sheet mt-6">
-        <div className="journal-grid">
-          {/* The margin. Everything about the post that is not the post. */}
-          <div className="journal-margin">
-            <time dateTime={post.publishedAt.toISOString()}>{formatPostDate(post.publishedAt)}</time>
-          </div>
-
-          <div>
-            <h1 className="font-journal text-[2rem] leading-[2.75rem] font-semibold tracking-tight text-balance">
-              {post.title}
-            </h1>
-            <div className="prose-portfolio mt-[1.8125rem]">
-              <PostMarkdown>{post.markdownContent}</PostMarkdown>
-            </div>
-          </div>
-        </div>
-      </article>
+      <PostSheet
+        frameClassName="mt-6"
+        margin={<time dateTime={post.publishedAt.toISOString()}>{formatPostDate(post.publishedAt)}</time>}
+        title={<h1 className="post-title">{post.title}</h1>}
+        index={indexEntries(post.content.blocks)}
+        after={<PostSignup />}
+      >
+        <PostBody blocks={post.content.blocks} media={post.media} />
+      </PostSheet>
     </main>
   );
 }

@@ -35,7 +35,7 @@ export default async function AdminPhotosPage() {
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={photo.imageUrl} alt="" className="h-12 w-16 rounded object-cover" />
               <div className="min-w-0 flex-1">
-                <div className="truncate text-sm">{photo.location}</div>
+                <div className="truncate text-sm">{photo.title || photo.location}</div>
                 <div className="truncate font-mono text-xs text-ash">
                   {[
                     photo.camera,

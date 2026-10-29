@@ -21,6 +21,12 @@ export interface PhotoExif {
   shutter?: string;
   focalLength?: number;
   coordinates?: string;
+  /**
+   * The raw GPS fix, for a caller that stores where a photo was taken apart
+   * from the photo (lib/geo/place.ts). `coordinates` is the same point as text.
+   */
+  latitude?: number;
+  longitude?: number;
 }
 
 function clean(value: unknown): string | undefined {
@@ -127,5 +133,7 @@ export async function extractPhotoExif(file: File): Promise<PhotoExif> {
     shutter: formatShutter(asNumber(data.ExposureTime)),
     focalLength: asNumber(data.FocalLength),
     coordinates: formatCoordinates(asNumber(data.latitude), asNumber(data.longitude)),
+    latitude: asNumber(data.latitude),
+    longitude: asNumber(data.longitude),
   };
 }

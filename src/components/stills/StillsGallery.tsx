@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { FilterBar } from '@/components/site/FilterBar';
 import { PolaroidWall } from './PolaroidWall';
@@ -8,6 +8,7 @@ import type { PolaroidPhoto } from './Polaroid';
 import { filterPhotos, optionsFromPhotos } from '@/lib/filters/apply';
 import { parseFilters } from '@/lib/filters/parse';
 import { parseSeed, parseSort, sortPhotosForWall } from '@/lib/color/sort';
+import { OPEN_PHOTO_PARAM, withoutOpenPhoto } from '@/lib/photo/lightbox-link';
 
 export interface GalleryPhoto extends PolaroidPhoto {
   /** Tag names, needed here because filtering no longer happens in SQL. */
@@ -50,10 +51,21 @@ export function StillsGallery({ photos }: { photos: GalleryPhoto[] }) {
     [photos, filters, sort, seed],
   );
 
+  // Back from an edit that was opened in the lightbox. The wall opens the photo
+  // during this same render; the request is then dropped from the URL — through
+  // the History API, like FilterBar's changes, so it costs no server round-trip —
+  // or a reload after closing the lightbox would open it all over again.
+  const openPhotoId = searchParams.get(OPEN_PHOTO_PARAM);
+  useEffect(() => {
+    if (!openPhotoId) return;
+    const { pathname, search, hash } = window.location;
+    window.history.replaceState(null, '', `${pathname}${withoutOpenPhoto(search)}${hash}`);
+  }, [openPhotoId]);
+
   return (
     <>
       <FilterBar options={options} active={filters} sort={sort} seed={seed} />
-      <PolaroidWall photos={visible} />
+      <PolaroidWall photos={visible} openPhotoId={openPhotoId} />
     </>
   );
 }

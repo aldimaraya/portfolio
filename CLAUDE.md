@@ -37,7 +37,7 @@ single-admin session · Zod 4 · Vitest + Playwright · Vercel.
 ## Architecture
 
 Three public surfaces under `src/app/(site)`: **stills** (colour-sorted photo wall), **motion** (a list of
-clips, each with its own page at `/motion/[id]`), **journal** (Markdown blog). One password-protected `src/app/admin` area manages all of it.
+clips, each with its own page at `/motion/[id]`), **journal** (posts built from blocks in a visual editor — `lib/post/`). One password-protected `src/app/admin` area manages all of it.
 Shared domain logic lives in `src/lib/<concern>/`, and every pure module there has a mirrored suite in
 `tests/unit/<concern>/`.
 

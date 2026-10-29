@@ -1,13 +1,15 @@
 import Image from 'next/image';
-import { summarizeSettings, type PhotoSettings } from '@/lib/photo/settings';
+import type { PhotoSettings } from '@/lib/photo/settings';
 import { placeholderColor } from '@/lib/color/analyze';
-import { formatTakenAt } from '@/lib/photo/date';
+import { photoCaption } from '@/lib/photo/caption';
 
 export interface PolaroidPhoto {
   id: string;
   imageUrl: string;
   width: number;
   height: number;
+  /** '' when untitled — see Photo.title in schema.prisma. */
+  title: string;
   location: string;
   camera: string;
   settings: PhotoSettings;
@@ -56,13 +58,7 @@ interface PolaroidProps {
 
 export function Polaroid({ photo, height, width, priority = false, onSettled }: PolaroidProps) {
   const ratio = photo.height > 0 ? photo.width / photo.height : 1;
-  const caption = [
-    photo.camera,
-    summarizeSettings(photo.settings),
-    photo.takenAt ? formatTakenAt(photo.takenAt) : '',
-  ]
-    .filter(Boolean)
-    .join(' · ');
+  const caption = photoCaption(photo);
 
   // Falls back to the photo's natural size at the target height, which is what
   // server-rendered markup and the first paint use.
@@ -89,7 +85,7 @@ export function Polaroid({ photo, height, width, priority = false, onSettled }: 
       >
         <Image
           src={photo.imageUrl}
-          alt={photo.location}
+          alt={caption.label}
           fill
           sizes={`${frameWidth}px`}
           priority={priority}
@@ -99,10 +95,10 @@ export function Polaroid({ photo, height, width, priority = false, onSettled }: 
         />
       </div>
       <div className="mt-2.5 px-0.5">
-        <div className="text-xs font-bold tracking-[0.04em] uppercase">{photo.location}</div>
-        {caption ? (
+        <div className="text-xs font-bold tracking-[0.04em] uppercase">{caption.heading}</div>
+        {caption.meta ? (
           <div className="mt-0.5 truncate font-mono text-[0.65rem] leading-tight tracking-[0.05em] text-gold uppercase">
-            {caption}
+            {caption.meta}
           </div>
         ) : null}
       </div>

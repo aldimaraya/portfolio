@@ -49,6 +49,9 @@ describe('extractPhotoExif', () => {
       shutter: '1/250',
       focalLength: 35,
       coordinates: '35.68393, 139.69171',
+      // Unrounded: rounding for storage is lib/geo/place.ts's call, not the reader's.
+      latitude: 35.68393333333333,
+      longitude: 139.69171111111112,
     });
   });
 

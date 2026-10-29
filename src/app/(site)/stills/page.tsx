@@ -2,7 +2,19 @@ import { Suspense } from 'react';
 import { db } from '@/lib/db';
 import { DEFAULT_SORT, sortPhotosForWall } from '@/lib/color/sort';
 import { StillsGallery } from '@/components/stills/StillsGallery';
+import { PageHold } from '@/components/site/PageHold';
 import { toSettings } from '@/lib/photo/settings';
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Stills',
+  description:
+    'A wall of still photography by Aldi Maraya, arranged by colour rather than by date.',
+  // The wall's filters live in the query string and are read on the client, so
+  // every ?camera= combination is a URL a crawler can reach. All of them are the
+  // same page and canonicalise to the bare one.
+  alternates: { canonical: '/stills' },
+};
 
 /**
  * Statically rendered and revalidated by the photo actions, so a visitor is
@@ -23,6 +35,7 @@ export default async function StillsPage() {
       imageUrl: true,
       width: true,
       height: true,
+      title: true,
       location: true,
       camera: true,
       settings: true,
@@ -43,6 +56,7 @@ export default async function StillsPage() {
     imageUrl: photo.imageUrl,
     width: photo.width,
     height: photo.height,
+    title: photo.title,
     location: photo.location,
     camera: photo.camera,
     // The Json column is untyped at the DB boundary — coerce it here.
@@ -62,8 +76,9 @@ export default async function StillsPage() {
     <main>
       {/* useSearchParams needs a Suspense boundary to prerender around: the
           static HTML is built without a query string, and the client fills in
-          the filtered view on hydration. */}
-      <Suspense fallback={null}>
+          the filtered view on hydration. The fallback keeps the progress bar
+          running until the wall, and its own asset gate, have mounted. */}
+      <Suspense fallback={<PageHold />}>
         <StillsGallery photos={wall} />
       </Suspense>
     </main>

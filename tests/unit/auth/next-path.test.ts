@@ -40,4 +40,10 @@ describe('safeNextPath', () => {
   it('rejects a javascript: URL', () => {
     expect(safeNextPath('javascript:alert(1)')).toBe(DEFAULT_NEXT);
   });
+
+  it('falls back to the caller’s own default when given one', () => {
+    expect(safeNextPath(undefined, '/admin/photos')).toBe('/admin/photos');
+    expect(safeNextPath('//evil.example', '/admin/photos')).toBe('/admin/photos');
+    expect(safeNextPath('/stills?photo=abc', '/admin/photos')).toBe('/stills?photo=abc');
+  });
 });

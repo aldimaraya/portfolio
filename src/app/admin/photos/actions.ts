@@ -9,12 +9,16 @@ import { photoSettingsSchema } from '@/lib/photo/settings';
 import { inputValueToTakenAt } from '@/lib/photo/date';
 import { deleteObjectsByUrl } from '@/lib/storage/r2';
 import { attempt } from '@/lib/actions/errors';
+import { announce } from '@/lib/newsletter/queue';
 
 const photoSchema = z.object({
   id: z.string().optional(),
   imageUrl: z.url('Upload an image before saving'),
   width: z.number().int().positive(),
   height: z.number().int().positive(),
+  // Optional, so no min — but still trimmed, so a lone space stores as untitled
+  // rather than as a title that renders blank.
+  title: z.string().trim(),
   // Trimmed before the length check: a lone space would otherwise satisfy min(1)
   // and store a blank-looking value.
   location: z.string().trim().min(1, 'Location is required'),
@@ -67,7 +71,9 @@ export async function savePhoto(input: PhotoInput): Promise<{ error?: string }> 
         }),
       ]);
     } else {
-      await db.photo.create({ data: { ...write, tags: { create: connections } } });
+      const created = await db.photo.create({ data: { ...write, tags: { create: connections } } });
+      // Only new photos are news; an edit or a retouch is not.
+      await announce('stills', created.id);
     }
 
     // An edit that drops the last photo carrying a tag leaves it behind.
@@ -75,6 +81,7 @@ export async function savePhoto(input: PhotoInput): Promise<{ error?: string }> 
 
     revalidatePath('/admin/photos');
     revalidatePath('/stills');
+    revalidatePath('/');
     return {};
   });
 }
@@ -129,6 +136,7 @@ export async function retouchPhoto(input: RetouchInput): Promise<{ error?: strin
     revalidatePath('/admin/photos');
     revalidatePath(`/admin/photos/${id}`);
     revalidatePath('/stills');
+    revalidatePath('/');
     return {};
   });
 }
@@ -160,6 +168,11 @@ export async function deletePhoto(id: string): Promise<{ error?: string }> {
 
     revalidatePath('/admin/photos');
     revalidatePath('/stills');
+    revalidatePath('/');
+    // A journal post can show this photo (a photos block refers to it by id).
+    // The prerendered post would otherwise keep serving its now-404 image; rebuilt,
+    // the block simply leaves the photo out.
+    revalidatePath('/journal', 'layout');
     return {};
   });
 }

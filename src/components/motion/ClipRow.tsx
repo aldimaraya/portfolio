@@ -3,13 +3,16 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { SpritePreview } from './SpritePreview';
-import { frameCode } from './FilmRail';
+import { useGatedAsset } from '@/components/site/AssetGate';
 import { thumbWidth } from '@/lib/video/frame';
 import { formatDuration } from '@/lib/video/duration';
+import { frameCode } from '@/lib/video/roll';
 
 export interface RollClip {
   id: string;
   spriteUrl: string;
+  /** Frame one of the sheet, shown until a preview is asked for — see SpritePreview. */
+  posterImageUrl: string;
   spriteFrames: number;
   width: number;
   height: number;
@@ -46,8 +49,26 @@ const THUMB_COLUMN = thumbWidth({ width: 16, height: 9 }, THUMB_HEIGHT);
  * question the visitor just asked. Reduced motion still stops it dead — the
  * rule in globals.css pins every strip back to frame one regardless of this.
  */
-export function ClipRow({ clip, index }: { clip: RollClip; index: number }) {
+export function ClipRow({
+  clip,
+  index,
+  letter,
+  gated = false,
+}: {
+  clip: RollClip;
+  /** Position on its own roll, not on the page — frame codes restart per roll. */
+  index: number;
+  letter: string;
+  /**
+   * Whether the enclosing AssetGate waits for this row's poster. Only the first
+   * rows on a page: the posters are lazy, and one far below the fold is not
+   * fetched until it is scrolled to, so waiting on it would hold the page to the
+   * gate's cap.
+   */
+  gated?: boolean;
+}) {
   const [previewing, setPreviewing] = useState(false);
+  const onSettled = useGatedAsset(gated);
   const runtime = formatDuration(clip.durationSeconds);
 
   return (
@@ -72,11 +93,13 @@ export function ClipRow({ clip, index }: { clip: RollClip; index: number }) {
       <span className="flex shrink-0 justify-center" style={{ width: THUMB_COLUMN }}>
         <SpritePreview
           spriteUrl={clip.spriteUrl}
+          posterUrl={clip.posterImageUrl}
           frames={clip.spriteFrames}
           active={previewing}
           // Decorative: the title sits next to it in the same link, so naming
           // the clip here would have a screen reader read it out twice.
           alt=""
+          onSettled={onSettled}
           boxStyle={{ width: thumbWidth(clip, THUMB_HEIGHT), height: THUMB_HEIGHT }}
           className="rounded-xs border border-goldline transition-colors group-hover:border-gold group-focus-visible:border-gold"
         />
@@ -97,7 +120,7 @@ export function ClipRow({ clip, index }: { clip: RollClip; index: number }) {
           the running time is what anyone deciding whether to watch actually
           wants, so it stays at every width. */}
       <span className="flex shrink-0 items-baseline gap-2.5 font-mono text-[0.7rem] tracking-[0.08em] tabular-nums">
-        <span className="text-gold max-strip:hidden">[{frameCode(index)}]</span>
+        <span className="text-gold max-strip:hidden">[{frameCode(index, letter)}]</span>
         {runtime ? <span className="text-ash">{runtime}</span> : null}
       </span>
     </Link>

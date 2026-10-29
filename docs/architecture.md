@@ -26,11 +26,21 @@ One Next.js App Router application, four surfaces:
 | Surface | Route | What it is |
 | --- | --- | --- |
 | Stills | `/stills` | A photo wall whose order is derived entirely from colour |
-| Motion | `/motion`, `/motion/[id]` | A roll of clips, each with its own page |
-| Journal | `/journal`, `/journal/[slug]` | A Markdown blog |
+| Motion | `/motion`, `/motion/[id]` | Clips grouped into rolls of film, each clip with its own page |
+| Journal | `/journal`, `/journal/[slug]` | Posts — trips, day by day, and the things around them — built from blocks |
+| Newsletter | `/newsletter`, `/newsletter/{confirm,manage}` | Email when something new goes up — see [Newsletter](#newsletter) |
 | Admin | `/admin/**`, `/login` | One password-protected area managing all of it |
 
-`/` redirects to `/stills`. The three public surfaces share chrome through the
+`/` is a home page summarising the other three — the latest posts, a justified
+row of stills and a few clips dealt at random on every load, and the newsletter
+signup — and it
+carries the `WebSite` and `Person` JSON-LD, since it is where a search for the
+name lands. It reuses each surface's own components rather than restyling them,
+and every action that revalidates a surface revalidates `/` too. The deal happens
+in the browser (`components/home/useVisitSeed.ts`) so that `/` stays static: the
+page ships the newest 120 stills and every clip, and picks from them after
+hydration. The public
+pages share chrome through the
 `(site)` route group — a group rather than a wrapper component, so a new public
 page cannot forget to include it. `/admin` and `/login` sit outside it with
 their own chrome.
@@ -68,7 +78,7 @@ image or video processing anywhere.** Rendering a public page is a plain databas
 read.
 
 The cost of this is that anything not captured at upload time is generally gone
-for good, which is why three backfill scripts exist and why two columns have
+for good, which is why several backfill scripts exist and why two columns have
 awkward defaults. See [Backfills](#backfills).
 
 ### Media never passes through the app server
@@ -224,19 +234,39 @@ generation every time a preview was redone.
   every photo to pack its rows.
 - **Lightbox** with swipe, keyboard navigation, and a FLIP expand from the
   clicked frame. The caption carries the date and capture settings.
+- **Optional titles.** A titled photo prints its title as the caption's bold line
+  and demotes the location to the meta line; untitled, it reads as it always did.
+  The wall and the lightbox share one builder,
+  [`lib/photo/caption.ts`](../src/lib/photo/caption.ts). Titles are not a filter
+  facet and the admin offers no suggestions for them.
 - **Load-time placeholders** painted from the photo's own average colour, and a
   wall-level loading state gated on real image `load` events rather than a timer
-  ([`useAssetsReady`](../src/components/site/useAssetsReady.ts)).
+  ([`useAssetsReady`](../src/components/site/useAssetsReady.ts)). The same gate —
+  hold the cascade, show the "Developing" loader after a 180ms grace and for at
+  least 400ms once shown, open by 2.5s regardless — also covers the first rows of
+  `/motion` and the home page's strip and clips
+  ([`AssetGate`](../src/components/site/AssetGate.tsx)). While any gate is shut the
+  page counts as busy, and the click-to-ready progress bar
+  ([`NavigationProgress`](../src/components/site/NavigationProgress.tsx)) keeps
+  running through it, so a click, the loader and the cascade read as one wait.
 
 ### Motion
 
-- **The roll** (`/motion`) is a list: a 26px perforated film rail down the left,
-  clips as rows, on ordinary page scroll. Each row shows a sprite-sheet
+- **Rolls** (`/motion`) are stacked down the page, each its own strip: a
+  heading (`Roll A — Travel`, clip count, running time, optional description),
+  then a 26px perforated film rail down the left with clips as rows, on ordinary
+  page scroll. Rolls are lettered A, B, C… by position and a clip's frame code
+  carries its roll's letter (`01A`, `01B`), so reordering rolls renumbers every
+  clip on them. Empty rolls are not shown, and lettering skips them.
+  [`lib/video/roll.ts`](../src/lib/video/roll.ts) does the grouping for both
+  `/motion` and the clip pages, so the two cannot disagree about a frame code. Each row shows a sprite-sheet
   thumbnail, title, description and running time. Sprite previews animate on
   hover or keyboard focus only — six looping previews down a list is ambient
   motion competing for attention.
 - **A clip page** (`/motion/[id]`) per clip: the projector gate, the title, its
-  position on the roll, its running time, and prev/next along the roll. SSG,
+  position on its roll, its running time, and prev/next along that roll —
+  stopping at the roll's ends rather than splicing into the next one. "Back"
+  returns to the clip's roll (`/motion#roll-b`), not the top of the page. SSG,
   like a journal post.
 - **Clips run on arrival**, started from an effect rather than the `autoPlay`
   attribute — the attribute gives no way to learn that the browser refused,
@@ -245,21 +275,98 @@ generation every time a preview was redone.
 - **The gate is sized against the window**, not a fixed pixel cap, so the frame,
   its title and its place on the roll are visible at once. `svh` rather than
   `vh`, because `vh` measures the viewport with mobile browser chrome retracted.
-- **The projector**: a sticky spool at the head of the rail turning with the
-  scroll, and a gate spool on a clip page that turns only while the clip runs.
+- **The projector**: a sticky spool at the head of each roll's rail turning
+  with the scroll, and a gate spool on a clip page that turns only while the clip runs.
 
 ### Journal
 
-- Markdown posts with **drafts** — a draft 404s rather than being a private
-  page, and is left out of `generateStaticParams` entirely.
-- A **WYSIWYG-ish editor** in the admin: a toolbar over a Markdown textarea
-  ([`lib/markdown/toolbar.ts`](../src/lib/markdown/toolbar.ts)) plus a media
-  picker that inserts images from the existing library
-  ([`lib/markdown/media.ts`](../src/lib/markdown/media.ts)), so a post can be
-  formatted and illustrated without knowing Markdown.
+A post is a list of **blocks**, stored as JSON on `BlogPost.content` and
+validated by [`lib/post/content.ts`](../src/lib/post/content.ts) on every save and
+read: sections, text, headings, photos, tips, lists with notes, clips, YouTube
+embeds, quotes and dividers. That schema is the whole vocabulary — there is no
+HTML or Markdown block, and the renderer builds every element itself, so nothing a
+post contains can become markup. Rich text inside a block is the subset of
+ProseMirror JSON the editor emits (paragraphs, lists, bold, italic, links), with
+links held to http(s), mailto and on-site targets.
+
+- **The sheet** ([`PostSheet`](../src/components/journal/PostSheet.tsx)) spans the
+  full container like stills and motion, without the lines growing with it: a
+  margin for dates and section labels, a text column at a reading measure, and a
+  rail holding the **"In this post"** index, which stays in view and marks the
+  section being read. Photos set *wide* take the margin too; *full* runs to both
+  edges of the sheet, over the rail. Within that width a photos block can be
+  scaled down (20–100%, by dragging its edge in the editor; stored as `scale`),
+  and stacked photos and rows are always held under 80svh tall, so a portrait
+  never runs past the screen ([`fit.ts`](../src/lib/post/fit.ts)). On a phone a
+  scale is honoured only down to 60%. Every breakpoint is a **container query** on
+  `.post-frame`, not a media query, so the editor's phone preview — a narrow
+  sheet in a wide window — collapses exactly as a phone does: the index moves
+  under the title, then the margin moves above each block.
+- **Sections** divide a post. A *numbered* section is a day, labelled "Day N" by
+  its position, so moving one renumbers the rest; renaming it ("Arrival") keeps
+  its place in the count, so the days after it do not renumber. A *plain*
+  section ("Packing") is not counted. Both feed the index
+  ([`lib/post/sections.ts`](../src/lib/post/sections.ts)); a post with no sections
+  indexes its headings instead.
+- **Photos blocks** hold references, not URLs — a trip photo, a still off the
+  wall, or (for converted posts only) an outside URL — and lay them out
+  *stacked*, as a justified *row*, a *grid* or a *carousel* (a native
+  scroll-snap track; the script only adds buttons and the counter). A reference
+  whose row is gone is skipped, so deleting a still drops it from the posts that
+  used it; `deletePhoto` and `deleteVideo` revalidate the journal for that.
+- **Trip photos** are `JournalPhoto` rows, owned by one post and deleted with it,
+  and **never on the stills wall** — the wall is curated in its own admin. They
+  are uploaded from the editor's tray through the same browser-side path as a
+  still (EXIF read first for the capture date, then re-encoded so no GPS reaches
+  the bucket). The tray groups them by **day** — the camera's wall-clock date,
+  stored in UTC fields so the day is the same everywhere
+  ([`lib/post/trip.ts`](../src/lib/post/trip.ts)) — and by a fixed set of
+  **categories** (food, sights, getting around, stay, people). *Lay out days*
+  turns every day with no section yet into a numbered section with a text block
+  and the photos for each category, leaving only the words to write. An upload
+  that looks like a photo already in the post is **skipped before it is sent**,
+  with *Upload anyway* to override: each row carries a 64-bit perceptual hash
+  ([`lib/photo/fingerprint.ts`](../src/lib/photo/fingerprint.ts)) of the picture
+  rather than the file, since only the re-encoded copy is ever stored. A skipped
+  original still gives the stored copy any **date or location it is missing** —
+  re-picking the originals is how a photo uploaded before either was kept gets
+  them back.
+- **Places.** The GPS fix is read alongside the capture date, before the
+  re-encode strips it from the file, rounded to ~110 m, and kept on the row only
+  so it can be named: `addJournalPhoto` turns it into a town-sized place
+  ([`lib/geo/`](../src/lib/geo)) through OpenStreetMap's Nominatim — no key, one
+  request a second, server-side so it can identify itself, and the attribution
+  shown in the tray as its terms require. A stored row at the same rounded point
+  lends its name first, so the database is the lookup's cache and a typed
+  correction is inherited. **The coordinates are never selected into anything a
+  browser receives**, the admin included; only the name is shown. The tray
+  groups by place and sets one by hand for photos without GPS. Nothing public
+  shows places yet.
+- **The editor** (`components/admin/post-editor/`) draws the post on the same
+  sheet, each block edited in place: text through TipTap with everything the
+  schema cannot hold switched off, so a paste is reduced to what a post can
+  store; titles, labels and captions as plain growing fields. The selected
+  block's controls sit in a row of the sticky top bar, never over the writing.
+  New posts are created as an empty draft first, so photos can be uploaded into
+  one before its first save. Saving is explicit (Save, or ⌘S) — a published post
+  would otherwise go live keystroke by keystroke — and leaving unsaved asks
+  first. Every decision about what an edit does is a pure function in
+  [`lib/post/editor.ts`](../src/lib/post/editor.ts).
+- **Posts written in Markdown** before the editor have `content` null. They are
+  converted on read ([`lib/markdown/legacy.ts`](../src/lib/markdown/legacy.ts)),
+  following what the old renderer made of each shape, with images and videos
+  from the library matched back to their rows; the first save from the editor
+  stores the blocks. Nothing is rewritten behind the writer's back, and
+  `markdownContent` is never written again.
+- **Drafts** 404 rather than being a private page, and are left out of
+  `generateStaticParams` entirely. A draft's title can be empty; publishing needs
+  a title and something to read
+  ([`lib/post/form.ts`](../src/lib/post/form.ts)).
 - Slugs from titles, with collisions suffixed
-  ([`lib/slug.ts`](../src/lib/slug.ts)).
-- Excerpts flattened from the body for the list and for link previews.
+  ([`lib/slug.ts`](../src/lib/slug.ts)), frozen on publish.
+- Excerpts from the post's prose for the list, link previews and the newsletter
+  ([`lib/post/excerpt.ts`](../src/lib/post/excerpt.ts)); a post's link preview
+  uses its first photo.
 
 ### Admin
 
@@ -278,32 +385,121 @@ One password, one session. Photos, videos and posts each get a list and a form.
 - **Regenerate preview frames** on a clip's edit page pulls the stored clip back
   through `video-source` and re-grabs, which is how a preview is changed after
   upload and how a legacy row's missing dimensions get filled in.
-- **Drag-to-reorder** for videos, persisted as a whole ordering in one
-  transaction rather than a moved pair, so the result cannot drift from what is
-  on screen.
+- **Rolls** are renamed, reordered and deleted on their own headings in the
+  `/admin/videos` clip list, and added at its foot. A roll with clips on it
+  cannot be deleted — the admin says so, and `onDelete: Restrict` guarantees
+  it. A clip's roll can also be picked on its form; moving it that way puts it
+  at the end of the new roll.
+- **Drag-to-reorder** for videos, one list per roll — and across them, to move
+  a clip onto another roll, landing above or below the row by pointer position.
+  Persisted as the destination roll's whole ordering in one transaction rather
+  than a moved pair, so the result cannot drift from what is on screen.
+- **Links** (`/admin/links`) are the outbound links drawn as icons beside the
+  wordmark and again in the footer of every public page. Added, edited,
+  reordered and deleted in place; each save revalidates the whole site, because
+  every page carries them. The icon is derived from the URL's host
+  ([`lib/links/link.ts`](../src/lib/links/link.ts)), never stored, and a host
+  with no mark is drawn as its label. URLs are pinned to http(s) — the string
+  becomes an `href` on every public page — and lose share-tracking parameters
+  (`si`, `igsh`, `utm_*`) on the way in. Links marked as the owner's account
+  become the Person schema's `sameAs` and carry `rel="me"`.
 - **`AdminBar` and `AdminEditLink`** appear on public pages for a signed-in
   admin. They ask the client (`/api/auth/state`) rather than reading `cookies()`,
   because a cookie read would make the page dynamic and lose the CDN.
+
+### Newsletter
+
+Visitors can get an email when something new goes up, choosing any of journal,
+motion and stills. There is **no schedule**: the site is updated occasionally,
+and a weekly newsletter would mostly be empty. Code in
+[`lib/newsletter/`](../src/lib/newsletter), sending through Resend.
+
+- **Publishing queues, the cron sends.** `savePost` (on a post's first publish),
+  `savePhoto` and `saveVideo` (on create, never on edit) call `announce()`,
+  which adds an `Announcement`. A daily Vercel Cron
+  (`vercel.json` → `/api/cron/newsletter`, authorised by `CRON_SECRET`) sends
+  everything pending as one `Dispatch` once nothing new has been added for
+  `QUIET_HOURS` ([`schedule.ts`](../src/lib/newsletter/schedule.ts)). That is
+  the bundling: an afternoon of uploads is one email the next day, and a quiet
+  month is no email at all. Each subscriber gets only the kinds they chose, and
+  nothing if the batch holds none of them.
+- **An item is announced once, ever** — the unique index on `(kind, refId)`.
+  Unpublishing and republishing a post does not email anyone twice. A post put
+  back into draft while pending is held, not sent; deleted content is dropped.
+- **Dispatches resume.** Each subscriber's `lastDispatchId` records that they
+  have been handled, so a run that dies or hits Resend's daily cap is finished
+  by the next one, and each batch of 100 carries an idempotency key derived from
+  its recipients so a retry after a crash is not a duplicate. Only one dispatch
+  runs at a time; a second racing run claims no items and backs out.
+- **`/admin/newsletter`** shows the pending batch with an estimate of when it
+  goes out, lets an item be left out (or put back), renders the exact email as a
+  preview, has **Send now** and **Email me a preview**, and lists subscribers
+  and past sends.
+- **Double opt-in, no accounts.** A random token per subscriber is the whole
+  credential behind the confirm, manage and unsubscribe links. Confirming takes
+  a click on the page, not just a GET — mail scanners fetch every link in an
+  email, and a GET that confirmed would let one sign someone up. Unconfirmed
+  signups are deleted after a week; unsubscribing deletes the row.
+- **Every digest carries RFC 8058 one-click unsubscribe headers**, which Gmail
+  and Yahoo expect from bulk senders. Only the POST acts on
+  `/api/newsletter/unsubscribe`, for the same scanner reason.
+- **The signup form reveals nothing.** Every outcome — new, pending, already
+  subscribed — gets the same answer. It has a honeypot field, a per-IP cap
+  ([`throttle.ts`](../src/lib/newsletter/throttle.ts), in-memory like the login
+  limiter) and a per-inbox resend limit, because every signup spends quota.
+- **The prompt** ([`NewsletterPrompt`](../src/components/newsletter/NewsletterPrompt.tsx))
+  is a native `<dialog>` opened after 20 seconds, mounted in the public layout
+  so its clock survives navigation. It never shows to the admin, on the
+  newsletter's own pages, or over an open photo, and never again in a browser
+  that has closed it or subscribed (localStorage, best-effort). A footer link
+  on every public page is the permanent way in.
+- **Only production can email subscribers.** Development and previews share
+  production's database, so [`send.ts`](../src/lib/newsletter/send.ts) drops
+  every recipient not in `NEWSLETTER_TEST_EMAIL` unless `VERCEL_ENV` is
+  `production`, and `runDispatch` refuses to run at all elsewhere — a dispatch
+  there would mark real subscribers as sent while delivering nothing. Keep
+  `RESEND_API_KEY` scoped to Production in Vercel as the second lock.
+- **Outside production, email links point back at the request's own origin**
+  ([`origin.ts`](../src/lib/newsletter/origin.ts)), so a confirmation sent from
+  `localhost` confirms on `localhost` rather than on a production that has not
+  shipped the page yet. Images still load from `siteUrl()`, because a mail
+  provider's image proxy cannot reach localhost.
+- Email images go through the site's own `/_next/image` at 640px, since the
+  originals on R2 are full size. That spends image transformations, once per
+  image.
 
 ---
 
 ## Data model
 
-[`prisma/schema.prisma`](../prisma/schema.prisma). Six models: `Photo`, `Video`,
-`BlogPost`, `Tag`, and the two join tables.
+[`prisma/schema.prisma`](../prisma/schema.prisma). Twelve models: `Photo`, `Video`,
+`Roll`, `BlogPost`, `JournalPhoto`, `Tag`, the two join tables, the newsletter's
+`Subscriber`, `Announcement` and `Dispatch`, and `SiteLink`.
 
 Columns whose *shape* carries a decision:
 
 | Column | Why it looks like that |
 | --- | --- |
 | `Photo.settings` (`Json`) | Lens/focal length/aperture/shutter/ISO as one blob, every field optional free text. Read it back through `toSettings()`, which coerces malformed JSON to blanks rather than throwing. |
+| `Photo.title` | `''` means untitled, not null, so the column could be added with `db push` and no backfill. |
 | `Photo.warmth` | The wall's sort key. Defaults to 0, which files un-analysed rows as perfectly neutral until `recolor:photos` runs. |
 | `Photo.takenAt` (nullable) | Null means unknown, and unknown is permanent — see the EXIF constraint above. |
 | `Photo.hueStrength` | **Dead column.** Left declared only so `db push` stays additive; dropping it needs `--accept-data-loss`. Safe to drop by hand. |
 | `Video.width/height` | Default 0, meaning "uploaded before these were stored". `FRAME_FALLBACK_RATIO` shapes those, and the clip page corrects itself from the file's own metadata. |
 | `Video.durationSeconds` | `Float`, default 0 meaning unknown. Rounding on the way in would make the roll's running total drift. |
-| `Video.sortOrder` | Videos *do* have a manual order, unlike photos. |
+| `Video.sortOrder` | Videos *do* have a manual order, unlike photos — but only within their roll; values on different rolls are not comparable. |
+| `Video.rollId` (nullable) | Nullable only so the push stayed additive. `saveVideo` requires one; a clip without one (older than rolls, until `backfill:rolls` runs) is shown at the end of the first roll rather than dropped. |
+| `SiteLink` (no icon column) | The mark is derived from `href`'s host at render, so a row cannot name one brand's icon and point at another's site. |
 | `BlogPost.draft` | Defaults to `true`, so a half-written post cannot be published by forgetting a checkbox. |
+| `BlogPost.content` (`Json`, nullable) | The post as blocks (`PostContent`). Null means the post predates the block editor and its body is still `markdownContent`, converted on read; validated on every read, and a row that fails falls back to the Markdown rather than taking the page down. |
+| `BlogPost.markdownContent` | Read only for posts whose `content` is null, never written by the editor. Kept so the change stayed additive; droppable once every post has been saved from the editor. |
+| `JournalPhoto` | A post's own uploads, apart from `Photo` so a trip never reaches the stills wall. `onDelete: Cascade` from the post; the R2 objects are `deletePost`'s to remove. `category` is a string, not an enum, so the list can change without a schema change. |
+| `JournalPhoto.takenAt` | The camera's wall-clock time in UTC fields, so a trip's days are the same on every machine. Like `Photo.takenAt`, unrecoverable once the upload has stripped EXIF. |
+| `JournalPhoto.latitude` / `longitude` / `place` | GPS rounded to three decimals, and the name it was given (or one typed over it). The coordinates stay server-side — `JOURNAL_PHOTO_SELECT` and every public select leave them out. Unrecoverable for photos uploaded before they were kept, except by re-picking the original. |
+| `JournalPhoto.fingerprint` | Difference hash of the stored image, for the tray's duplicate check. Null on rows from before it existed until `npm run backfill:fingerprints` fills them; a null never matches. |
+| `Announcement.refId` | Points at a `Photo`, `Video` or `BlogPost` depending on `kind`, so it cannot be a foreign key; deleted content is dropped when the batch resolves. |
+| `Announcement.dispatchId` | `onDelete: Restrict`. Deleting a dispatch must not put what it sent back into the queue. |
+| `Subscriber.lastDispatchId` | What makes a dispatch resumable. Not a relation, so dispatch history can never be blocked by it. |
 
 ---
 
@@ -401,6 +597,7 @@ Each is a dry run by default and takes `-- --apply` to write.
 | `npm run backfill:settings` | Populate `Photo.settings` on older rows |
 | `npm run recolor:photos` | Re-derive OKLab colour stats. Imports the real analyser from `src/` rather than duplicating it, so the wall and the backfill cannot drift apart |
 | `npm run backfill:durations` | Recover `Video.durationSeconds` for clips predating the column |
+| `npm run backfill:rolls` | File clips predating rolls onto the first roll, creating one (`-- --name …`, default `Films`) if none exists. Only `rollId` is written, so the old order carries over |
 
 `backfill:durations` is the one place anything server-side looks inside a stored
 video. It stays within the no-server-side-processing rule: it walks the MP4 box
@@ -497,6 +694,10 @@ Levers, cheapest first:
 - **Do not browse the full wall on a preview** when the change under review is
   not about the wall. This sounds like advice rather than infrastructure, and it
   is, but it is the single biggest lever on the metric that actually binds.
+
+`RESEND_API_KEY`, `EMAIL_FROM` and `CRON_SECRET` should be set on **Production
+only**. A preview shares production's subscriber list, and without the key it
+cannot email anyone even if the guard in `lib/newsletter/send.ts` were wrong.
 
 `NEXT_PUBLIC_SITE_URL` should stay **unset** on Preview: with it set, every
 preview claims to be the canonical origin in its metadata and sitemap. Note the

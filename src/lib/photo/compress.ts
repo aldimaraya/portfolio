@@ -16,7 +16,10 @@
 /** Longest edge kept, in CSS pixels doubled for high-density screens. */
 export const MAX_EDGE = 2560;
 
-/** WebP quality. 0.85 is the usual point where artefacts stop being visible. */
+/**
+ * WebP quality, and JPEG's on a browser that cannot encode WebP. 0.85 is the
+ * usual point where artefacts stop being visible.
+ */
 export const QUALITY = 0.85;
 
 export interface TargetSize {
@@ -40,8 +43,21 @@ export function targetSize(width: number, height: number, maxEdge = MAX_EDGE): T
   };
 }
 
-/** Swaps the extension for .webp, since the bytes are no longer the original format. */
-export function webpFilename(name: string): string {
+/** Extensions for the formats the encoder can actually produce — see encode in ./trim-client.ts. */
+const EXTENSIONS: Record<string, string> = {
+  'image/webp': 'webp',
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+};
+
+/**
+ * Swaps the extension for the one `type` was encoded as, since the bytes are no
+ * longer the original format. Taken from the encoded blob rather than assumed:
+ * a browser that cannot write the format it was asked for hands back another
+ * one without saying so, and a name that lies about its bytes is how ten PNGs
+ * came to be stored as .webp.
+ */
+export function encodedFilename(name: string, type: string): string {
   const base = name.replace(/\.[^./\\]+$/, '');
-  return `${base || 'photo'}.webp`;
+  return `${base || 'photo'}.${EXTENSIONS[type] ?? 'bin'}`;
 }

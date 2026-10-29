@@ -5,6 +5,7 @@ const complete: VideoDraft = {
   hasVideo: true,
   hasPreview: true,
   title: 'Boracay Edit',
+  hasRoll: true,
 };
 
 describe('missingRequiredFields', () => {
@@ -15,6 +16,12 @@ describe('missingRequiredFields', () => {
   it('requires a video and a title', () => {
     expect(missingRequiredFields({ ...complete, hasVideo: false })).toContain('a video');
     expect(missingRequiredFields({ ...complete, title: '' })).toContain('a title');
+  });
+
+  // saveVideo refuses a clip without one; better to say so before a large
+  // upload than after it.
+  it('requires a roll', () => {
+    expect(missingRequiredFields({ ...complete, hasRoll: false })).toEqual(['a roll']);
   });
 
   it('treats a whitespace-only title as missing', () => {
@@ -29,14 +36,14 @@ describe('missingRequiredFields', () => {
 
   it('does not ask for a preview when there is no video yet', () => {
     expect(
-      missingRequiredFields({ hasVideo: false, hasPreview: false, title: 'Boracay' }),
+      missingRequiredFields({ hasVideo: false, hasPreview: false, title: 'Boracay', hasRoll: true }),
     ).toEqual(['a video']);
   });
 
   it('lists every missing field for an empty form', () => {
     expect(
-      missingRequiredFields({ hasVideo: false, hasPreview: false, title: '' }),
-    ).toEqual(['a video', 'a title']);
+      missingRequiredFields({ hasVideo: false, hasPreview: false, title: '', hasRoll: false }),
+    ).toEqual(['a video', 'a title', 'a roll']);
   });
 
   // Description is optional and sort order is assigned server-side.

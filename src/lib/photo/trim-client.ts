@@ -13,7 +13,7 @@ import {
   type BorderInsets,
   type BorderOptions,
 } from './border';
-import { QUALITY, targetSize, webpFilename } from './compress';
+import { QUALITY, encodedFilename, targetSize } from './compress';
 
 /**
  * Longest edge the detector samples at. A frame edge is a large feature, so full
@@ -41,6 +41,13 @@ function drawToCanvas(
 
   const context = canvas.getContext('2d', { willReadFrequently: true });
   if (!context) throw new Error('Could not get a 2D canvas context');
+  // The default 'low' shrinks a 4000px frame to the 100px colour sample by
+  // all but skipping pixels, so the sample aliases — the likeliest reason a
+  // re-upload's fingerprint (lib/photo/fingerprint.ts) measured 5 bits from the
+  // one the backfill computed with sharp, which averages properly, against 0–2
+  // between two sharp reads. It also makes the stored copy's own downscale
+  // cleaner.
+  context.imageSmoothingQuality = 'high';
 
   if (source) {
     context.drawImage(
@@ -90,12 +97,37 @@ export interface TrimmedImage {
   sampleHeight: number;
 }
 
+function canvasBlob(canvas: HTMLCanvasElement, type: string): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => (blob ? resolve(blob) : reject(new Error('Could not encode the trimmed image'))),
+      type,
+      QUALITY,
+    );
+  });
+}
+
+/**
+ * WebP where the browser can write it, JPEG where it cannot. Safari's canvas has
+ * no WebP encoder and does not say so: asked for one, it hands back a lossless
+ * PNG — 5 to 10 MB at MAX_EDGE, against about 1 MB of WebP — which was then
+ * stored under a .webp name and content type. Big enough that the image
+ * optimiser, which gives an upstream fetch seven seconds, timed out pulling them
+ * on a slow line and the lightbox never got its photo. JPEG at the same quality
+ * is the smallest thing every browser can encode.
+ */
+async function encode(canvas: HTMLCanvasElement): Promise<Blob> {
+  const webp = await canvasBlob(canvas, 'image/webp');
+  return webp.type === 'image/webp' ? webp : canvasBlob(canvas, 'image/jpeg');
+}
+
 /** Downsample width for colour analysis — plenty for an average, and fast. */
 const SAMPLE_WIDTH = 100;
 
 /**
- * Crops `bitmap` by `insets` and encodes the result as WebP, at the same size
- * ceiling and quality as an ordinary upload. Also returns a downsampled copy of
+ * Crops `bitmap` by `insets` and encodes the result as WebP (JPEG on a browser
+ * that cannot — see encode), at the same size ceiling and quality as an
+ * ordinary upload. Also returns a downsampled copy of
  * the *cropped* pixels: a white frame drags average lightness up and saturation
  * down, so the stored colour stats have to be re-derived from the trimmed image
  * or the wall keeps sorting by the border.
@@ -110,10 +142,7 @@ export async function renderTrimmed(
 
   const canvas = drawToCanvas(bitmap, width, height, rect);
 
-  const blob = await new Promise<Blob | null>((resolve) => {
-    canvas.toBlob(resolve, 'image/webp', QUALITY);
-  });
-  if (!blob) throw new Error('Could not encode the trimmed image');
+  const blob = await encode(canvas);
 
   const scale = Math.min(1, SAMPLE_WIDTH / width);
   const sampleWidth = Math.max(1, Math.round(width * scale));
@@ -124,7 +153,7 @@ export async function renderTrimmed(
     .getImageData(0, 0, sampleWidth, sampleHeight);
 
   return {
-    file: new File([blob], webpFilename(filename), { type: 'image/webp' }),
+    file: new File([blob], encodedFilename(filename, blob.type), { type: blob.type }),
     width,
     height,
     pixels: data,

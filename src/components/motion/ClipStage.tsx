@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { frameCode } from './FilmRail';
+import { frameCode } from '@/lib/video/roll';
 import { frameRatio, gateStyles } from '@/lib/video/frame';
 
 export interface StageClip {
@@ -28,7 +28,15 @@ export interface StageClip {
  * starting one silently and letting the visitor discover the sound later is a
  * worse first impression than one that waits for a click.
  */
-export function ClipStage({ clip, index }: { clip: StageClip; index: number }) {
+export function ClipStage({
+  clip,
+  index,
+  letter,
+}: {
+  clip: StageClip;
+  index: number;
+  letter: string;
+}) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [playing, setPlaying] = useState(false);
   // Whether the clip has ever run. Both states are set from the element's own
@@ -80,7 +88,7 @@ export function ClipStage({ clip, index }: { clip: StageClip; index: number }) {
           </span>
           <span>{playing ? 'Projecting' : started ? 'Paused' : 'Ready'}</span>
         </span>
-        <span>Frame {frameCode(index)}</span>
+        <span>Frame {frameCode(index, letter)}</span>
       </div>
 
       <div className="relative w-full" style={gate.frame}>

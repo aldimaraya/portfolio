@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   isOptimisableUrl,
   isVideoUrl,
-  mediaSnippet,
   posterFromTitle,
   youtubeEmbedUrl,
   youtubeId,
@@ -98,61 +97,5 @@ describe('posterFromTitle', () => {
     expect(posterFromTitle('')).toBeNull();
     expect(posterFromTitle('just a caption')).toBeNull();
     expect(posterFromTitle('poster:')).toBeNull();
-  });
-});
-
-describe('mediaSnippet', () => {
-  it('writes an image with its caption as alt text', () => {
-    expect(mediaSnippet({ kind: 'image', url: 'https://cdn.test/journal/a.webp', caption: 'Oslo' })).toBe(
-      '![Oslo](https://cdn.test/journal/a.webp)',
-    );
-  });
-
-  it('writes an image with no caption rather than omitting the brackets', () => {
-    expect(mediaSnippet({ kind: 'image', url: 'https://cdn.test/journal/a.webp' })).toBe(
-      '![](https://cdn.test/journal/a.webp)',
-    );
-  });
-
-  it('carries a video poster in the title', () => {
-    expect(
-      mediaSnippet({
-        kind: 'video',
-        url: 'https://cdn.test/videos/a.mp4',
-        caption: 'Rooftop',
-        poster: 'https://cdn.test/posters/a.webp',
-      }),
-    ).toBe('![Rooftop](https://cdn.test/videos/a.mp4 "poster:https://cdn.test/posters/a.webp")');
-  });
-
-  it('omits the title when a video has no poster', () => {
-    expect(mediaSnippet({ kind: 'video', url: 'https://cdn.test/videos/a.mp4' })).toBe(
-      '![](https://cdn.test/videos/a.mp4)',
-    );
-  });
-
-  it('writes a YouTube link bare, since a lone link is what marks an embed', () => {
-    expect(mediaSnippet({ kind: 'youtube', url: 'https://youtu.be/dQw4w9WgXcQ', caption: 'ignored' })).toBe(
-      'https://youtu.be/dQw4w9WgXcQ',
-    );
-  });
-
-  it('escapes a caption so it cannot break out of the image syntax', () => {
-    const snippet = mediaSnippet({
-      kind: 'image',
-      url: 'https://cdn.test/journal/a.webp',
-      caption: 'a ] b [ c',
-    });
-    expect(snippet).toBe('![a \\] b \\[ c](https://cdn.test/journal/a.webp)');
-  });
-
-  it('flattens newlines in a caption, which alt text cannot carry', () => {
-    expect(mediaSnippet({ kind: 'image', url: 'x.webp', caption: 'one\ntwo' })).toBe('![one two](x.webp)');
-  });
-
-  it('percent-escapes a URL so a space or paren cannot end the target early', () => {
-    expect(mediaSnippet({ kind: 'image', url: 'https://cdn.test/a b(1).webp' })).toBe(
-      '![](https://cdn.test/a%20b%281%29.webp)',
-    );
   });
 });
