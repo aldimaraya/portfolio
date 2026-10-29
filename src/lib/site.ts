@@ -10,7 +10,7 @@ export const SITE_TAGLINE = 'My life, documented';
  * a person emailing you, not a site you subscribed to — "Confirm your
  * subscription to Aldi Maraya" is odd in an inbox in a way the wordmark is not.
  */
-export const NEWSLETTER_NAME = 'Aldi’s portfolio';
+export const NEWSLETTER_NAME = 'Aldi’s notebook';
 
 /**
  * What the site is about, in a sentence, for the places a tagline is too thin to
@@ -21,8 +21,8 @@ export const NEWSLETTER_NAME = 'Aldi’s portfolio';
  * subject beyond the name. This is deliberately the longer, plainer version.
  */
 export const SITE_DESCRIPTION =
-  'Photography and films by Aldi Maraya — a wall of stills, a roll of motion ' +
-  'work, and a journal about how they were made.';
+  'The life of Aldi Maraya, documented — photos, films, and a journal of ' +
+  'what I’ve been up to.';
 
 /**
  * The home page's opening line. A placeholder until the about text is written —
