@@ -6,6 +6,7 @@ import { DeleteButton } from '@/components/admin/DeleteButton';
 import { LABEL } from '@/components/admin/fields';
 import { safeNextPath } from '@/lib/auth/next-path';
 import { RETURN_PARAM } from '@/lib/photo/lightbox-link';
+import { youtubeWatchUrl } from '@/lib/markdown/media';
 import { deleteVideo } from '../actions';
 
 export const dynamic = 'force-dynamic';
@@ -53,6 +54,7 @@ export default async function EditVideoPage({
           durationSeconds: video.durationSeconds,
           title: video.title,
           description: video.description,
+          youtubeUrl: video.youtubeId ? youtubeWatchUrl(video.youtubeId) : '',
           rollId: video.rollId ?? '',
           tags: video.tags.map((entry) => entry.tag.name).join(', '),
         }}

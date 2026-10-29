@@ -5,6 +5,7 @@ import {
   posterFromTitle,
   youtubeEmbedUrl,
   youtubeId,
+  youtubeWatchUrl,
 } from '@/lib/markdown/media';
 
 describe('isVideoUrl', () => {
@@ -54,6 +55,12 @@ describe('youtubeId', () => {
     expect(youtubeEmbedUrl('dQw4w9WgXcQ')).toBe(
       'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ',
     );
+  });
+
+  it('rebuilds a share link as a clean watch URL', () => {
+    const id = youtubeId('https://youtu.be/dQw4w9WgXcQ?si=tracking123');
+    expect(id).toBe('dQw4w9WgXcQ');
+    expect(youtubeWatchUrl(id!)).toBe('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
   });
 });
 

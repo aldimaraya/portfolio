@@ -66,6 +66,15 @@ export function youtubeEmbedUrl(id: string): string {
 }
 
 /**
+ * The canonical watch URL for a video id — what a clip's YouTube link points at.
+ * Rebuilt from the id rather than kept as pasted, so it never carries a share
+ * link's tracking parameters.
+ */
+export function youtubeWatchUrl(id: string): string {
+  return `https://www.youtube.com/watch?v=${id}`;
+}
+
+/**
  * Whether an image URL may be handed to next/image.
  *
  * Load-bearing, not an optimisation: next/image throws on a host that is not in

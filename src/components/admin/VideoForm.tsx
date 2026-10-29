@@ -61,6 +61,7 @@ function buildForm(initial?: Initial): VideoInput {
     durationSeconds: initial?.durationSeconds ?? 0,
     title: initial?.title ?? '',
     description: initial?.description ?? '',
+    youtubeUrl: initial?.youtubeUrl ?? '',
     rollId: initial?.rollId ?? '',
     tags: initial?.tags ?? '',
   };
@@ -970,6 +971,18 @@ export function VideoForm({
             aria-label="Description"
             value={form.description}
             onChange={(event) => set('description', event.target.value)}
+          />
+          {/* For a clip whose full-resolution cut lives on YouTube: what goes to
+              R2 is a 1080p encode, so this is where 4K is offered instead. Any
+              link shape works — only the video id is kept. */}
+          <input
+            className={FIELD}
+            type="url"
+            inputMode="url"
+            placeholder="YouTube link, for the 4K version (optional)"
+            aria-label="YouTube link"
+            value={form.youtubeUrl}
+            onChange={(event) => set('youtubeUrl', event.target.value)}
           />
 
           {rolls.length > 0 ? (

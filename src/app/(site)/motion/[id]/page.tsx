@@ -47,6 +47,7 @@ async function loadClip(id: string) {
         durationSeconds: true,
         title: true,
         description: true,
+        youtubeId: true,
         // Not drawn anywhere — it is the VideoObject's uploadDate, which Google
         // requires before a clip is eligible for a video result at all.
         createdAt: true,

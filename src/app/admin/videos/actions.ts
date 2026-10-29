@@ -10,6 +10,7 @@ import { pruneUnusedTags, tagConnections } from '@/lib/tags';
 import { deleteObjectsByUrl } from '@/lib/storage/r2';
 import { attempt } from '@/lib/actions/errors';
 import { announce } from '@/lib/newsletter/queue';
+import { youtubeId } from '@/lib/markdown/media';
 
 const videoSchema = z.object({
   id: z.string().optional(),
@@ -30,6 +31,13 @@ const videoSchema = z.object({
   title: z.string().trim().min(1, 'Title is required'),
   // Optional — not every clip needs a blurb.
   description: z.string().trim(),
+  // Optional. Taken as whatever link was pasted and stored as the id alone — see
+  // Video.youtubeId. Refused rather than dropped when no id can be read from it:
+  // a channel or playlist link saved as "no link" would look like it had taken.
+  youtubeUrl: z
+    .string()
+    .trim()
+    .refine((url) => !url || youtubeId(url) !== null, 'That is not a link to a YouTube video'),
   // Required, though the column is nullable — see Video.rollId.
   rollId: z.string().min(1, 'Pick a roll'),
   tags: z.string(),
@@ -70,7 +78,8 @@ export async function saveVideo(input: VideoInput): Promise<{ error?: string }> 
       return { error: parsed.error.issues[0].message };
     }
 
-    const { id, tags, ...data } = parsed.data;
+    const { id, tags, youtubeUrl, ...fields } = parsed.data;
+    const data = { ...fields, youtubeId: youtubeUrl ? (youtubeId(youtubeUrl) ?? '') : '' };
 
     // Checked rather than left to the foreign key, whose failure would reach the
     // form as the generic message: a roll deleted in another tab while this form
