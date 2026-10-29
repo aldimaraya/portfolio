@@ -404,15 +404,50 @@ body {
   animation: spool-spin 900ms linear infinite;
 }
 
-/* The lightbox's gesture arrows, leaning the way the swipe goes. The direction
-   comes from --nudge on each arrow, so one keyframe serves all three. */
-@keyframes hint-nudge {
-  0%,
-  100% {
-    translate: 0 0;
+/* The lightbox's gesture hint (GestureHint): two flashes, a beat held, then
+   gone. The delay lets the print finish lifting off the wall first. `both`, so
+   it is invisible before it starts and stays invisible at the end until
+   HINT_MS — delay plus duration — unmounts it. Reduced motion skips the
+   flashing and only fades. */
+.gesture-hint {
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.7));
+  animation: gesture-hint 2.7s ease-in-out 0.4s both;
+}
+
+@keyframes gesture-hint {
+  0% {
+    opacity: 0;
   }
-  50% {
-    translate: var(--nudge);
+  10% {
+    opacity: 1;
+  }
+  22% {
+    opacity: 0.1;
+  }
+  34% {
+    opacity: 1;
+  }
+  75% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gesture-hint {
+    animation-name: gesture-hint-calm;
+  }
+}
+
+@keyframes gesture-hint-calm {
+  0%,
+  75% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
   }
 }
 

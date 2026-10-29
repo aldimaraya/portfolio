@@ -44,8 +44,12 @@ const SWIPE_THRESHOLD = 60;
  * downward drag is also what a thumb does when it slips.
  */
 const DISMISS_THRESHOLD = 110;
-/** How long the gesture hint stays up before it stops being useful and starts being clutter. */
-const HINT_MS = 4500;
+/**
+ * How long the gesture hint is up: its delay plus the length of `.gesture-hint`'s
+ * animation in globals.css, which it must match — the timer is what unmounts it
+ * once the animation has faded it out.
+ */
+const HINT_MS = 3100;
 /**
  * The mat follows the finger at less than full speed. A drag that tracks 1:1
  * feels like the photo has come loose; damped, it reads as resistance that
@@ -361,33 +365,10 @@ export function Lightbox({ photos, index, originFor, onClose, onNavigate }: Ligh
         if (closing && event.target === event.currentTarget) onClose();
       }}
     >
-      <div className="lightbox-chrome relative flex items-center justify-between px-5 py-4 text-xs">
+      <div className="lightbox-chrome flex items-center justify-between px-5 py-4 text-xs">
         <div className="font-mono tracking-[0.05em] text-ash">
           {index + 1} / {photos.length}
         </div>
-        {/* The phone's replacement for the arrows: say what the gestures are,
-            once, then get out of the way. Up here between the counter and the
-            close button, not under the mat: since the like pill joined the
-            caption the mat fills the height it is given, which squeezed the
-            note into the last few pixels of the screen — against the mat's foot,
-            and where a phone's toolbar and home indicator sit. Two short lines,
-            so it fits between them at 320px. In bone, not ash: in ash it read as
-            a caption nobody needed to read. The arrows on the print
-            (GestureArrows) say the same thing for anyone who skips the words. */}
-        <p
-          aria-hidden
-          className={`pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 text-center font-mono text-[0.65rem] leading-[1.45] tracking-[0.08em] text-bone uppercase transition-opacity duration-500 sm:hidden ${
-            hint ? 'opacity-100' : 'opacity-0'
-          }`}
-        >
-          {photos.length > 1 ? (
-            <>
-              Swipe to browse
-              <br />
-            </>
-          ) : null}
-          Swipe down to close
-        </p>
         <div className="flex items-center gap-4">
           {/* Renders nothing for a visitor. The click must not reach the
               backdrop, whose job is to dismiss — leaving here should be a
@@ -436,7 +417,7 @@ export function Lightbox({ photos, index, originFor, onClose, onNavigate }: Ligh
             className="lightbox-print relative"
             style={{ backgroundColor: placeholderColor(photo) }}
           >
-            <GestureArrows visible={hint} browse={photos.length > 1} />
+            {hint ? <GestureHint browse={photos.length > 1} /> : null}
             <Image
               key={photo.id}
               ref={imageRef}
@@ -562,52 +543,46 @@ function flipTransform(origin: DOMRect, box: DOMRect): string {
 }
 
 /**
- * The gesture hint drawn on the print itself: chevrons at the sides and one at
- * the foot, nudging the way the swipe goes, for as long as the words above are
- * up. On the photograph rather than beside it because that is where the thumb
- * is about to go — and only briefly, for the same reason the arrows were taken
- * off the phone: anything that stays on a photograph is clutter on it.
+ * The phone's replacement for the arrows, drawn on the print itself: a down
+ * arrow for closing and a two-headed one for browsing, in thin gold strokes with
+ * a word under each, flashed twice and then faded out (see .gesture-hint). On
+ * the photograph rather than in the chrome around it because that is where the
+ * thumb is about to go — the same words as a line of text up by the counter
+ * were read as a caption and skipped. And brief for the reason the arrows were
+ * taken off the phone in the first place: anything that stays on a photograph
+ * is clutter on it.
  *
- * Each sits on its own dark disc, since it has to read over any photo, light or
- * dark. The nudge is motion-safe only; under reduced motion they just show.
+ * Gold for the site's accent, with a dark shadow so it holds over a white sky
+ * as well as a black wall.
  */
-function GestureArrows({ visible, browse }: { visible: boolean; browse: boolean }) {
-  const arrows: { d: string; className: string; nudge: string }[] = [
-    { d: 'M6 9l6 6 6-6', className: 'bottom-3 left-1/2 -ml-5', nudge: '0 6px' },
-  ];
-  if (browse) {
-    arrows.push(
-      { d: 'M15 6l-6 6 6 6', className: 'left-3 top-1/2 -mt-5', nudge: '-6px 0' },
-      { d: 'M9 6l6 6-6 6', className: 'right-3 top-1/2 -mt-5', nudge: '6px 0' },
-    );
-  }
+function GestureHint({ browse }: { browse: boolean }) {
+  const stroke = {
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 1.6,
+    strokeLinecap: 'round',
+    strokeLinejoin: 'round',
+  } as const;
 
   return (
     <div
       aria-hidden
-      className={`pointer-events-none absolute inset-0 z-10 transition-opacity duration-500 sm:hidden ${
-        visible ? 'opacity-100' : 'opacity-0'
-      }`}
+      className="gesture-hint pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-evenly py-[8%] font-mono text-[0.7rem] tracking-[0.2em] text-gold uppercase sm:hidden"
     >
-      {arrows.map(({ d, className, nudge }) => (
-        <span
-          key={d}
-          className={`absolute flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-bone shadow-[0_2px_10px_rgba(0,0,0,0.35)] backdrop-blur-sm motion-safe:animate-[hint-nudge_1.1s_ease-in-out_infinite] ${className}`}
-          style={{ '--nudge': nudge } as React.CSSProperties}
-        >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="h-5 w-5"
-          >
-            <path d={d} />
+      <div className="flex flex-col items-center gap-2">
+        <svg viewBox="0 0 24 56" className="h-14 w-6" {...stroke}>
+          <path d="M12 2v50M4 43l8 9 8-9" />
+        </svg>
+        <span>Close</span>
+      </div>
+      {browse ? (
+        <div className="flex w-3/4 flex-col items-center gap-2">
+          <svg viewBox="0 0 200 20" className="w-full" {...stroke}>
+            <path d="M3 10h194M12 2L3 10l9 8M188 2l9 8-9 8" />
           </svg>
-        </span>
-      ))}
+          <span>Swipe</span>
+        </div>
+      ) : null}
     </div>
   );
 }
