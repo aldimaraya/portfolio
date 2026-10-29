@@ -16,6 +16,7 @@
 import {
   isHandheld,
   mp4Filename,
+  pcmBitrate,
   type TranscodePlan,
 } from './transcode';
 
@@ -49,6 +50,10 @@ export interface VideoProbe {
    * conversion.
    */
   canDecode: boolean;
+  /** As `SourceStats.audioCodec`: undefined when the clip has no audio track. */
+  audioCodec?: string | null;
+  /** As `SourceStats.audioBitrate`: known only for PCM, otherwise 0. */
+  audioBitrate: number;
 }
 
 export interface TranscodeOptions {
@@ -78,14 +83,33 @@ export async function probeVideo(file: File): Promise<VideoProbe> {
     const track = await input.getPrimaryVideoTrack();
     if (!track) throw new UnreadableVideoError('That file has no video track.');
 
-    const [durationSeconds, width, height, canDecode] = await Promise.all([
+    const [durationSeconds, width, height, canDecode, audio] = await Promise.all([
       track.computeDuration(),
       track.getDisplayWidth(),
       track.getDisplayHeight(),
       track.canDecode(),
+      input.getPrimaryAudioTrack(),
     ]);
 
-    return { durationSeconds, width, height, canDecode };
+    if (!audio) return { durationSeconds, width, height, canDecode, audioBitrate: 0 };
+
+    // The async getters, not the deprecated `.codec`: that one throws on a
+    // backing that cannot answer synchronously, which would fail the whole probe.
+    // And null is kept as null — a track mediabunny cannot name is a problem, not
+    // the absence of one.
+    const [audioCodec, sampleRate, channels] = await Promise.all([
+      audio.getCodec(),
+      audio.getSampleRate(),
+      audio.getNumberOfChannels(),
+    ]);
+    return {
+      durationSeconds,
+      width,
+      height,
+      canDecode,
+      audioCodec,
+      audioBitrate: pcmBitrate(audioCodec, sampleRate, channels),
+    };
   } finally {
     input.dispose();
   }
@@ -97,7 +121,8 @@ export async function probeVideo(file: File): Promise<VideoProbe> {
  *
  * Returns the *original* file untouched if the encode came out no smaller. That
  * is the same guard `keepsOriginal` applies to photos: a second generation that
- * saves nothing is pure loss, and the honest answer is to keep the first.
+ * saves nothing is pure loss, and the honest answer is to keep the first. Except
+ * when the plan fixes the audio, where the first generation publishes silent.
  */
 export async function transcodeVideo(
   file: File,
@@ -131,7 +156,9 @@ export async function transcodeVideo(
     const conversion = await Conversion.init({
       input,
       output,
-      video: {
+      // An audio-only fix leaves the video options empty, which is mediabunny's
+      // packet copy — `ffmpeg -c:v copy`, as the audio warning used to suggest.
+      video: plan.reencodesVideo ? {
         codec: 'avc',
         width: plan.width,
         height: plan.height,
@@ -142,12 +169,12 @@ export async function transcodeVideo(
         // over-bitrate clip we are here to shrink. Quality alone does not force
         // a re-encode.
         forceTranscode: true,
-      },
+      } : {},
       audio: {
         // Deliberately *not* forced. Audio already in AAC is copied over
         // untouched, the same as `ffmpeg -c:a copy`; only the uncompressed PCM
-        // that no browser can decode gets re-encoded — which quietly fixes the
-        // silent-playback problem that ./audio.ts can currently only warn about.
+        // that no browser can decode gets re-encoded, which is what fixes the
+        // silent-playback problem ./audio.ts warns about.
         codec: 'aac',
         quality: new Quality({ bitrate: plan.audioBitrate }),
       },
@@ -191,7 +218,7 @@ export async function transcodeVideo(
     const buffer = output.target.buffer;
     if (!buffer) throw new Error('The re-encode produced no output.');
 
-    if (buffer.byteLength >= file.size) return file;
+    if (buffer.byteLength >= file.size && !plan.fixesAudio) return file;
 
     return new File([buffer], mp4Filename(file.name), { type: 'video/mp4' });
   } finally {

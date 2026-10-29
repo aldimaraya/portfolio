@@ -4,6 +4,8 @@ import {
   estimatedBitrate,
   formatMbps,
   isHandheld,
+  needsAudioEncode,
+  pcmBitrate,
   formatMegabytes,
   downloadFilename,
   mp4Filename,
@@ -165,6 +167,70 @@ describe('shouldTranscode', () => {
     ).not.toBeNull();
   });
 
+  // The QuickTime export that played silently: H.264 already at target, with
+  // PCM audio no browser decodes. Only the sound needs touching.
+  it('fixes unplayable audio without re-encoding a video already at target', () => {
+    const plan = shouldTranscode({
+      bytes: bytesAt(TARGET_BITRATE, 60),
+      durationSeconds: 60,
+      width: 1920,
+      height: 1080,
+      audioCodec: 'pcm-s16',
+    });
+    expect(plan).toMatchObject({ reason: 'audio', reencodesVideo: false, fixesAudio: true });
+  });
+
+  // The same export as it really arrives: the PCM's own ~2.3 Mbps is in the
+  // file size, and counting it would re-encode a picture already at target.
+  it('does not count PCM audio towards the video bitrate', () => {
+    const pcm = pcmBitrate('pcm-s24', 48_000, 2);
+    const plan = shouldTranscode({
+      bytes: bytesAt(TARGET_BITRATE + pcm, 60),
+      durationSeconds: 60,
+      width: 1920,
+      height: 1080,
+      audioCodec: 'pcm-s24',
+      audioBitrate: pcm,
+    });
+    expect(plan).toMatchObject({ reason: 'audio', reencodesVideo: false, fixesAudio: true });
+  });
+
+  it('fixes audio mediabunny cannot name', () => {
+    const plan = shouldTranscode({
+      bytes: bytesAt(TARGET_BITRATE, 60),
+      durationSeconds: 60,
+      width: 1920,
+      height: 1080,
+      audioCodec: null,
+    });
+    expect(plan).toMatchObject({ reason: 'audio', fixesAudio: true });
+  });
+
+  it('fixes the audio alongside a video re-encode', () => {
+    const plan = shouldTranscode({
+      bytes: bytesAt(40_000_000, 60),
+      durationSeconds: 60,
+      width: 1920,
+      height: 1080,
+      audioCodec: 'pcm-s24',
+    });
+    expect(plan).toMatchObject({ reason: 'bitrate', reencodesVideo: true, fixesAudio: true });
+  });
+
+  it('leaves playable audio and silent clips alone', () => {
+    for (const audioCodec of ['aac', undefined]) {
+      expect(
+        shouldTranscode({
+          bytes: bytesAt(TARGET_BITRATE, 60),
+          durationSeconds: 60,
+          width: 1920,
+          height: 1080,
+          audioCodec,
+        }),
+      ).toBeNull();
+    }
+  });
+
   it('plans no edge longer than the cap', () => {
     const plan = shouldTranscode({
       bytes: bytesAt(50_000_000, 30),
@@ -173,6 +239,36 @@ describe('shouldTranscode', () => {
       height: 2160,
     });
     expect(Math.max(plan!.width, plan!.height)).toBeLessThanOrEqual(TARGET_MAX_EDGE);
+  });
+});
+
+describe('needsAudioEncode', () => {
+  it('passes what browsers play, and a clip with no audio at all', () => {
+    expect(needsAudioEncode('aac')).toBe(false);
+    expect(needsAudioEncode('mp3')).toBe(false);
+    expect(needsAudioEncode('opus')).toBe(false);
+    expect(needsAudioEncode(undefined)).toBe(false);
+  });
+
+  it('flags PCM, and a codec mediabunny cannot name', () => {
+    expect(needsAudioEncode('pcm-s16')).toBe(true);
+    expect(needsAudioEncode('ac3')).toBe(true);
+    expect(needsAudioEncode(null)).toBe(true);
+  });
+});
+
+describe('pcmBitrate', () => {
+  it('reads the rate off the format', () => {
+    expect(pcmBitrate('pcm-s16', 48_000, 2)).toBe(1_536_000);
+    expect(pcmBitrate('pcm-s24be', 48_000, 2)).toBe(2_304_000);
+    expect(pcmBitrate('pcm-f32', 44_100, 1)).toBe(1_411_200);
+    expect(pcmBitrate('ulaw', 8_000, 1)).toBe(64_000);
+  });
+
+  it('is 0 for compressed or unknown audio', () => {
+    expect(pcmBitrate('aac', 48_000, 2)).toBe(0);
+    expect(pcmBitrate(null, 48_000, 2)).toBe(0);
+    expect(pcmBitrate(undefined, 48_000, 2)).toBe(0);
   });
 });
 

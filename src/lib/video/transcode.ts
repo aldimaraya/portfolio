@@ -34,6 +34,13 @@ export const TARGET_BITRATE = 6_000_000;
 export const TARGET_AUDIO_BITRATE = 192_000;
 
 /**
+ * Audio codecs a `<video>` element can play from an MP4, as mediabunny names
+ * them. The same conservative set as `PLAYABLE_AUDIO_FORMATS` in ./audio.ts,
+ * which names them by fourcc instead: AC-3 is left out for the same reason.
+ */
+export const PLAYABLE_AUDIO_CODECS = new Set(['aac', 'mp3', 'opus']);
+
+/**
  * How far over target a clip may sit before it is worth re-encoding. A file
  * already at 6.5 Mbps is within the band it was aimed at, and running it through
  * a second generation to save a few percent costs more quality than it saves
@@ -51,6 +58,16 @@ export interface SourceStats {
   durationSeconds: number;
   width: number;
   height: number;
+  /**
+   * The primary audio track's codec as mediabunny reports it, `null` when it has
+   * one mediabunny cannot name, and undefined when there is no audio at all.
+   */
+  audioCodec?: string | null;
+  /**
+   * The source audio's bitrate, when the header alone can say — which it can
+   * only for PCM, whose rate is fixed by its format. See `pcmBitrate`.
+   */
+  audioBitrate?: number;
 }
 
 export interface TranscodePlan {
@@ -58,8 +75,33 @@ export interface TranscodePlan {
   height: number;
   videoBitrate: number;
   audioBitrate: number;
-  /** Which test fired, so the form can say why it is re-encoding. */
-  reason: 'bitrate' | 'dimensions' | 'both';
+  /**
+   * Which video test fired, so the form can say why it is re-encoding — or
+   * 'audio' when the video is fine and only the sound needs fixing.
+   */
+  reason: 'bitrate' | 'dimensions' | 'both' | 'audio';
+  /**
+   * False when only the audio is being fixed. The video is then copied across
+   * packet for packet, since putting a clip already at target through a second
+   * generation would cost quality to fix a problem it does not have.
+   */
+  reencodesVideo: boolean;
+  /**
+   * The audio is a codec no browser plays — QuickTime's PCM, usually — and is
+   * being re-encoded to AAC. A plan with this set must be uploaded even if the
+   * encode comes out larger: the original would publish silent.
+   */
+  fixesAudio: boolean;
+}
+
+/**
+ * Whether a clip's audio has to be re-encoded before a browser will play it.
+ * No audio track is fine — plenty of footage is meant to be silent — but a
+ * track mediabunny cannot even name is not, as ./audio.ts would warn about it.
+ */
+export function needsAudioEncode(audioCodec: string | null | undefined): boolean {
+  if (audioCodec === undefined) return false;
+  return audioCodec === null || !PLAYABLE_AUDIO_CODECS.has(audioCodec);
 }
 
 /**
@@ -106,6 +148,28 @@ function toEven(value: number): number {
 }
 
 /**
+ * The fixed bitrate of a PCM track, read off its format rather than measured, or
+ * 0 for anything compressed (whose rate the header does not give).
+ *
+ * This matters because the bitrate trigger counts every byte in the container.
+ * Compressed audio is a rounding error there, but 24-bit stereo PCM is ~2.3 Mbps
+ * on its own — enough to push a 6 Mbps hand encode over the 7.5 Mbps line and
+ * re-encode a picture that only needed its sound fixed.
+ */
+export function pcmBitrate(
+  audioCodec: string | null | undefined,
+  sampleRate: number,
+  channels: number,
+): number {
+  if (!audioCodec) return 0;
+  const bits =
+    audioCodec === 'ulaw' || audioCodec === 'alaw'
+      ? 8
+      : Number(/^pcm-[suf](\d+)(?:be)?$/.exec(audioCodec)?.[1] ?? 0);
+  return bits * sampleRate * channels;
+}
+
+/**
  * Decides whether a picked clip is worth re-encoding, and to what. Returns null
  * when the file is already within target and should be uploaded untouched —
  * the same shape of pure, testable verdict as `keepsOriginal` in
@@ -116,19 +180,34 @@ export function shouldTranscode({
   durationSeconds,
   width,
   height,
+  audioCodec,
+  audioBitrate = 0,
 }: SourceStats): TranscodePlan | null {
   const target = videoTargetSize(width, height);
   const oversized = target.width !== width || target.height !== height;
-  const overBitrate = estimatedBitrate(bytes, durationSeconds) > TARGET_BITRATE * BITRATE_TOLERANCE;
+  // Judged on the picture alone where the audio's share is known (PCM), since
+  // that audio is about to be replaced by 192 kbps of AAC either way.
+  const videoBitrate = Math.max(0, estimatedBitrate(bytes, durationSeconds) - audioBitrate);
+  const overBitrate = videoBitrate > TARGET_BITRATE * BITRATE_TOLERANCE;
+  const fixesAudio = needsAudioEncode(audioCodec);
+  const reencodesVideo = oversized || overBitrate;
 
-  if (!oversized && !overBitrate) return null;
+  if (!reencodesVideo && !fixesAudio) return null;
 
   return {
     width: target.width,
     height: target.height,
     videoBitrate: TARGET_BITRATE,
     audioBitrate: TARGET_AUDIO_BITRATE,
-    reason: oversized && overBitrate ? 'both' : oversized ? 'dimensions' : 'bitrate',
+    reason: !reencodesVideo
+      ? 'audio'
+      : oversized && overBitrate
+        ? 'both'
+        : oversized
+          ? 'dimensions'
+          : 'bitrate',
+    reencodesVideo,
+    fixesAudio,
   };
 }
 
