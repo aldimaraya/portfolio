@@ -80,6 +80,8 @@ body {
 .sprite-window {
   position: relative;
   overflow: hidden;
+  /* For .sprite-frame's cqw/cqh. */
+  container-type: size;
   background-color: #000;
 }
 
@@ -108,13 +110,31 @@ body {
      at life speed instead of stretching or rushing it. */
   animation: sprite-steps var(--sprite-duration, 1.5s) steps(var(--sprite-frames, 18))
     infinite;
-  /* Paused by default: a page of simultaneously looping previews is noise, and
-     every frame off-centre is meant to hold on frame one. */
-  animation-play-state: paused;
+  /* At rest the thumbnail is the poster, not the strip. A paused strip would
+     hold whichever frame the last hover left it on — and over a hand-picked
+     cover, any frame at all is the wrong picture. Dropping the animation rather
+     than pausing it also means the next hover starts from frame one. */
+  visibility: hidden;
+  animation-name: none;
 }
 
 .sprite-window[data-active='true'] .sprite-strip {
-  animation-play-state: running;
+  visibility: visible;
+  animation-name: sprite-steps;
+}
+
+/* The window is shaped from the poster (see ClipRow), which for a hand-picked
+   cover need not be the clip's shape. The strip is laid out in a frame of the
+   clip's own shape, scaled to cover the window like the poster is, so the
+   preview crops at the edges rather than stretching. */
+.sprite-frame {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  translate: -50% -50%;
+  overflow: hidden;
+  width: max(100cqw, 100cqh * var(--clip-ratio, 1.7778));
+  height: max(100cqh, 100cqw / var(--clip-ratio, 1.7778));
 }
 
 /* Page transition. Applied to the public pages' content only — the header lives

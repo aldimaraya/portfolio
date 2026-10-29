@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { SpritePreview } from './SpritePreview';
 import { useGatedAsset } from '@/components/site/AssetGate';
-import { thumbWidth } from '@/lib/video/frame';
+import { frameRatio, thumbWidth } from '@/lib/video/frame';
 import { formatDuration } from '@/lib/video/duration';
 import { frameCode } from '@/lib/video/roll';
 
@@ -68,7 +68,18 @@ export function ClipRow({
   gated?: boolean;
 }) {
   const [previewing, setPreviewing] = useState(false);
+  // A hand-picked cover is the thumbnail, so the box takes the cover's shape
+  // rather than the clip's — shaped from the clip, a 16:9 cover on a 4:3 clip
+  // lost its edges to object-fit. No column stores a cover's size, so it is
+  // read off the image once it lands; until then the clip's shape stands in.
+  // Capped at the column, so a cover wider than 16:9 crops a little rather
+  // than pushing the title out of line with its neighbours.
+  const [posterRatio, setPosterRatio] = useState<number | null>(null);
   const onSettled = useGatedAsset(gated);
+  const boxWidth = Math.min(
+    posterRatio ? Math.round(THUMB_HEIGHT * posterRatio) : thumbWidth(clip, THUMB_HEIGHT),
+    THUMB_COLUMN,
+  );
   const runtime = formatDuration(clip.durationSeconds);
 
   return (
@@ -82,9 +93,18 @@ export function ClipRow({
           '--stagger': `${Math.min(index * STAGGER_STEP_MS, STAGGER_MAX_MS)}ms`,
         } as React.CSSProperties
       }
+      // The router keeps this page's state across a visit to the clip, and the
+      // click navigates away mid-hover, so no mouseleave ever arrives — coming
+      // back found the row still previewing. Settle it on the way out.
+      onClick={() => setPreviewing(false)}
       onMouseEnter={() => setPreviewing(true)}
       onMouseLeave={() => setPreviewing(false)}
-      onFocus={() => setPreviewing(true)}
+      // Keyboard focus only. A clicked row keeps focus — and gets it back when
+      // the visitor returns from the clip page — so plain focus left that row
+      // previewing with no cursor anywhere near it.
+      onFocus={(event) => {
+        if (event.currentTarget.matches(':focus-visible')) setPreviewing(true);
+      }}
       onBlur={() => setPreviewing(false)}
     >
       {/* Fixed-width box around the thumbnail rather than the thumbnail itself:
@@ -95,12 +115,14 @@ export function ClipRow({
           spriteUrl={clip.spriteUrl}
           posterUrl={clip.posterImageUrl}
           frames={clip.spriteFrames}
+          clipRatio={frameRatio(clip)}
           active={previewing}
           // Decorative: the title sits next to it in the same link, so naming
           // the clip here would have a screen reader read it out twice.
           alt=""
           onSettled={onSettled}
-          boxStyle={{ width: thumbWidth(clip, THUMB_HEIGHT), height: THUMB_HEIGHT }}
+          onPosterRatio={setPosterRatio}
+          boxStyle={{ width: boxWidth, height: THUMB_HEIGHT }}
           className="rounded-xs border border-goldline transition-colors group-hover:border-gold group-focus-visible:border-gold"
         />
       </span>

@@ -26,15 +26,19 @@ export function SpritePreview({
   spriteUrl,
   posterUrl,
   frames,
+  clipRatio,
   active,
   alt,
   boxStyle,
   className = '',
   onSettled,
+  onPosterRatio,
 }: {
   spriteUrl: string;
   posterUrl: string;
   frames: number;
+  /** The clip's width / height — the strip's frames are this shape, whatever the window's. */
+  clipRatio: number;
   active: boolean;
   alt: string;
   /** Shapes the window to the clip — see lib/video/frame.ts. */
@@ -47,7 +51,16 @@ export function SpritePreview({
   className?: string;
   /** Reports the poster as landed or failed, so a caller can gate on it. */
   onSettled?: () => void;
+  /** The poster's own shape, once it has loaded — a cover need not be the clip's. */
+  onPosterRatio?: (ratio: number) => void;
 }) {
+  function settle(node: HTMLImageElement) {
+    if (node.naturalWidth > 0 && node.naturalHeight > 0) {
+      onPosterRatio?.(node.naturalWidth / node.naturalHeight);
+    }
+    onSettled?.();
+  }
+
   // Set during render rather than in an effect, so the sheet's request goes out
   // in the same commit as the hover rather than one frame after it. Never unset:
   // once fetched, the sheet stays, and a second hover starts at once.
@@ -76,24 +89,29 @@ export function SpritePreview({
         // as it mounts. Reporting twice is harmless; never reporting would hold
         // a gate until its cap.
         ref={(node) => {
-          if (node?.complete) onSettled?.();
+          if (node?.complete) settle(node);
         }}
         src={posterUrl}
         alt={alt}
-        onLoad={onSettled}
+        onLoad={(event) => settle(event.currentTarget)}
         onError={onSettled}
         loading="lazy"
         className="sprite-poster"
       />
       {armed ? (
-        // Decorative over the poster, which already carries the alt text.
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={spriteUrl}
-          alt=""
-          className="sprite-strip"
-          style={{ width: `${frames * 100}%` }}
-        />
+        <div
+          className="sprite-frame"
+          style={{ '--clip-ratio': clipRatio } as React.CSSProperties}
+        >
+          {/* Decorative over the poster, which already carries the alt text. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={spriteUrl}
+            alt=""
+            className="sprite-strip"
+            style={{ width: `${frames * 100}%` }}
+          />
+        </div>
       ) : null}
     </div>
   );
