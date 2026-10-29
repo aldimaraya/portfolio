@@ -8,9 +8,11 @@ function returnOf(href: string): string | null {
 }
 
 describe('editPhotoHref', () => {
-  it('points at the photo form and returns to the bare wall with the photo open', () => {
+  it('opens the photo in the admin library and returns to the bare wall with it open', () => {
     const href = editPhotoHref('abc', '');
-    expect(href.startsWith('/admin/photos/abc?')).toBe(true);
+    const url = new URL(href, 'https://site.invalid');
+    expect(url.pathname).toBe('/admin/photos');
+    expect(url.searchParams.get('photo')).toBe('abc');
     expect(returnOf(href)).toBe('/stills?photo=abc');
   });
 
@@ -28,7 +30,7 @@ describe('editPhotoHref', () => {
     expect(new URLSearchParams(back!.split('?')[1]).getAll('photo')).toEqual(['new']);
   });
 
-  it('survives the edit page’s redirect check unchanged', () => {
+  it('survives the library’s same-origin check unchanged', () => {
     const back = returnOf(editPhotoHref('abc', '?tag=night,street'))!;
     expect(safeNextPath(back, '/admin/photos')).toBe(back);
   });

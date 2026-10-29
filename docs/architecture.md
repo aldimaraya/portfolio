@@ -387,8 +387,17 @@ links held to http(s), mailto and on-site targets.
 
 ### Admin
 
-One password, one session. Photos, videos and posts each get a list and a form.
+One password, one session. A grouped sidebar (a bottom tab bar on a phone)
+with **Add media** at the top, which is where every upload starts.
 
+- **Stills** (`/admin/photos`) is a library, not a list: every photo as a
+  justified grid, filtered to what needs fixing (no date, untagged, untitled)
+  and ordered by date taken, wall order or upload. The selected photo is edited
+  in a resizable inspector beside it that **autosaves** (`savePhotoDetails`) —
+  title, place, date, tags, camera and exposure, and the border trim. There is
+  no per-photo page any more; `/admin/photos/[id]` redirects into the library,
+  and the wall's Edit link opens the inspector with a way back to the wall.
+  Filter, order, search and selection live in the query string.
 - **Photo upload** with client-side EXIF extraction, compression, an interactive
   border trimmer, tag input with suggestions, and colour analysis — all before
   anything reaches R2.

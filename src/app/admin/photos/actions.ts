@@ -88,6 +88,46 @@ export async function savePhoto(input: PhotoInput): Promise<{ error?: string }> 
   });
 }
 
+const detailsSchema = photoSchema
+  .pick({ title: true, location: true, camera: true, settings: true, takenAt: true, tags: true })
+  .extend({
+    id: z.string().min(1),
+  });
+
+export type PhotoDetailsInput = z.infer<typeof detailsSchema>;
+
+/**
+ * The library inspector's autosave: every field a person types, none of the
+ * derived ones. savePhoto would need the whole row back — image URL, size,
+ * colour stats — just to change a date, and a stale copy of those riding along
+ * would undo a border trim applied from the same inspector.
+ */
+export async function savePhotoDetails(input: PhotoDetailsInput): Promise<{ error?: string }> {
+  return attempt('savePhotoDetails', async () => {
+    if (!(await isAuthenticated())) return { error: 'Unauthorized' };
+
+    const parsed = detailsSchema.safeParse(input);
+    if (!parsed.success) return { error: parsed.error.issues[0].message };
+
+    const { id, tags, takenAt, ...data } = parsed.data;
+    const connections = await tagConnections(tags);
+    // One transaction for the same reason as savePhoto's tag swap.
+    await db.$transaction([
+      db.photoTag.deleteMany({ where: { photoId: id } }),
+      db.photo.update({
+        where: { id },
+        data: { ...data, takenAt: inputValueToTakenAt(takenAt), tags: { create: connections } },
+      }),
+    ]);
+    await pruneUnusedTags();
+
+    revalidatePath('/admin', 'layout');
+    revalidatePath('/stills');
+    revalidatePath('/');
+    return {};
+  });
+}
+
 const retouchSchema = z.object({
   id: z.string().min(1),
   imageUrl: z.url(),

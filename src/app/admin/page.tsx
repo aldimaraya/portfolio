@@ -1,3 +1,4 @@
+import { AdminPage } from '@/components/admin/shell/AdminPage';
 import Link from 'next/link';
 import { db } from '@/lib/db';
 
@@ -34,20 +35,22 @@ export default async function AdminDashboard() {
   ];
 
   return (
-    <div className="grid gap-4 sm:grid-cols-3">
-      {cards.map((card) => (
-        <Link
-          key={card.href}
-          href={card.href}
-          className="rounded border border-hairline bg-frame p-5 transition hover:border-gold"
-        >
-          <div className="font-mono text-xs tracking-[0.15em] text-ash uppercase">
-            {card.label}
-          </div>
-          <div className="mt-2 text-3xl">{card.value}</div>
-          <div className="mt-1 text-xs text-ash">{card.note}</div>
-        </Link>
-      ))}
-    </div>
+    <AdminPage title="Overview">
+      <div className="grid gap-4 sm:grid-cols-3">
+        {cards.map((card) => (
+          <Link
+            key={card.href}
+            href={card.href}
+            className="rounded border border-hairline bg-frame p-5 transition hover:border-gold"
+          >
+            <div className="font-mono text-xs tracking-[0.15em] text-ash uppercase">
+              {card.label}
+            </div>
+            <div className="mt-2 text-3xl">{card.value}</div>
+            <div className="mt-1 text-xs text-ash">{card.note}</div>
+          </Link>
+        ))}
+      </div>
+    </AdminPage>
   );
 }
