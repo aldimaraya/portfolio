@@ -2,13 +2,23 @@ import { db } from '@/lib/db';
 import { DeleteButton } from '@/components/admin/DeleteButton';
 import { LABEL } from '@/components/admin/fields';
 import { BatchActions, ConfirmSubscriber, LocalTime, SkipToggle } from '@/components/admin/NewsletterControls';
-import { KIND_LABELS } from '@/lib/newsletter/kinds';
+import { CONTENT_KINDS, KIND_LABELS, type ContentKind } from '@/lib/newsletter/kinds';
 import { pendingBatch, renderPendingPreview, skippedItems } from '@/lib/newsletter/queue';
 import { estimatedSendTime, QUIET_HOURS } from '@/lib/newsletter/schedule';
 import { emailConfigured, isProductionDeployment, testRecipients } from '@/lib/newsletter/send';
 import { removeSubscriber } from './actions';
 
 export const dynamic = 'force-dynamic';
+
+const ITEMS_SHOWN_OPEN = 5;
+
+/** "14 stills · 2 motion" — the folded queue's one line. */
+function kindCounts(items: { kind: ContentKind }[]): string {
+  return CONTENT_KINDS.map((kind) => [kind, items.filter((item) => item.kind === kind).length] as const)
+    .filter(([, count]) => count > 0)
+    .map(([kind, count]) => `${count} ${KIND_LABELS[kind].label.toLowerCase()}`)
+    .join(' · ');
+}
 
 export default async function AdminNewsletterPage() {
   const [batch, skipped, preview, unfinished, history, subscribers] = await Promise.all([
@@ -74,27 +84,35 @@ export default async function AdminNewsletterPage() {
           )}
         </p>
 
+        {/* The preview below already shows the batch, so the list is only for
+            leaving things out: folded to a count when long, so a day of uploads
+            does not push the preview a screen down. It stays open when short or
+            when an item needs a look. */}
         {batch.items.length ? (
-          <ul className="mb-5 flex flex-col divide-y divide-hairline">
-            {batch.items.map((item) => (
-              <li key={item.announcementId} className="flex items-center gap-4 py-3">
-                <span className="w-16 shrink-0 font-mono text-xs text-ash uppercase">
-                  {KIND_LABELS[item.kind].label}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm">{item.title || 'Untitled'}</div>
-                  <div className="font-mono text-xs text-ash">
+          <details
+            className="mb-5"
+            open={batch.items.length <= ITEMS_SHOWN_OPEN || batch.items.some((item) => item.state !== 'live')}
+          >
+            <summary className="cursor-pointer text-sm text-ash">{kindCounts(batch.items)} — choose what to leave out</summary>
+            <ul className="mt-2 flex flex-col divide-y divide-hairline">
+              {batch.items.map((item) => (
+                <li key={item.announcementId} className="flex items-center gap-4 py-1.5">
+                  <span className="w-16 shrink-0 font-mono text-xs text-ash uppercase">
+                    {KIND_LABELS[item.kind].label}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-sm">{item.title || 'Untitled'}</span>
+                  <span className="hidden shrink-0 font-mono text-xs text-ash sm:inline">
                     {item.state === 'held'
                       ? 'Back in draft — waits until republished'
                       : item.state === 'missing'
                         ? 'Deleted — dropped on the next run'
                         : <LocalTime value={item.createdAt.toISOString()} />}
-                  </div>
-                </div>
-                {item.state === 'missing' ? null : <SkipToggle id={item.announcementId} skipped={false} />}
-              </li>
-            ))}
-          </ul>
+                  </span>
+                  {item.state === 'missing' ? null : <SkipToggle id={item.announcementId} skipped={false} />}
+                </li>
+              ))}
+            </ul>
+          </details>
         ) : null}
 
         <BatchActions pending={live.length} canPreview={canPreview} />
