@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { SpritePreview } from './SpritePreview';
 import { useGatedAsset } from '@/components/site/AssetGate';
-import { frameRatio, thumbWidth } from '@/lib/video/frame';
+import { frameRatio } from '@/lib/video/frame';
 import { formatDuration } from '@/lib/video/duration';
 import { frameCode } from '@/lib/video/roll';
 
@@ -27,18 +27,24 @@ const STAGGER_STEP_MS = 45;
 const STAGGER_MAX_MS = 220;
 
 /**
- * Every row is this tall, whatever shape the clip is — the list scans as a
- * column of equal beats, and a vertical clip is laid out narrow rather than
- * three times as tall as its neighbours. See thumbWidth.
+ * Every row's thumbnail is `--thumb-h` tall, whatever shape the clip is — the
+ * list scans as a column of equal beats, and a vertical clip is laid out narrow
+ * rather than three times as tall as its neighbours. The width is the clip's
+ * ratio times that height.
+ *
+ * A custom property rather than a number in JS because the height changes at
+ * the strip breakpoint, and only CSS knows which side of it the page is on: the
+ * desktop row has room for a thumbnail a visitor can actually read, but at that
+ * size a phone would be left with a hundred pixels for the title.
  */
-const THUMB_HEIGHT = 72;
+const THUMB_HEIGHT = 'var(--thumb-h)';
 
 /**
- * The column the thumbnails sit in: as wide as a landscape clip at that height,
- * so a portrait clip is centred in the same column rather than shifting every
- * title beside it left.
+ * The widest shape a thumbnail takes, and so the column they all sit in: a
+ * portrait clip is centred in the same column as a landscape one rather than
+ * shifting every title beside it left.
  */
-const THUMB_COLUMN = thumbWidth({ width: 16, height: 9 }, THUMB_HEIGHT);
+const THUMB_COLUMN_RATIO = 16 / 9;
 
 /**
  * One clip on the roll.
@@ -76,18 +82,15 @@ export function ClipRow({
   // than pushing the title out of line with its neighbours.
   const [posterRatio, setPosterRatio] = useState<number | null>(null);
   const onSettled = useGatedAsset(gated);
-  const boxWidth = Math.min(
-    posterRatio ? Math.round(THUMB_HEIGHT * posterRatio) : thumbWidth(clip, THUMB_HEIGHT),
-    THUMB_COLUMN,
-  );
+  const boxRatio = Math.min(posterRatio ?? frameRatio(clip), THUMB_COLUMN_RATIO);
   const runtime = formatDuration(clip.durationSeconds);
 
   return (
     <Link
       href={`/motion/${clip.id}`}
-      // The whole row is the target, not the title inside it: a 15px link in a
-      // 72px row is a small thing to hit on a phone.
-      className="stagger-in group flex items-center gap-5 px-4 py-3.5 transition-colors hover:bg-white/[0.04] focus-visible:bg-white/[0.04] focus-visible:outline-none max-strip:gap-3.5 max-strip:px-3 max-strip:py-3"
+      // The whole row is the target, not the title inside it: a line of title in
+      // a 72px row is a small thing to hit on a phone.
+      className="stagger-in group flex items-center gap-6 px-4 py-4 transition-colors [--thumb-h:104px] hover:bg-white/[0.04] focus-visible:bg-white/[0.04] focus-visible:outline-none max-strip:gap-3.5 max-strip:px-3 max-strip:py-3 max-strip:[--thumb-h:72px]"
       style={
         {
           '--stagger': `${Math.min(index * STAGGER_STEP_MS, STAGGER_MAX_MS)}ms`,
@@ -110,7 +113,10 @@ export function ClipRow({
       {/* Fixed-width box around the thumbnail rather than the thumbnail itself:
           a portrait clip is narrower than a landscape one, and without a shared
           column the titles beside them would not line up. */}
-      <span className="flex shrink-0 justify-center" style={{ width: THUMB_COLUMN }}>
+      <span
+        className="flex shrink-0 justify-center"
+        style={{ width: `calc(${THUMB_HEIGHT} * ${THUMB_COLUMN_RATIO})` }}
+      >
         <SpritePreview
           spriteUrl={clip.spriteUrl}
           posterUrl={clip.posterImageUrl}
@@ -122,17 +128,17 @@ export function ClipRow({
           alt=""
           onSettled={onSettled}
           onPosterRatio={setPosterRatio}
-          boxStyle={{ width: boxWidth, height: THUMB_HEIGHT }}
+          boxStyle={{ width: `calc(${THUMB_HEIGHT} * ${boxRatio})`, height: THUMB_HEIGHT }}
           className="rounded-xs border border-goldline transition-colors group-hover:border-gold group-focus-visible:border-gold"
         />
       </span>
 
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-bold tracking-[0.04em] uppercase">
+        <span className="block truncate text-base font-bold tracking-[0.04em] uppercase max-strip:text-sm">
           {clip.title}
         </span>
         {clip.description ? (
-          <span className="mt-1 block truncate font-mono text-[0.7rem] tracking-[0.05em] text-ash">
+          <span className="mt-1.5 block truncate font-mono text-xs tracking-[0.05em] text-ash max-strip:mt-1 max-strip:text-[0.7rem]">
             {clip.description}
           </span>
         ) : null}
@@ -141,7 +147,7 @@ export function ClipRow({
       {/* The frame code is the roll's own numbering and goes on a narrow screen;
           the running time is what anyone deciding whether to watch actually
           wants, so it stays at every width. */}
-      <span className="flex shrink-0 items-baseline gap-2.5 font-mono text-[0.7rem] tracking-[0.08em] tabular-nums">
+      <span className="flex shrink-0 items-baseline gap-2.5 font-mono text-xs tracking-[0.08em] tabular-nums max-strip:text-[0.7rem]">
         <span className="text-gold max-strip:hidden">[{frameCode(index, letter)}]</span>
         {runtime ? <span className="text-ash">{runtime}</span> : null}
       </span>

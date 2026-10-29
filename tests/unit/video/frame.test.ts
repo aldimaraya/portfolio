@@ -4,7 +4,6 @@ import {
   frameRatio,
   gateStyles,
   isPortrait,
-  thumbWidth,
 } from '@/lib/video/frame';
 
 describe('frameRatio', () => {
@@ -65,18 +64,5 @@ describe('gateStyles', () => {
       expect(style.maxHeight).toBeUndefined();
       expect(style.height).toBeUndefined();
     }
-  });
-});
-
-describe('thumbWidth', () => {
-  // The row height is fixed; only the width moves. That is what keeps a
-  // vertical clip from standing three times as tall as its neighbours.
-  it('derives width from the ratio at a fixed row height', () => {
-    expect(thumbWidth({ width: 1920, height: 1080 }, 72)).toBe(128);
-    expect(thumbWidth({ width: 1080, height: 1920 }, 72)).toBe(41);
-  });
-
-  it('shapes an undimensioned clip like a 16:9 one', () => {
-    expect(thumbWidth({ width: 0, height: 0 }, 72)).toBe(128);
   });
 });
