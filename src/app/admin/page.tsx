@@ -415,22 +415,38 @@ function DailyVisitors({ daily }: { daily: number[] }) {
         {daily.map((count, i) => {
           const day = new Date(start);
           day.setUTCDate(day.getUTCDate() + i);
-          const label = `${DAY_LABEL.format(day)}: ${countOf(count, ["visitor", "visitors"])}`;
+          const date = DAY_LABEL.format(day);
+          const visitors = countOf(count, ["visitor", "visitors"]);
+          // The end bars' tips hang inward, or they would poke out of the card.
+          const align =
+            i === 0
+              ? "left-0"
+              : i === daily.length - 1
+                ? "right-0"
+                : "left-1/2 -translate-x-1/2";
           return (
-            <li
-              key={i}
-              title={label}
-              className="group flex h-full flex-1 items-end"
-            >
-              <span className="sr-only">{label}</span>
+            <li key={i} className="group flex h-full flex-1 items-end">
+              <span className="sr-only">{`${date}: ${visitors}`}</span>
               {/* A day nobody came keeps a hairline, so the week still reads as seven days. */}
               <span
                 aria-hidden="true"
-                className={`w-full rounded-t-[4px] transition ${count ? "bg-gold/70 group-hover:bg-gold" : "bg-white/10"}`}
+                className={`relative w-full rounded-t-[4px] transition ${count ? "bg-gold/70 group-hover:bg-gold" : "bg-white/10"}`}
                 style={{
                   height: count ? `${Math.max((count / peak) * 100, 6)}%` : 2,
                 }}
-              />
+              >
+                {/* Hung off the bar's top, so it points at the value it names. */}
+                <span
+                  className={`pointer-events-none absolute bottom-full z-10 mb-1.5 flex flex-col gap-0.5 rounded-md border border-hairline bg-frame px-2.5 py-1.5 whitespace-nowrap opacity-0 shadow-lg shadow-black/40 transition-opacity group-hover:opacity-100 motion-reduce:transition-none ${align}`}
+                >
+                  <span className="font-mono text-[10px] tracking-[0.15em] text-ash uppercase">
+                    {date}
+                  </span>
+                  <span className="text-sm text-bone tabular-nums">
+                    {visitors}
+                  </span>
+                </span>
+              </span>
             </li>
           );
         })}
