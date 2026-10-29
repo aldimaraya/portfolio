@@ -2,7 +2,7 @@
  * Shaping a clip's box from the clip's own dimensions.
  *
  * Lives in lib rather than beside the component because both surfaces need it
- * and they need it differently: the roll sizes a small fixed-width thumbnail,
+ * and they need it differently: the roll sizes a small fixed-height thumbnail,
  * the clip page sizes a full-width player. Only the ratio is shared.
  */
 
@@ -64,16 +64,4 @@ export function gateStyles(ratio: number): GateStyles {
     panel: { '--frame-ratio': ratio } as React.CSSProperties,
     frame: { aspectRatio: ratio },
   };
-}
-
-/**
- * A thumbnail's width, in pixels, for a row of the given height.
- *
- * The roll's rows are a fixed height so the list scans as a column of equal
- * beats — a portrait clip that stood three times its neighbours would break
- * that. Deriving the width from the ratio at a fixed height is what keeps a
- * vertical clip narrow instead of tall.
- */
-export function thumbWidth(video: FrameSize, rowHeight: number): number {
-  return Math.round(rowHeight * frameRatio(video));
 }
