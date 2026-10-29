@@ -45,7 +45,7 @@ const SWIPE_THRESHOLD = 60;
  */
 const DISMISS_THRESHOLD = 110;
 /** How long the gesture hint stays up before it stops being useful and starts being clutter. */
-const HINT_MS = 3600;
+const HINT_MS = 4500;
 /**
  * The mat follows the finger at less than full speed. A drag that tracks 1:1
  * feels like the photo has come loose; damped, it reads as resistance that
@@ -371,10 +371,12 @@ export function Lightbox({ photos, index, originFor, onClose, onNavigate }: Ligh
             caption the mat fills the height it is given, which squeezed the
             note into the last few pixels of the screen — against the mat's foot,
             and where a phone's toolbar and home indicator sit. Two short lines,
-            so it fits between them at 320px. */}
+            so it fits between them at 320px. In bone, not ash: in ash it read as
+            a caption nobody needed to read. The arrows on the print
+            (GestureArrows) say the same thing for anyone who skips the words. */}
         <p
           aria-hidden
-          className={`pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 text-center font-mono text-[0.6rem] leading-[1.45] tracking-[0.08em] text-ash uppercase transition-opacity duration-500 sm:hidden ${
+          className={`pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 text-center font-mono text-[0.65rem] leading-[1.45] tracking-[0.08em] text-bone uppercase transition-opacity duration-500 sm:hidden ${
             hint ? 'opacity-100' : 'opacity-0'
           }`}
         >
@@ -431,9 +433,10 @@ export function Lightbox({ photos, index, originFor, onClose, onNavigate }: Ligh
               over it, so a slow load reads as the print developing rather than
               an empty mat that suddenly fills. */}
           <div
-            className="lightbox-print"
+            className="lightbox-print relative"
             style={{ backgroundColor: placeholderColor(photo) }}
           >
+            <GestureArrows visible={hint} browse={photos.length > 1} />
             <Image
               key={photo.id}
               ref={imageRef}
@@ -556,6 +559,57 @@ function flipTransform(origin: DOMRect, box: DOMRect): string {
   const dx = origin.left + origin.width / 2 - (box.left + box.width / 2);
   const dy = origin.top + origin.height / 2 - (box.top + box.height / 2);
   return `translate(${dx}px, ${dy}px) scale(${origin.width / box.width})`;
+}
+
+/**
+ * The gesture hint drawn on the print itself: chevrons at the sides and one at
+ * the foot, nudging the way the swipe goes, for as long as the words above are
+ * up. On the photograph rather than beside it because that is where the thumb
+ * is about to go — and only briefly, for the same reason the arrows were taken
+ * off the phone: anything that stays on a photograph is clutter on it.
+ *
+ * Each sits on its own dark disc, since it has to read over any photo, light or
+ * dark. The nudge is motion-safe only; under reduced motion they just show.
+ */
+function GestureArrows({ visible, browse }: { visible: boolean; browse: boolean }) {
+  const arrows: { d: string; className: string; nudge: string }[] = [
+    { d: 'M6 9l6 6 6-6', className: 'bottom-3 left-1/2 -ml-5', nudge: '0 6px' },
+  ];
+  if (browse) {
+    arrows.push(
+      { d: 'M15 6l-6 6 6 6', className: 'left-3 top-1/2 -mt-5', nudge: '-6px 0' },
+      { d: 'M9 6l6 6-6 6', className: 'right-3 top-1/2 -mt-5', nudge: '6px 0' },
+    );
+  }
+
+  return (
+    <div
+      aria-hidden
+      className={`pointer-events-none absolute inset-0 z-10 transition-opacity duration-500 sm:hidden ${
+        visible ? 'opacity-100' : 'opacity-0'
+      }`}
+    >
+      {arrows.map(({ d, className, nudge }) => (
+        <span
+          key={d}
+          className={`absolute flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-bone shadow-[0_2px_10px_rgba(0,0,0,0.35)] backdrop-blur-sm motion-safe:animate-[hint-nudge_1.1s_ease-in-out_infinite] ${className}`}
+          style={{ '--nudge': nudge } as React.CSSProperties}
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="h-5 w-5"
+          >
+            <path d={d} />
+          </svg>
+        </span>
+      ))}
+    </div>
+  );
 }
 
 function NavButton({

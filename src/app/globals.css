@@ -404,6 +404,18 @@ body {
   animation: spool-spin 900ms linear infinite;
 }
 
+/* The lightbox's gesture arrows, leaning the way the swipe goes. The direction
+   comes from --nudge on each arrow, so one keyframe serves all three. */
+@keyframes hint-nudge {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  50% {
+    translate: var(--nudge);
+  }
+}
+
 /* The phone's filter sheet. It rises from the edge it is anchored to, so the
    gesture that opens it and the motion that follows agree. Both are behind
    motion-safe: at the call site, so reduced motion gets the sheet already in
