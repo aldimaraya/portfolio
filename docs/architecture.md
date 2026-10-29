@@ -425,7 +425,8 @@ One password, one session. Photos, videos and posts each get a list and a form.
   (`si`, `igsh`, `utm_*`) on the way in. Links marked as the owner's account
   become the Person schema's `sameAs` and carry `rel="me"`.
 - **`AdminBar` and `AdminEditLink`** appear on public pages for a signed-in
-  admin. They ask the client (`/api/auth/state`) rather than reading `cookies()`,
+  admin — the bar as a collapsed button fixed bottom-left, so it never shifts
+  the page's layout. They ask the client (`/api/auth/state`) rather than reading `cookies()`,
   because a cookie read would make the page dynamic and lose the CDN.
 
 ### Newsletter

@@ -23,8 +23,8 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
     // Less above the masthead than below the footer: the top of the window is
     // where the work is seen first, the bottom is where the page simply ends.
     <div className="mx-auto max-w-[1300px] px-6 pt-7 pb-10 sm:pt-8">
-      {/* Above the header, and outside the transition for the same reason: the
-          bar is chrome, and it should not re-animate on every navigation. */}
+      {/* Fixed-position, so it takes no room here; outside the transition
+          because it is chrome and should not re-animate on every navigation. */}
       <AdminBar />
       {/* Outside the transition: the header is chrome that persists across
           navigations, and re-animating it would read as a page reload. */}
