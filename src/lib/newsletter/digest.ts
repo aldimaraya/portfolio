@@ -151,14 +151,28 @@ function postRows(site: string, posts: DigestPost[]): string {
     .join('\n');
 }
 
+/**
+ * A clip's poster as a full-column image was a whole screen per clip, so two
+ * clips pushed the photos below the fold. Each clip is now a list row — poster
+ * beside its title — so the whole email reads at a glance; the clip itself is
+ * one click away. Percentages, so a phone keeps the row side by side.
+ */
+const CLIP_THUMB_WIDTH = 200;
+const CLIP_THUMB_PERCENT = 36;
+
 function clipRows(site: string, images: string, clips: DigestClip[]): string {
   return clips
     .map((clip) => {
-      const href = `${site}/motion/${encodeURIComponent(clip.id)}`;
+      const href = escapeHtml(`${site}/motion/${encodeURIComponent(clip.id)}`);
       return `<tr><td style="padding:16px 0 0;">
-  <a href="${escapeHtml(href)}"><img src="${escapeHtml(emailImageUrl(images, clip.posterImageUrl))}" alt="${escapeHtml(clip.title)}" width="560" style="display:block;width:100%;max-width:560px;height:auto;border:0;"></a>
-  <a href="${escapeHtml(href)}" style="display:block;margin-top:10px;font:600 18px/1.3 ${SANS};color:${INK};text-decoration:none;">${escapeHtml(clip.title)}</a>
-  ${clip.description ? `<p style="margin:4px 0 0;font:14px/1.5 ${SANS};color:${INK};">${escapeHtml(clip.description)}</p>` : ''}
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;table-layout:fixed;"><tr>
+  <td width="${CLIP_THUMB_PERCENT}%" style="padding:0 14px 0 0;vertical-align:top;"><a href="${href}"><img src="${escapeHtml(emailImageUrl(images, clip.posterImageUrl))}" alt="${escapeHtml(clip.title)}" width="${CLIP_THUMB_WIDTH}" style="display:block;width:100%;height:auto;border:0;"></a></td>
+  <td style="vertical-align:top;">
+  <a href="${href}" style="display:block;font:600 15px/1.3 ${SANS};color:${INK};text-decoration:none;">${escapeHtml(clip.title)}</a>
+  ${clip.description ? `<div style="margin-top:3px;font:13px/1.45 ${SANS};color:${INK};">${escapeHtml(clip.description)}</div>` : ''}
+  <div style="margin-top:6px;font:12px/1.4 ${SANS};"><a href="${href}" style="color:${META};">Watch →</a></div>
+  </td>
+  </tr></table>
 </td></tr>`;
     })
     .join('\n');
