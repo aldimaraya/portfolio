@@ -63,6 +63,11 @@ export interface SourceStats {
    * one mediabunny cannot name, and undefined when there is no audio at all.
    */
   audioCodec?: string | null;
+  /**
+   * The source audio's bitrate, when the header alone can say — which it can
+   * only for PCM, whose rate is fixed by its format. See `pcmBitrate`.
+   */
+  audioBitrate?: number;
 }
 
 export interface TranscodePlan {
@@ -143,6 +148,28 @@ function toEven(value: number): number {
 }
 
 /**
+ * The fixed bitrate of a PCM track, read off its format rather than measured, or
+ * 0 for anything compressed (whose rate the header does not give).
+ *
+ * This matters because the bitrate trigger counts every byte in the container.
+ * Compressed audio is a rounding error there, but 24-bit stereo PCM is ~2.3 Mbps
+ * on its own — enough to push a 6 Mbps hand encode over the 7.5 Mbps line and
+ * re-encode a picture that only needed its sound fixed.
+ */
+export function pcmBitrate(
+  audioCodec: string | null | undefined,
+  sampleRate: number,
+  channels: number,
+): number {
+  if (!audioCodec) return 0;
+  const bits =
+    audioCodec === 'ulaw' || audioCodec === 'alaw'
+      ? 8
+      : Number(/^pcm-[suf](\d+)(?:be)?$/.exec(audioCodec)?.[1] ?? 0);
+  return bits * sampleRate * channels;
+}
+
+/**
  * Decides whether a picked clip is worth re-encoding, and to what. Returns null
  * when the file is already within target and should be uploaded untouched —
  * the same shape of pure, testable verdict as `keepsOriginal` in
@@ -154,10 +181,14 @@ export function shouldTranscode({
   width,
   height,
   audioCodec,
+  audioBitrate = 0,
 }: SourceStats): TranscodePlan | null {
   const target = videoTargetSize(width, height);
   const oversized = target.width !== width || target.height !== height;
-  const overBitrate = estimatedBitrate(bytes, durationSeconds) > TARGET_BITRATE * BITRATE_TOLERANCE;
+  // Judged on the picture alone where the audio's share is known (PCM), since
+  // that audio is about to be replaced by 192 kbps of AAC either way.
+  const videoBitrate = Math.max(0, estimatedBitrate(bytes, durationSeconds) - audioBitrate);
+  const overBitrate = videoBitrate > TARGET_BITRATE * BITRATE_TOLERANCE;
   const fixesAudio = needsAudioEncode(audioCodec);
   const reencodesVideo = oversized || overBitrate;
 

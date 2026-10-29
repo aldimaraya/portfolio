@@ -16,6 +16,7 @@
 import {
   isHandheld,
   mp4Filename,
+  pcmBitrate,
   type TranscodePlan,
 } from './transcode';
 
@@ -51,6 +52,8 @@ export interface VideoProbe {
   canDecode: boolean;
   /** As `SourceStats.audioCodec`: undefined when the clip has no audio track. */
   audioCodec?: string | null;
+  /** As `SourceStats.audioBitrate`: known only for PCM, otherwise 0. */
+  audioBitrate: number;
 }
 
 export interface TranscodeOptions {
@@ -88,7 +91,25 @@ export async function probeVideo(file: File): Promise<VideoProbe> {
       input.getPrimaryAudioTrack(),
     ]);
 
-    return { durationSeconds, width, height, canDecode, audioCodec: audio?.codec ?? undefined };
+    if (!audio) return { durationSeconds, width, height, canDecode, audioBitrate: 0 };
+
+    // The async getters, not the deprecated `.codec`: that one throws on a
+    // backing that cannot answer synchronously, which would fail the whole probe.
+    // And null is kept as null — a track mediabunny cannot name is a problem, not
+    // the absence of one.
+    const [audioCodec, sampleRate, channels] = await Promise.all([
+      audio.getCodec(),
+      audio.getSampleRate(),
+      audio.getNumberOfChannels(),
+    ]);
+    return {
+      durationSeconds,
+      width,
+      height,
+      canDecode,
+      audioCodec,
+      audioBitrate: pcmBitrate(audioCodec, sampleRate, channels),
+    };
   } finally {
     input.dispose();
   }

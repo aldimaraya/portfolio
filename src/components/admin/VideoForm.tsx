@@ -356,6 +356,7 @@ export function VideoForm({
       width: probe.width,
       height: probe.height,
       audioCodec: probe.audioCodec,
+      audioBitrate: probe.audioBitrate,
     });
 
     if (!next) {
