@@ -29,6 +29,11 @@ const SETTING_FIELDS: { key: Exclude<keyof PhotoSettings, 'lens'>; label: string
   { key: 'iso', label: 'ISO', placeholder: '400' },
 ];
 
+const STEP = 'size-8 rounded-md border border-white/12 transition-colors hover:border-white/40 active:bg-white/8 disabled:pointer-events-none disabled:opacity-40';
+
+/** Something revealed in place — a remounted preview, an opened section — eases in instead of popping. */
+const REVEAL = 'motion-safe:animate-[fade-in_220ms_ease-out]';
+
 const PILL = 'rounded border px-2 py-0.5 text-xs transition';
 const PILL_ON = `${PILL} border-gold bg-gold/10 text-gold`;
 const PILL_OFF = `${PILL} border-white/15 hover:border-white/40`;
@@ -131,36 +136,47 @@ export function StillInspector({
   return (
     <aside
       aria-label="Selected photo"
-      // A full-screen sheet on a phone (over the tab bar), a column from lg up.
-      className="fixed inset-0 z-40 flex flex-col overflow-y-auto bg-film lg:sticky lg:top-0 lg:z-auto lg:h-dvh lg:w-(--inspector-w) lg:shrink-0 lg:border-l lg:border-hairline"
+      // Sized by InspectorDrawer: a sheet on a phone, a column from lg up.
+      className="flex h-full w-full flex-col overflow-y-auto overscroll-contain bg-film pb-[env(safe-area-inset-bottom)] lg:w-(--inspector-w) lg:shrink-0 lg:border-l lg:border-hairline"
     >
-      <div className="sticky top-0 z-10 flex items-center gap-2 border-b border-hairline bg-film px-4 pt-[max(0.875rem,env(safe-area-inset-top))] pb-3.5">
-        <button type="button" onClick={onClose} className="h-11 pr-2 text-gold lg:hidden">
-          ‹ Stills
-        </button>
-        <button type="button" aria-label="Previous photo" onClick={() => onStep(-1)} disabled={position?.index === 0} className="size-8 rounded-md border border-white/12 disabled:opacity-40">
-          ‹
-        </button>
-        <button
-          type="button"
-          aria-label="Next photo"
-          onClick={() => onStep(1)}
-          disabled={position !== null && position.index === position.total - 1}
-          className="size-8 rounded-md border border-white/12 disabled:opacity-40"
-        >
-          ›
-        </button>
-        {position ? (
-          <span className="font-mono text-[11px] text-ash">
-            {position.index + 1} of {position.total}
-          </span>
-        ) : null}
-        <SaveStatus status={status} />
+      {/* The whole header is the sheet's handle, so it swipes closed however far down the panel is scrolled. */}
+      <div data-sheet-handle className="sticky top-0 z-10 border-b border-hairline bg-film px-4 pt-2 pb-3 lg:pt-3.5 lg:pb-3.5">
+        <span aria-hidden="true" className="mx-auto mb-2 block h-1 w-10 rounded-full bg-white/25 lg:hidden" />
+        <div className="flex items-center gap-2">
+          <button type="button" aria-label="Previous photo" onClick={() => onStep(-1)} disabled={position?.index === 0} className={STEP}>
+            ‹
+          </button>
+          <button
+            type="button"
+            aria-label="Next photo"
+            onClick={() => onStep(1)}
+            disabled={position !== null && position.index === position.total - 1}
+            className={STEP}
+          >
+            ›
+          </button>
+          {position ? (
+            <span className="font-mono text-[11px] text-ash tabular-nums">
+              {position.index + 1} of {position.total}
+            </span>
+          ) : null}
+          <SaveStatus status={status} />
+          <button
+            type="button"
+            aria-label="Close"
+            title="Close (Esc)"
+            onClick={onClose}
+            className="-mr-1.5 flex size-9 shrink-0 items-center justify-center rounded-md text-ash transition-colors hover:bg-white/8 hover:text-bone lg:size-8"
+          >
+            <Icon name="close" size={16} />
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-col gap-4 p-4 lg:p-[18px]">
         <div
-          className="relative w-full overflow-hidden rounded"
+          // The inspector remounts per photo, so this fades each step's photo in.
+          className={`relative w-full overflow-hidden rounded ${REVEAL}`}
           style={{ aspectRatio: `${photo.width} / ${photo.height}`, maxHeight: '50vh', backgroundColor: placeholderColor(photo) }}
         >
           <Image src={photo.imageUrl} alt="" fill sizes={`(min-width: 1024px) ${width}px, 100vw`} className="object-contain" />
@@ -226,7 +242,7 @@ export function StillInspector({
               </button>
             </div>
             {editingCamera ? (
-              <div className="grid grid-cols-2 gap-2 border-t border-hairline pt-2.5">
+              <div className={`grid grid-cols-2 gap-2 border-t border-hairline pt-2.5 ${REVEAL}`}>
                 <input
                   aria-label="Camera"
                   placeholder="Camera (e.g. Sony A7 IV)"
@@ -259,7 +275,7 @@ export function StillInspector({
         <InspectorTags value={draft.tags} onChange={(tags) => edit({ tags })} suggestions={tagOptions} />
 
         {trimming ? (
-          <div className="flex flex-col gap-2">
+          <div className={`flex flex-col gap-2 ${REVEAL}`}>
             <BorderTrimmer id={photo.id} imageUrl={photo.imageUrl} />
             <button type="button" onClick={() => setTrimming(false)} className="self-start text-xs text-ash hover:text-bone">
               Close trim
@@ -316,20 +332,20 @@ export function StillInspector({
 function SaveStatus({ status }: { status: Status }) {
   if (status.kind === 'error') {
     return (
-      <span role="alert" className="ml-auto truncate text-xs text-red-400" title={status.message}>
+      <span role="alert" className={`ml-auto truncate text-xs text-red-400 ${REVEAL}`} title={status.message}>
         {status.message}
       </span>
     );
   }
   if (status.kind === 'saved') {
     return (
-      <span className="ml-auto flex items-center gap-1.5 text-xs text-emerald-300">
+      <span key="saved" className={`ml-auto flex items-center gap-1.5 text-xs text-emerald-300 ${REVEAL}`}>
         <Icon name="check" size={14} />
         Saved
       </span>
     );
   }
-  return <span className="ml-auto text-xs text-ash">{status.kind === 'saving' ? 'Saving…' : 'Edited'}</span>;
+  return <span key="busy" className="ml-auto text-xs text-ash">{status.kind === 'saving' ? 'Saving…' : 'Edited'}</span>;
 }
 
 /**

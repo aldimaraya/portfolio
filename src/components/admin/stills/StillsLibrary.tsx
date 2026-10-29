@@ -19,6 +19,7 @@ import type { PhotoSettings } from '@/lib/photo/settings';
 import { AdminPage } from '../shell/AdminPage';
 import { Icon } from '../shell/Icon';
 import { useStoredPreference } from '../useStoredPreference';
+import { InspectorDrawer } from './InspectorDrawer';
 import { INSPECTOR_DEFAULT, InspectorResizer, clampInspector } from './InspectorResizer';
 import { StillInspector } from './StillInspector';
 
@@ -75,6 +76,10 @@ export function StillsLibrary({
   const [order, setOrder] = useState(initial.order);
   const [query, setQuery] = useState(initial.query);
   const [selectedId, setSelectedId] = useState(initial.photo);
+  // What the drawer shows: the selection, held on through the close animation so
+  // the panel slides away with its photo instead of emptying first.
+  const [shownId, setShownId] = useState(initial.photo);
+  if (selectedId && selectedId !== shownId) setShownId(selectedId);
   // Fixed for the life of the page, so "this week" does not shift under a render.
   const [now] = useState(() => Date.now());
   const search = useRef<HTMLInputElement>(null);
@@ -97,7 +102,9 @@ export function StillsLibrary({
   }, [photos, now]);
 
   const selected = photos.find((photo) => photo.id === selectedId) ?? null;
+  const shown = photos.find((photo) => photo.id === shownId) ?? null;
   const index = selected ? visible.findIndex((photo) => photo.id === selected.id) : -1;
+  const shownIndex = shown ? visible.findIndex((photo) => photo.id === shown.id) : -1;
 
   function step(delta: number) {
     if (!visible.length) return;
@@ -174,7 +181,7 @@ export function StillsLibrary({
                     type="button"
                     aria-pressed={order === option}
                     onClick={() => setOrder(option)}
-                    className={`h-7 rounded-md px-2.5 text-xs ${order === option ? 'bg-frame text-bone' : 'text-ash hover:text-bone'}`}
+                    className={`h-7 rounded-md px-2.5 text-xs transition-colors ${order === option ? 'bg-frame text-bone' : 'text-ash hover:text-bone'}`}
                   >
                     {ORDER_LABELS[option]}
                   </button>
@@ -263,28 +270,28 @@ export function StillsLibrary({
         </AdminPage>
       </div>
 
-      <InspectorResizer target={shell} width={inspectorWidth} onCommit={(width) => setInspectorPref(String(width))} />
-
       {selected ? (
-        <StillInspector
-          width={inspectorWidth}
-          key={selected.id}
-          photo={selected}
-          library={photos}
-          wallIndex={wall.findIndex((photo) => photo.id === selected.id)}
-          position={index === -1 ? null : { index, total: visible.length }}
-          // Only for the photo the wall sent; another one has its own wall link.
-          returnTo={selected.id === initial.photo ? returnTo : null}
-          tagOptions={tagOptions}
-          locationOptions={locationOptions}
-          onStep={step}
-          onClose={() => setSelectedId(null)}
-        />
-      ) : (
-        <aside className="sticky top-0 hidden h-dvh w-(--inspector-w) shrink-0 items-center justify-center border-l border-hairline bg-film p-8 text-center text-sm text-ash lg:flex">
-          Pick a photo to edit it here. Changes save as you type.
-        </aside>
-      )}
+        <InspectorResizer target={shell} width={inspectorWidth} onCommit={(width) => setInspectorPref(String(width))} />
+      ) : null}
+
+      <InspectorDrawer open={selected !== null} onClose={() => setSelectedId(null)} onClosed={() => setShownId(null)}>
+        {shown ? (
+          <StillInspector
+            width={inspectorWidth}
+            key={shown.id}
+            photo={shown}
+            library={photos}
+            wallIndex={wall.findIndex((photo) => photo.id === shown.id)}
+            position={shownIndex === -1 ? null : { index: shownIndex, total: visible.length }}
+            // Only for the photo the wall sent; another one has its own wall link.
+            returnTo={shown.id === initial.photo ? returnTo : null}
+            tagOptions={tagOptions}
+            locationOptions={locationOptions}
+            onStep={step}
+            onClose={() => setSelectedId(null)}
+          />
+        ) : null}
+      </InspectorDrawer>
     </div>
   );
 }
@@ -314,12 +321,12 @@ function Tile({
       // Width grows from the photo's own ratio at the row height (--h, set by
       // the size slider), so a row packs like the wall does without measuring.
       style={{ '--r': ratio } as React.CSSProperties}
-      className={`group flex min-w-0 grow-[var(--r)] basis-[calc(var(--r)*var(--h))] flex-col gap-1.5 rounded-[3px] text-left outline-offset-2 ${
-        selected ? 'outline-2 outline-gold' : ''
+      className={`group flex min-w-0 grow-[var(--r)] basis-[calc(var(--r)*var(--h))] flex-col gap-1.5 rounded-[3px] text-left outline-2 outline-offset-2 transition-[outline-color,scale] duration-200 active:scale-[0.98] motion-reduce:transition-none ${
+        selected ? 'outline-gold' : 'outline-transparent'
       }`}
     >
       <span
-        className="relative block h-(--h) w-full overflow-hidden rounded-[3px] group-hover:brightness-110"
+        className="relative block h-(--h) w-full overflow-hidden rounded-[3px] transition-[filter] duration-200 group-hover:brightness-110"
         style={{ backgroundColor: placeholderColor(photo) }}
       >
         {/* Small sizes on purpose: the wall's own frames are this size, so these
@@ -330,7 +337,7 @@ function Tile({
         // The wall's caption heading — title when there is one, else the place —
         // with the place kept underneath once a title has taken its spot.
         <span className="flex min-w-0 flex-col px-0.5 leading-tight">
-          <span className={`truncate text-[11px] font-semibold tracking-[0.04em] uppercase ${selected ? 'text-gold' : ''}`}>
+          <span className={`truncate text-[11px] font-semibold tracking-[0.04em] uppercase transition-colors ${selected ? 'text-gold' : ''}`}>
             {label || 'Untitled'}
           </span>
           {photo.title ? <span className="truncate font-mono text-[10px] text-ash">{photo.location}</span> : null}

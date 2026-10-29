@@ -49,6 +49,7 @@ const PATHS = {
     </>
   ),
   check: <path d="M5 12l5 5 9-10" />,
+  close: <path d="M6 6l12 12M18 6L6 18" />,
 } as const;
 
 export type IconName = keyof typeof PATHS;
@@ -61,7 +62,7 @@ export function Icon({ name, size = 16, className }: { name: IconName; size?: nu
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth={name === 'plus' || name === 'check' ? 2 : 1.6}
+      strokeWidth={name === 'plus' || name === 'check' || name === 'close' ? 2 : 1.6}
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"

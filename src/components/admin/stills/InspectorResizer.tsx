@@ -43,6 +43,8 @@ export function InspectorResizer({
     handle.setPointerCapture(event.pointerId);
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
+    // Switches off the drawer's width transition, which would trail the pointer.
+    target.current?.setAttribute('data-resizing', '');
 
     // The inspector sits to the right, so dragging left widens it.
     const move = (moved: PointerEvent) => {
@@ -55,6 +57,7 @@ export function InspectorResizer({
       handle.removeEventListener('pointercancel', end);
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
+      target.current?.removeAttribute('data-resizing');
       onCommit(current);
     };
     handle.addEventListener('pointermove', move);
