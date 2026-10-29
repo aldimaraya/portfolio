@@ -280,6 +280,16 @@ export function VideoForm({
       title: prev.title || titleFromFilename(picked.name),
     }));
 
+    // Read off the pick straight away, and shown as soon as it is known whether
+    // the encode will fix it: a warning held back until a minutes-long encode
+    // finishes reaches an admin who has already filled the form in trusting the
+    // clip. Not awaited: the frames need not wait for it.
+    const audioProblem = inspectAudio(picked);
+    const warnAudio = () =>
+      void audioProblem.then((problem) => {
+        if (pickId.current === pick) setAudioWarning(problem ?? '');
+      });
+
     // Phones do not re-encode at all, and are not even asked to size the clip up
     // — skipping the probe keeps the ~500 kB media library off a mobile
     // connection, since its only reader here is a decision already made.
@@ -287,6 +297,10 @@ export function VideoForm({
     if (canTranscodeHere()) {
       const plan = await inspect(picked, pick);
       if (pickId.current !== pick) return;
+      // An encode that re-encodes the audio is about to fix the problem, so
+      // warning now would tell the admin to run ffmpeg for nothing. Anything
+      // else uploads the sound exactly as picked.
+      if (!plan?.fixesAudio) warnAudio();
       if (plan) {
         try {
           toUpload = await encode(picked, plan, pick);
@@ -299,21 +313,15 @@ export function VideoForm({
         setFile(toUpload);
         setSource(toUpload);
         setEncoded(toUpload !== picked);
+        // The fix fell through and the original is going up, sound and all.
+        if (plan.fixesAudio && toUpload === picked) warnAudio();
       }
     } else {
+      warnAudio();
       setTranscodeNote(
         'Re-encoding is skipped on phones, so this uploads at its original size. Pick it from a desktop to have it compressed.',
       );
     }
-
-    // Read off the file being uploaded, not the one picked: the encode re-encodes
-    // unplayable audio to AAC, so warning about the pick would tell the admin to
-    // run ffmpeg on a problem already fixed. Asked only once the encode is done,
-    // which is also when the warning means something — it now only ever appears
-    // when the encode could not fix it. Not awaited: the frames need not wait.
-    inspectAudio(toUpload).then((problem) => {
-      if (pickId.current === pick) setAudioWarning(problem ?? '');
-    });
 
     await grabFrames(toUpload);
   }

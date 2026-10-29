@@ -5,6 +5,8 @@ import {
   formatMbps,
   isHandheld,
   needsAudioEncode,
+  playbackCodec,
+  PLAYABLE_AUDIO_CODECS,
   pcmBitrate,
   formatMegabytes,
   downloadFilename,
@@ -14,6 +16,7 @@ import {
   TARGET_MAX_EDGE,
   videoTargetSize,
 } from '@/lib/video/transcode';
+import { describeAudioProblem, PLAYABLE_AUDIO } from '@/lib/video/audio';
 
 /** Bytes a clip of `seconds` would occupy at `bitrate` bits per second. */
 function bytesAt(bitrate: number, seconds: number): number {
@@ -95,7 +98,7 @@ describe('shouldTranscode', () => {
       height: 1080,
     });
     expect(plan).not.toBeNull();
-    expect(plan?.reason).toBe('bitrate');
+    expect(plan?.reencodesVideo).toBe(true);
     // Nothing to resize; the point of this one is purely the bitrate.
     expect(plan).toMatchObject({ width: 1920, height: 1080, videoBitrate: TARGET_BITRATE });
   });
@@ -107,18 +110,18 @@ describe('shouldTranscode', () => {
       width: 3840,
       height: 2160,
     });
-    expect(plan?.reason).toBe('dimensions');
+    expect(plan?.reencodesVideo).toBe(true);
     expect(plan).toMatchObject({ width: 1920, height: 1080 });
   });
 
-  it('reports both when a master is oversized and over-bitrate', () => {
+  it('re-encodes a master that is both oversized and over-bitrate is oversized and over-bitrate', () => {
     const plan = shouldTranscode({
       bytes: bytesAt(80_000_000, 60),
       durationSeconds: 60,
       width: 3840,
       height: 2160,
     });
-    expect(plan?.reason).toBe('both');
+    expect(plan?.reencodesVideo).toBe(true);
   });
 
   // The pair a size-only threshold gets wrong: same 400 MB file, and only the
@@ -177,7 +180,7 @@ describe('shouldTranscode', () => {
       height: 1080,
       audioCodec: 'pcm-s16',
     });
-    expect(plan).toMatchObject({ reason: 'audio', reencodesVideo: false, fixesAudio: true });
+    expect(plan).toMatchObject({ reencodesVideo: false, fixesAudio: true });
   });
 
   // The same export as it really arrives: the PCM's own ~2.3 Mbps is in the
@@ -192,7 +195,7 @@ describe('shouldTranscode', () => {
       audioCodec: 'pcm-s24',
       audioBitrate: pcm,
     });
-    expect(plan).toMatchObject({ reason: 'audio', reencodesVideo: false, fixesAudio: true });
+    expect(plan).toMatchObject({ reencodesVideo: false, fixesAudio: true });
   });
 
   it('fixes audio mediabunny cannot name', () => {
@@ -203,7 +206,7 @@ describe('shouldTranscode', () => {
       height: 1080,
       audioCodec: null,
     });
-    expect(plan).toMatchObject({ reason: 'audio', fixesAudio: true });
+    expect(plan).toMatchObject({ fixesAudio: true });
   });
 
   it('fixes the audio alongside a video re-encode', () => {
@@ -214,7 +217,7 @@ describe('shouldTranscode', () => {
       height: 1080,
       audioCodec: 'pcm-s24',
     });
-    expect(plan).toMatchObject({ reason: 'bitrate', reencodesVideo: true, fixesAudio: true });
+    expect(plan).toMatchObject({ reencodesVideo: true, fixesAudio: true });
   });
 
   it('leaves playable audio and silent clips alone', () => {
@@ -247,6 +250,7 @@ describe('needsAudioEncode', () => {
     expect(needsAudioEncode('aac')).toBe(false);
     expect(needsAudioEncode('mp3')).toBe(false);
     expect(needsAudioEncode('opus')).toBe(false);
+    expect(needsAudioEncode('flac')).toBe(false);
     expect(needsAudioEncode(undefined)).toBe(false);
   });
 
@@ -254,6 +258,33 @@ describe('needsAudioEncode', () => {
     expect(needsAudioEncode('pcm-s16')).toBe(true);
     expect(needsAudioEncode('ac3')).toBe(true);
     expect(needsAudioEncode(null)).toBe(true);
+  });
+});
+
+describe('playbackCodec', () => {
+  it('is undefined for a clip with no audio tracks', () => {
+    expect(playbackCodec([])).toBeUndefined();
+  });
+
+  it('picks a playable track over a PCM one ahead of it', () => {
+    // The dual-track .mov that ./audio.ts passes: planning a fix off the
+    // primary track alone would encode a clip the warning calls fine.
+    expect(playbackCodec(['pcm-s24', 'aac'])).toBe('aac');
+    expect(playbackCodec([null, 'opus'])).toBe('opus');
+  });
+
+  it('falls back to the first track when none plays', () => {
+    expect(playbackCodec(['pcm-s16', 'ac3'])).toBe('pcm-s16');
+    expect(playbackCodec([null, 'pcm-s16'])).toBeNull();
+  });
+});
+
+describe('PLAYABLE_AUDIO_CODECS', () => {
+  it('is the same table as the warning reads, so the two cannot disagree', () => {
+    for (const codec of PLAYABLE_AUDIO_CODECS) {
+      expect(describeAudioProblem([PLAYABLE_AUDIO[codec]])).toBeNull();
+    }
+    expect(PLAYABLE_AUDIO_CODECS.size).toBe(Object.keys(PLAYABLE_AUDIO).length);
   });
 });
 

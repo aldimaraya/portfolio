@@ -17,6 +17,8 @@
  * re-encoded file is what reaches R2, so keep masters offline.
  */
 
+import { PLAYABLE_AUDIO } from './audio';
+
 /**
  * Longest edge kept. 1080p is what the clips are graded and delivered at, and
  * the roll never displays one larger.
@@ -35,10 +37,9 @@ export const TARGET_AUDIO_BITRATE = 192_000;
 
 /**
  * Audio codecs a `<video>` element can play from an MP4, as mediabunny names
- * them. The same conservative set as `PLAYABLE_AUDIO_FORMATS` in ./audio.ts,
- * which names them by fourcc instead: AC-3 is left out for the same reason.
+ * them. Derived from the same table as ./audio.ts's warning, never listed here.
  */
-export const PLAYABLE_AUDIO_CODECS = new Set(['aac', 'mp3', 'opus']);
+export const PLAYABLE_AUDIO_CODECS = new Set(Object.keys(PLAYABLE_AUDIO));
 
 /**
  * How far over target a clip may sit before it is worth re-encoding. A file
@@ -59,13 +60,16 @@ export interface SourceStats {
   width: number;
   height: number;
   /**
-   * The primary audio track's codec as mediabunny reports it, `null` when it has
-   * one mediabunny cannot name, and undefined when there is no audio at all.
+   * The codec the clip will play with, as mediabunny reports it: the first
+   * playable audio track's, else the first track's. `null` when that track is
+   * one mediabunny cannot name, and undefined when there is no audio at all. See
+   * `playbackCodec`.
    */
   audioCodec?: string | null;
   /**
    * The source audio's bitrate, when the header alone can say — which it can
-   * only for PCM, whose rate is fixed by its format. See `pcmBitrate`.
+   * only for PCM, whose rate is fixed by its format. Summed across tracks, since
+   * every one of them is in the byte count. See `pcmBitrate`.
    */
   audioBitrate?: number;
 }
@@ -75,11 +79,6 @@ export interface TranscodePlan {
   height: number;
   videoBitrate: number;
   audioBitrate: number;
-  /**
-   * Which video test fired, so the form can say why it is re-encoding — or
-   * 'audio' when the video is fine and only the sound needs fixing.
-   */
-  reason: 'bitrate' | 'dimensions' | 'both' | 'audio';
   /**
    * False when only the audio is being fixed. The video is then copied across
    * packet for packet, since putting a clip already at target through a second
@@ -102,6 +101,18 @@ export interface TranscodePlan {
 export function needsAudioEncode(audioCodec: string | null | undefined): boolean {
   if (audioCodec === undefined) return false;
   return audioCodec === null || !PLAYABLE_AUDIO_CODECS.has(audioCodec);
+}
+
+/**
+ * Which of a clip's audio tracks decides whether it plays: the first playable
+ * one if there is any, else the first. The same rule as `describeAudioProblem`
+ * in ./audio.ts, which passes a clip when *any* track is playable — judging the
+ * primary track alone would plan an audio fix for a .mov whose AAC track sits
+ * behind a PCM one, a fix the warning says is not needed.
+ */
+export function playbackCodec(codecs: (string | null)[]): string | null | undefined {
+  if (codecs.length === 0) return undefined;
+  return codecs.find((codec) => codec !== null && PLAYABLE_AUDIO_CODECS.has(codec)) ?? codecs[0];
 }
 
 /**
@@ -199,13 +210,6 @@ export function shouldTranscode({
     height: target.height,
     videoBitrate: TARGET_BITRATE,
     audioBitrate: TARGET_AUDIO_BITRATE,
-    reason: !reencodesVideo
-      ? 'audio'
-      : oversized && overBitrate
-        ? 'both'
-        : oversized
-          ? 'dimensions'
-          : 'bitrate',
     reencodesVideo,
     fixesAudio,
   };
