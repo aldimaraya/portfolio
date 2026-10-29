@@ -210,15 +210,19 @@ improve is still a clip worth publishing:
   any audio classes at all, so this is not hypothetical. The original is uploaded
   instead — larger, but with its sound.
 - **An encode that came out no smaller** than the original is discarded and the
-  original kept.
+  original kept — unless it was fixing the audio, where the original is silent.
 - **An encode that throws** falls back to uploading the original.
 
 Audio is copied, not re-encoded, whenever it is already AAC. The exception is the
 uncompressed PCM that [`lib/video/audio.ts`](../src/lib/video/audio.ts) warns
 about — no browser can decode it, and it was the cause of a long-running "clips
-play silently" bug. Anything that goes through the encoder now comes out as AAC,
-so the transcode fixes that case rather than only reporting it. The warning stays
-for the clips that skip transcoding.
+play silently" bug. Unplayable audio is a trigger in its own right
+(`needsAudioEncode`, from the codec `probeVideo` reads): a clip whose video is
+already within target still goes through the encoder, but with the video copied
+packet for packet and only the audio re-encoded, so fixing the sound never costs
+the picture a generation. The warning is checked against the file actually being
+uploaded, so it appears only when that fix could not happen — on a phone, or when
+the browser could not encode AAC and the original went up instead.
 
 Regenerating a clip's preview frames deliberately does **not** re-encode: the
 stored clip already is the encode, and running it through again would cost a

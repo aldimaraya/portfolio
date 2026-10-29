@@ -274,10 +274,6 @@ export function VideoForm({
     setSprite(null);
     if (!picked) return;
 
-    // Not awaited with the work below: reading the container is quick, and a
-    // codec warning is worth showing while the frames are still being grabbed.
-    inspectAudio(picked).then((problem) => setAudioWarning(problem ?? ''));
-
     // Offer the filename as a title, but never overwrite one already typed.
     setForm((prev) => ({
       ...prev,
@@ -309,6 +305,15 @@ export function VideoForm({
         'Re-encoding is skipped on phones, so this uploads at its original size. Pick it from a desktop to have it compressed.',
       );
     }
+
+    // Read off the file being uploaded, not the one picked: the encode re-encodes
+    // unplayable audio to AAC, so warning about the pick would tell the admin to
+    // run ffmpeg on a problem already fixed. Asked only once the encode is done,
+    // which is also when the warning means something — it now only ever appears
+    // when the encode could not fix it. Not awaited: the frames need not wait.
+    inspectAudio(toUpload).then((problem) => {
+      if (pickId.current === pick) setAudioWarning(problem ?? '');
+    });
 
     await grabFrames(toUpload);
   }
@@ -350,6 +355,7 @@ export function VideoForm({
       durationSeconds: probe.durationSeconds,
       width: probe.width,
       height: probe.height,
+      audioCodec: probe.audioCodec,
     });
 
     if (!next) {
@@ -357,9 +363,13 @@ export function VideoForm({
       return null;
     }
 
-    setTranscodeNote(
-      `${found}. Re-encoding to ${next.width}×${next.height} at ~${formatMbps(next.videoBitrate)}.`,
-    );
+    const video = next.reencodesVideo
+      ? `Re-encoding to ${next.width}×${next.height} at ~${formatMbps(next.videoBitrate)}`
+      : 'Video already within target, so it is copied as-is';
+    const audio = next.fixesAudio
+      ? `; the audio (${probe.audioCodec ?? 'unknown codec'}) is re-encoded to AAC so browsers can play it`
+      : '';
+    setTranscodeNote(`${found}. ${video}${audio}.`);
     return next;
   }
 

@@ -34,6 +34,13 @@ export const TARGET_BITRATE = 6_000_000;
 export const TARGET_AUDIO_BITRATE = 192_000;
 
 /**
+ * Audio codecs a `<video>` element can play from an MP4, as mediabunny names
+ * them. The same conservative set as `PLAYABLE_AUDIO_FORMATS` in ./audio.ts,
+ * which names them by fourcc instead: AC-3 is left out for the same reason.
+ */
+export const PLAYABLE_AUDIO_CODECS = new Set(['aac', 'mp3', 'opus']);
+
+/**
  * How far over target a clip may sit before it is worth re-encoding. A file
  * already at 6.5 Mbps is within the band it was aimed at, and running it through
  * a second generation to save a few percent costs more quality than it saves
@@ -51,6 +58,11 @@ export interface SourceStats {
   durationSeconds: number;
   width: number;
   height: number;
+  /**
+   * The primary audio track's codec as mediabunny reports it, `null` when it has
+   * one mediabunny cannot name, and undefined when there is no audio at all.
+   */
+  audioCodec?: string | null;
 }
 
 export interface TranscodePlan {
@@ -58,8 +70,33 @@ export interface TranscodePlan {
   height: number;
   videoBitrate: number;
   audioBitrate: number;
-  /** Which test fired, so the form can say why it is re-encoding. */
-  reason: 'bitrate' | 'dimensions' | 'both';
+  /**
+   * Which video test fired, so the form can say why it is re-encoding — or
+   * 'audio' when the video is fine and only the sound needs fixing.
+   */
+  reason: 'bitrate' | 'dimensions' | 'both' | 'audio';
+  /**
+   * False when only the audio is being fixed. The video is then copied across
+   * packet for packet, since putting a clip already at target through a second
+   * generation would cost quality to fix a problem it does not have.
+   */
+  reencodesVideo: boolean;
+  /**
+   * The audio is a codec no browser plays — QuickTime's PCM, usually — and is
+   * being re-encoded to AAC. A plan with this set must be uploaded even if the
+   * encode comes out larger: the original would publish silent.
+   */
+  fixesAudio: boolean;
+}
+
+/**
+ * Whether a clip's audio has to be re-encoded before a browser will play it.
+ * No audio track is fine — plenty of footage is meant to be silent — but a
+ * track mediabunny cannot even name is not, as ./audio.ts would warn about it.
+ */
+export function needsAudioEncode(audioCodec: string | null | undefined): boolean {
+  if (audioCodec === undefined) return false;
+  return audioCodec === null || !PLAYABLE_AUDIO_CODECS.has(audioCodec);
 }
 
 /**
@@ -116,19 +153,30 @@ export function shouldTranscode({
   durationSeconds,
   width,
   height,
+  audioCodec,
 }: SourceStats): TranscodePlan | null {
   const target = videoTargetSize(width, height);
   const oversized = target.width !== width || target.height !== height;
   const overBitrate = estimatedBitrate(bytes, durationSeconds) > TARGET_BITRATE * BITRATE_TOLERANCE;
+  const fixesAudio = needsAudioEncode(audioCodec);
+  const reencodesVideo = oversized || overBitrate;
 
-  if (!oversized && !overBitrate) return null;
+  if (!reencodesVideo && !fixesAudio) return null;
 
   return {
     width: target.width,
     height: target.height,
     videoBitrate: TARGET_BITRATE,
     audioBitrate: TARGET_AUDIO_BITRATE,
-    reason: oversized && overBitrate ? 'both' : oversized ? 'dimensions' : 'bitrate',
+    reason: !reencodesVideo
+      ? 'audio'
+      : oversized && overBitrate
+        ? 'both'
+        : oversized
+          ? 'dimensions'
+          : 'bitrate',
+    reencodesVideo,
+    fixesAudio,
   };
 }
 
