@@ -7,6 +7,7 @@ import { LikeButton } from '@/components/engagement/LikeButton';
 import { AdminEditLink } from '@/components/site/AdminEditLink';
 import { placeholderColor } from '@/lib/color/analyze';
 import { photoCaption } from '@/lib/photo/caption';
+import { gestureHintSeen, rememberGestureHint } from '@/lib/photo/gesture-hint';
 import { editPhotoHref } from '@/lib/photo/lightbox-link';
 import type { PolaroidPhoto } from './Polaroid';
 
@@ -112,9 +113,12 @@ export function Lightbox({ photos, index, originFor, onClose, onNavigate }: Ligh
   /**
    * The gesture hint. Shown on touch only, where the arrows are not, and only
    * until it has been read or acted on — a caption that never leaves is a
-   * caption on the photograph.
+   * caption on the photograph. And only on the first photo opened in a session
+   * (lib/photo/gesture-hint.ts). Read once, on mount: the lightbox only ever
+   * renders in the browser, opened from a click or from the URL after
+   * hydration, so there is no server render for this to disagree with.
    */
-  const [hint, setHint] = useState(true);
+  const [hint, setHint] = useState(() => !gestureHintSeen());
 
   // Wrapping keeps the arrows live at both ends, so holding a key never leaves
   // you stuck on the last frame wondering whether the control broke.
@@ -146,6 +150,9 @@ export function Lightbox({ photos, index, originFor, onClose, onNavigate }: Ligh
 
   useEffect(() => {
     if (!hint) return;
+    // Remembered as soon as it starts, not when it finishes: closing the
+    // lightbox halfway through still counts as having been shown it.
+    rememberGestureHint();
     const timer = setTimeout(() => setHint(false), HINT_MS);
     return () => clearTimeout(timer);
   }, [hint]);
