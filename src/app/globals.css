@@ -404,6 +404,175 @@ body {
   animation: spool-spin 900ms linear infinite;
 }
 
+/* The lightbox's gesture hint (GestureHint): a touch dot demonstrating both
+   swipes, once, 3.6s from 0.4s after mount (after the print has lifted off the
+   wall). Every part runs on the same clock so their keyframe percentages line
+   up:
+     0–45%    press right of centre, drag left, lift — "swipe to browse"
+     53–100%  press near the top, drag down, lift — "swipe down to close"
+   HINT_MS in Lightbox unmounts the hint at the end, so the two must agree. */
+.gesture-hint {
+  --gesture-time: 3.6s 0.4s;
+}
+
+.gesture-touch {
+  position: absolute;
+  width: 30px;
+  height: 30px;
+  margin: -15px 0 0 -15px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.5);
+  border: 2px solid rgba(255, 255, 255, 0.95);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+  animation: gesture-touch var(--gesture-time) ease-in-out both;
+}
+
+/* The trail: the same dot, later and fainter, so it reads as motion blur. */
+.gesture-trail-1 {
+  background: rgba(255, 255, 255, 0.28);
+  border-color: transparent;
+  scale: 0.8;
+  animation-delay: 0.46s;
+}
+
+.gesture-trail-2 {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: transparent;
+  scale: 0.6;
+  animation-delay: 0.52s;
+}
+
+.gesture-hint[data-browse='false'] .gesture-touch {
+  animation-name: gesture-touch-down;
+}
+
+.gesture-label {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 7%;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-bone);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
+  opacity: 0;
+}
+
+.gesture-label-x {
+  animation: gesture-label-x var(--gesture-time) ease-out both;
+}
+
+.gesture-label-y {
+  animation: gesture-label-y var(--gesture-time) ease-out both;
+}
+
+/* The mat giving under the finger, so the demonstration shows cause and effect.
+   Phone width only, like the finger (sm:hidden on GestureHint): on a desktop the
+   mat would lurch with nothing on screen to have moved it. */
+@media (max-width: 40rem) {
+  .gesture-follow {
+    animation: gesture-follow 3.6s ease-in-out 0.4s both;
+  }
+
+  .gesture-follow[data-browse='false'] {
+    animation-name: gesture-follow-down;
+  }
+}
+
+@keyframes gesture-touch {
+  0% { left: 66%; top: 52%; opacity: 0; transform: scale(1.3); }
+  8.5% { left: 66%; top: 52%; opacity: 1; transform: scale(1.3); }
+  14% { left: 66%; top: 52%; opacity: 1; transform: scale(1); }
+  36.5% { left: 22%; top: 52%; opacity: 1; transform: scale(1); }
+  42% { left: 22%; top: 52%; opacity: 0; transform: scale(1.25); }
+  53.5% { left: 50%; top: 24%; opacity: 0; transform: scale(1.3); }
+  59% { left: 50%; top: 24%; opacity: 1; transform: scale(1.3); }
+  65% { left: 50%; top: 24%; opacity: 1; transform: scale(1); }
+  87% { left: 50%; top: 70%; opacity: 1; transform: scale(1); }
+  93%,
+  100% { left: 50%; top: 70%; opacity: 0; transform: scale(1.25); }
+}
+
+/* gesture-touch with its first half held invisible, for a single photo. */
+@keyframes gesture-touch-down {
+  0%,
+  53.5% { left: 50%; top: 24%; opacity: 0; transform: scale(1.3); }
+  59% { left: 50%; top: 24%; opacity: 1; transform: scale(1.3); }
+  65% { left: 50%; top: 24%; opacity: 1; transform: scale(1); }
+  87% { left: 50%; top: 70%; opacity: 1; transform: scale(1); }
+  93%,
+  100% { left: 50%; top: 70%; opacity: 0; transform: scale(1.25); }
+}
+
+@keyframes gesture-follow {
+  0%,
+  14% { transform: none; }
+  36.5% { transform: translateX(-16px) rotate(-1deg); }
+  43.5% { transform: translateX(4px); }
+  49%,
+  65% { transform: none; }
+  87% { transform: translateY(16px); }
+  94% { transform: translateY(-4px); }
+  100% { transform: none; }
+}
+
+@keyframes gesture-follow-down {
+  0%,
+  65% { transform: none; }
+  87% { transform: translateY(16px); }
+  94% { transform: translateY(-4px); }
+  100% { transform: none; }
+}
+
+@keyframes gesture-label-x {
+  0%,
+  10% { opacity: 0; transform: translateY(6px); }
+  15.5%,
+  39% { opacity: 1; transform: none; }
+  45%,
+  100% { opacity: 0; transform: none; }
+}
+
+@keyframes gesture-label-y {
+  0%,
+  57.5% { opacity: 0; transform: translateY(6px); }
+  63%,
+  90% { opacity: 1; transform: none; }
+  95.5%,
+  100% { opacity: 0; transform: none; }
+}
+
+/* The calm version only exists for reduced motion, below. */
+.gesture-label-calm {
+  display: none;
+}
+
+/* Reduced motion: no finger and no moving mat — the words, held and faded. */
+@media (prefers-reduced-motion: reduce) {
+  .gesture-touch,
+  .gesture-label-x,
+  .gesture-label-y {
+    display: none;
+  }
+
+  .gesture-follow {
+    animation: none;
+  }
+
+  .gesture-label-calm {
+    display: block;
+    animation: gesture-calm var(--gesture-time) ease-in both;
+  }
+}
+
+@keyframes gesture-calm {
+  0%,
+  80% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
 /* The phone's filter sheet. It rises from the edge it is anchored to, so the
    gesture that opens it and the motion that follows agree. Both are behind
    motion-safe: at the call site, so reduced motion gets the sheet already in
@@ -515,10 +684,16 @@ body {
 }
 
 /* On a phone the side budget goes to the picture: the nav arrows already float
-   over the mat, and there is no room to inset them as well. */
+   over the mat, and there is no room to inset them as well.
+ *
+ * The height budget goes the other way. The mat is narrow here, so the caption's
+ * meta line wraps — to three lines at 320px — and 14.5rem left a portrait mat
+ * taller than its box, overflowing up over the counter row and the gesture hint
+ * in it. 17rem covers the three-line case. */
 @media (max-width: 40rem) {
   .lightbox-photo {
     --lightbox-side: 3rem;
+    --lightbox-chrome: 17rem;
   }
 }
 
