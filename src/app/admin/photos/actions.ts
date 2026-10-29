@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { JOURNAL_LAYOUT } from '@/lib/revalidate';
 import { z } from 'zod';
 import { db } from '@/lib/db';
 import { forgetEngagement } from '@/lib/engagement/counts';
@@ -174,7 +175,7 @@ export async function deletePhoto(id: string): Promise<{ error?: string }> {
     // A journal post can show this photo (a photos block refers to it by id).
     // The prerendered post would otherwise keep serving its now-404 image; rebuilt,
     // the block simply leaves the photo out.
-    revalidatePath('/journal', 'layout');
+    revalidatePath(JOURNAL_LAYOUT, 'layout');
     return {};
   });
 }
