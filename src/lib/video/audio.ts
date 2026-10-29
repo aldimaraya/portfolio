@@ -14,12 +14,26 @@
  */
 
 /**
- * Sample-entry formats browsers can actually decode in an MP4/MOV.
+ * Audio codecs browsers can actually decode in an MP4/MOV, keyed by the name
+ * mediabunny gives them (./transcode.ts plans with those) and mapped to the
+ * sample-entry fourcc this file reads. One table, so the planner and the warning
+ * cannot disagree: a codec added to one list but not the other was encoded and
+ * still warned about, or warned about and never fixed.
  *
  * Deliberately conservative. `ac-3`/`ec-3` are omitted: support is patchy enough
  * that promising playback would be worse than a warning the user can ignore.
+ * FLAC is in — every current engine plays it from MP4, and re-encoding it to
+ * AAC would be a lossy generation spent on a problem it does not have.
  */
-export const PLAYABLE_AUDIO_FORMATS = new Set(['mp4a', '.mp3', 'Opus']);
+export const PLAYABLE_AUDIO: Readonly<Record<string, string>> = {
+  aac: 'mp4a',
+  mp3: '.mp3',
+  opus: 'Opus',
+  flac: 'fLaC',
+};
+
+/** Sample-entry formats browsers can decode, as read from `stsd`. */
+export const PLAYABLE_AUDIO_FORMATS = new Set(Object.values(PLAYABLE_AUDIO));
 
 /** The formats actually seen in the wild here, named for the warning text. */
 const FORMAT_NAMES: Record<string, string> = {

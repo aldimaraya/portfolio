@@ -129,6 +129,10 @@ describe('describeAudioProblem', () => {
     expect(describeAudioProblem(['xyz!'])).toContain('xyz!');
   });
 
+  it('passes FLAC, which every current engine plays from MP4', () => {
+    expect(describeAudioProblem(['fLaC'])).toBeNull();
+  });
+
   it('passes when any one track is playable', () => {
     // A dual-track export is fine as long as the browser can decode one of them.
     expect(describeAudioProblem(['sowt', 'mp4a'])).toBeNull();

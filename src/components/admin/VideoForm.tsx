@@ -275,15 +275,21 @@ export function VideoForm({
     setSprite(null);
     if (!picked) return;
 
-    // Not awaited with the work below: reading the container is quick, and a
-    // codec warning is worth showing while the frames are still being grabbed.
-    inspectAudio(picked).then((problem) => setAudioWarning(problem ?? ''));
-
     // Offer the filename as a title, but never overwrite one already typed.
     setForm((prev) => ({
       ...prev,
       title: prev.title || titleFromFilename(picked.name),
     }));
+
+    // Read off the pick straight away, and shown as soon as it is known whether
+    // the encode will fix it: a warning held back until a minutes-long encode
+    // finishes reaches an admin who has already filled the form in trusting the
+    // clip. Not awaited: the frames need not wait for it.
+    const audioProblem = inspectAudio(picked);
+    const warnAudio = () =>
+      void audioProblem.then((problem) => {
+        if (pickId.current === pick) setAudioWarning(problem ?? '');
+      });
 
     // Phones do not re-encode at all, and are not even asked to size the clip up
     // — skipping the probe keeps the ~500 kB media library off a mobile
@@ -292,6 +298,10 @@ export function VideoForm({
     if (canTranscodeHere()) {
       const plan = await inspect(picked, pick);
       if (pickId.current !== pick) return;
+      // An encode that re-encodes the audio is about to fix the problem, so
+      // warning now would tell the admin to run ffmpeg for nothing. Anything
+      // else uploads the sound exactly as picked.
+      if (!plan?.fixesAudio) warnAudio();
       if (plan) {
         try {
           toUpload = await encode(picked, plan, pick);
@@ -304,8 +314,11 @@ export function VideoForm({
         setFile(toUpload);
         setSource(toUpload);
         setEncoded(toUpload !== picked);
+        // The fix fell through and the original is going up, sound and all.
+        if (plan.fixesAudio && toUpload === picked) warnAudio();
       }
     } else {
+      warnAudio();
       setTranscodeNote(
         'Re-encoding is skipped on phones, so this uploads at its original size. Pick it from a desktop to have it compressed.',
       );
@@ -351,6 +364,8 @@ export function VideoForm({
       durationSeconds: probe.durationSeconds,
       width: probe.width,
       height: probe.height,
+      audioCodec: probe.audioCodec,
+      audioBitrate: probe.audioBitrate,
     });
 
     if (!next) {
@@ -358,9 +373,13 @@ export function VideoForm({
       return null;
     }
 
-    setTranscodeNote(
-      `${found}. Re-encoding to ${next.width}×${next.height} at ~${formatMbps(next.videoBitrate)}.`,
-    );
+    const video = next.reencodesVideo
+      ? `Re-encoding to ${next.width}×${next.height} at ~${formatMbps(next.videoBitrate)}`
+      : 'Video already within target, so it is copied as-is';
+    const audio = next.fixesAudio
+      ? `; the audio (${probe.audioCodec ?? 'unknown codec'}) is re-encoded to AAC so browsers can play it`
+      : '';
+    setTranscodeNote(`${found}. ${video}${audio}.`);
     return next;
   }
 
