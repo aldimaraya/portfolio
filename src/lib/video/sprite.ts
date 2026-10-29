@@ -225,11 +225,25 @@ export async function generateSpriteSheet(
         frameWidth,
         frameHeight,
       );
-      if (index === 0) {
-        posterContext.drawImage(video, 0, 0, frameWidth, frameHeight);
-      }
       onProgress?.(spriteProgress(index + 1, timestamps.length));
     }
+
+    // Copied out of the strip rather than drawn from the <video> a second time.
+    // Safari has produced a sheet with a good first frame beside a poster that
+    // came out blank — transparent, so black on the page until hover swaps the
+    // sheet in. A canvas-to-canvas copy does not touch the decoder at all, and is
+    // by construction the same frame the strip opens on.
+    posterContext.drawImage(
+      sprite,
+      0,
+      0,
+      frameWidth,
+      frameHeight,
+      0,
+      0,
+      frameWidth,
+      frameHeight,
+    );
 
     const [spriteBlob, posterBlob] = await Promise.all([
       toBlob(sprite, 'image/webp', 0.8),
