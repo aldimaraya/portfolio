@@ -544,46 +544,65 @@ function flipTransform(origin: DOMRect, box: DOMRect): string {
 
 /**
  * The phone's replacement for the arrows, drawn on the print itself: a down
- * arrow for closing and a two-headed one for browsing, in thin gold strokes with
- * a word under each, flashed twice and then faded out (see .gesture-hint). On
- * the photograph rather than in the chrome around it because that is where the
- * thumb is about to go — the same words as a line of text up by the counter
- * were read as a caption and skipped. And brief for the reason the arrows were
- * taken off the phone in the first place: anything that stays on a photograph
- * is clutter on it.
+ * arrow for closing and a two-headed one for browsing, in gold with a word under
+ * each. On the photograph rather than in the chrome around it because that is
+ * where the thumb is about to go — the same words as a line of text up by the
+ * counter were read as a caption and skipped. And brief for the reason the
+ * arrows were taken off the phone in the first place: anything that stays on a
+ * photograph is clutter on it.
+ *
+ * Drawn as if by hand, and animated as if being drawn: wobbly strokes that ink
+ * themselves in, heads last, then the arrows act out their own gesture twice —
+ * the down arrow dips, the sideways one sways — before the whole thing fades.
+ * Ruler-straight strokes that blinked read as a warning sign, not a note
+ * scribbled on the print. The timeline lives in .gesture-hint in globals.css.
  *
  * Gold for the site's accent, with a dark shadow so it holds over a white sky
  * as well as a black wall.
  */
 function GestureHint({ browse }: { browse: boolean }) {
-  const stroke = {
-    fill: 'none',
-    stroke: 'currentColor',
-    strokeWidth: 1.6,
-    strokeLinecap: 'round',
-    strokeLinejoin: 'round',
-  } as const;
-
   return (
     <div
       aria-hidden
-      className="gesture-hint pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-evenly py-[8%] font-mono text-[0.7rem] tracking-[0.2em] text-gold uppercase sm:hidden"
+      className="gesture-hint pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-evenly py-[8%] font-mono text-xs font-bold tracking-[0.2em] text-gold uppercase sm:hidden"
     >
       <div className="flex flex-col items-center gap-2">
-        <svg viewBox="0 0 24 56" className="h-14 w-6" {...stroke}>
-          <path d="M12 2v50M4 43l8 9 8-9" />
+        <svg viewBox="0 0 26 58" className="gesture-bob h-20 w-9">
+          <Stroke d="M13 3c-3 10 3 18-1 29s2 15 1 21" delay={0} />
+          <Stroke d="M4 43c3 3 6 7 9 10 2-4 6-8 9-11" delay={0.45} />
         </svg>
-        <span>Close</span>
+        <span className="gesture-label">Close</span>
       </div>
       {browse ? (
         <div className="flex w-3/4 flex-col items-center gap-2">
-          <svg viewBox="0 0 200 20" className="w-full" {...stroke}>
-            <path d="M3 10h194M12 2L3 10l9 8M188 2l9 8-9 8" />
+          <svg viewBox="0 0 200 26" className="gesture-sway w-full overflow-visible">
+            <Stroke d="M6 14c30-9 58 7 94-1s62-7 94 0" delay={0.15} />
+            <Stroke d="M17 4C13 8 9 11 6 14c4 2 8 5 11 9" delay={0.6} />
+            <Stroke d="M184 4c4 3 7 7 10 10-3 3-7 6-11 10" delay={0.6} />
           </svg>
-          <span>Swipe</span>
+          <span className="gesture-label" style={{ animationDelay: '0.75s' }}>
+            Swipe
+          </span>
         </div>
       ) : null}
     </div>
+  );
+}
+
+/** One pen stroke of the hint, inked in after `delay` seconds — see .gesture-hint path. */
+function Stroke({ d, delay }: { d: string; delay: number }) {
+  return (
+    <path
+      d={d}
+      // Normalises every stroke's length to 1, so one dash keyframe draws any of them.
+      pathLength={1}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2.4}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={{ animationDelay: `${0.3 + delay}s` }}
+    />
   );
 }
 

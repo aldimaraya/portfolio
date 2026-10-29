@@ -404,50 +404,91 @@ body {
   animation: spool-spin 900ms linear infinite;
 }
 
-/* The lightbox's gesture hint (GestureHint): two flashes, a beat held, then
-   gone. The delay lets the print finish lifting off the wall first. `both`, so
-   it is invisible before it starts and stays invisible at the end until
-   HINT_MS — delay plus duration — unmounts it. Reduced motion skips the
-   flashing and only fades. */
+/* The lightbox's gesture hint (GestureHint), as one timeline from mount:
+   0.3s  strokes start inking in (after the print has lifted off the wall)
+   ~1s   heads and labels are on; then each arrow acts out its gesture twice
+   2.4s  the whole hint starts fading, gone by 3.1s
+   HINT_MS in Lightbox unmounts it at the end, so the two must agree. `both`
+   on each part holds it undrawn before its delay and invisible after the fade. */
 .gesture-hint {
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.7));
-  animation: gesture-hint 2.7s ease-in-out 0.4s both;
+  animation: gesture-hint-fade 0.7s ease-in 2.4s both;
 }
 
-@keyframes gesture-hint {
-  0% {
+.gesture-hint path {
+  stroke-dasharray: 1;
+  animation: gesture-ink 0.45s ease-out both;
+}
+
+/* Bounces past full size and settles a little crooked, like a word written in
+   a hurry. Its delay is set inline by GestureHint. */
+.gesture-label {
+  display: inline-block;
+  animation: gesture-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) 0.6s both;
+}
+
+.gesture-bob {
+  animation: gesture-bob 0.55s ease-in-out 1.05s 2;
+}
+
+.gesture-sway {
+  animation: gesture-sway 0.6s ease-in-out 1.05s 2;
+}
+
+@keyframes gesture-hint-fade {
+  to {
     opacity: 0;
   }
-  10% {
-    opacity: 1;
+}
+
+@keyframes gesture-ink {
+  from {
+    stroke-dashoffset: 1;
   }
-  22% {
-    opacity: 0.1;
+  to {
+    stroke-dashoffset: 0;
   }
-  34% {
+}
+
+@keyframes gesture-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.4) rotate(-12deg);
+  }
+  to {
     opacity: 1;
+    transform: rotate(-3deg);
+  }
+}
+
+@keyframes gesture-bob {
+  50% {
+    transform: translateY(10px);
+  }
+}
+
+@keyframes gesture-sway {
+  25% {
+    transform: translateX(-12px) rotate(-2deg);
   }
   75% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
+    transform: translateX(12px) rotate(2deg);
   }
 }
 
+/* Reduced motion: the finished drawing, held and then faded — no inking, no
+   bouncing. The fade stays, since a hint that vanished at once would read as
+   a glitch. */
 @media (prefers-reduced-motion: reduce) {
-  .gesture-hint {
-    animation-name: gesture-hint-calm;
+  .gesture-hint path,
+  .gesture-label,
+  .gesture-bob,
+  .gesture-sway {
+    animation: none;
   }
-}
 
-@keyframes gesture-hint-calm {
-  0%,
-  75% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
+  .gesture-label {
+    transform: rotate(-3deg);
   }
 }
 
