@@ -10,6 +10,8 @@ export type AdminCounts = {
   untagged: number;
   /** Clips with no roll, which the public motion page never lists. */
   unfiled: number;
+  /** Stills and clips uploaded through Add media and waiting there to be published. */
+  unpublished: number;
 };
 
 /**
@@ -18,15 +20,17 @@ export type AdminCounts = {
  * and one per request, not two: `cache` lets the layout and the Overview share it.
  */
 export const loadAdminCounts = cache(async (): Promise<AdminCounts> => {
-  const [photos, videos, drafts, undated, untagged, unfiled] = await Promise.all([
-    db.photo.count(),
-    db.video.count(),
+  const [photos, videos, drafts, undated, untagged, unfiled, unpublishedPhotos, unpublishedVideos] = await Promise.all([
+    db.photo.count({ where: { draft: false } }),
+    db.video.count({ where: { draft: false } }),
     db.blogPost.count({ where: { draft: true } }),
-    db.photo.count({ where: { takenAt: null } }),
-    db.photo.count({ where: { tags: { none: {} } } }),
-    db.video.count({ where: { rollId: null } }),
+    db.photo.count({ where: { takenAt: null, draft: false } }),
+    db.photo.count({ where: { tags: { none: {} }, draft: false } }),
+    db.video.count({ where: { rollId: null, draft: false } }),
+    db.photo.count({ where: { draft: true } }),
+    db.video.count({ where: { draft: true } }),
   ]);
-  return { photos, videos, drafts, undated, untagged, unfiled };
+  return { photos, videos, drafts, undated, untagged, unfiled, unpublished: unpublishedPhotos + unpublishedVideos };
 });
 
 /** What the Overview badge counts: things only a person can fix. Drafts are work in progress, not a fault. */

@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { Icon } from './Icon';
 import { ADD_MEDIA_HREF, NAV_GROUPS, OVERVIEW, isActive, type NavItem } from './nav';
 import { useSignOut } from './useSignOut';
+import { useQueueActivity } from '../add/AddQueue';
 
 const CONTENT = NAV_GROUPS[0].items;
 /** Everything that is not Overview or Content goes behind More, so the bar stays at five thumb-sized tabs. */
@@ -24,6 +25,7 @@ export function AdminTabBar() {
   const setMoreOpen = (open: boolean) => setOpenOn(open ? pathname : null);
   const { busy, signOut } = useSignOut();
   const moreActive = MORE.some((item) => isActive(item.href, pathname));
+  const activity = useQueueActivity();
 
   useEffect(() => {
     if (!moreOpen) return;
@@ -37,10 +39,14 @@ export function AdminTabBar() {
       {pathname === ADD_MEDIA_HREF ? null : (
         <Link
           href={ADD_MEDIA_HREF}
-          aria-label="Add media"
+          aria-label={activity.running ? `Add media — ${activity.sending ? 'uploading' : 'preparing'} ${activity.running}, ${activity.percent}%` : 'Add media'}
           className="fixed right-4 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-30 flex size-14 items-center justify-center rounded-full bg-gold text-ink shadow-[0_8px_24px_rgba(0,0,0,0.5)]"
         >
-          <Icon name="plus" size={24} />
+          {activity.running ? (
+            <span className="font-mono text-xs font-semibold">{activity.percent}%</span>
+          ) : (
+            <Icon name="plus" size={24} />
+          )}
         </Link>
       )}
 

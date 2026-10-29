@@ -68,13 +68,13 @@ export default async function AdminOverview() {
   ] = await Promise.all([
     loadAdminCounts(),
     db.photo.findMany({
-      where: { takenAt: null },
+      where: { takenAt: null, draft: false },
       select: colourSelect,
       orderBy: { createdAt: "desc" },
       take: 3,
     }),
     db.photo.findMany({
-      where: { tags: { none: {} } },
+      where: { tags: { none: {} }, draft: false },
       select: colourSelect,
       orderBy: { createdAt: "desc" },
       take: 3,
@@ -91,6 +91,7 @@ export default async function AdminOverview() {
     pendingBatch(),
     loadWeekEngagement(),
     db.photo.findMany({
+      where: { draft: false },
       select: { ...colourSelect, imageUrl: true, width: true, height: true },
       orderBy: { createdAt: "desc" },
       take: RECENT,
@@ -136,6 +137,16 @@ export default async function AdminOverview() {
       action: "File",
       urgent: true,
       icon: "motion",
+    });
+  }
+  if (counts.unpublished) {
+    rows.push({
+      href: "/admin/add",
+      text: `${countOf(counts.unpublished, ["upload isn’t", "uploads aren’t"])} live yet`,
+      note: "Uploaded by a publish that didn’t finish — they’re waiting in Add media",
+      action: "Publish",
+      urgent: false,
+      icon: "upload",
     });
   }
   if (latestDraft) {

@@ -1,53 +1,32 @@
-import Link from 'next/link';
 import { db } from '@/lib/db';
+import { listPhotoCameras, listPhotoLocations } from '@/lib/photo/facets';
+import { loadDrafts } from '@/lib/admin/load-drafts';
 import { listTagNames } from '@/lib/tags';
-import { listPhotoLocations } from '@/lib/photo/facets';
-import { PhotoForm } from '@/components/admin/PhotoForm';
-import { VideoForm } from '@/components/admin/VideoForm';
-import { AdminPage } from '@/components/admin/shell/AdminPage';
+import { AddMedia } from '@/components/admin/add/AddMedia';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * Where "Add media" lands. For now it hosts the existing one-at-a-time forms,
- * moved off the Stills and Motion pages so those can be libraries; the
- * multi-file queue replaces both forms here.
+ * Where "Add media" lands. The queue itself lives in the admin layout, so it
+ * outlives this page; what the page brings is the drafts already stored —
+ * which is how a batch survives a refresh — and the options its fields offer.
  */
-export default async function AddMediaPage({ searchParams }: { searchParams: Promise<{ kind?: string }> }) {
-  const kind = (await searchParams).kind === 'clip' ? 'clip' : 'still';
-  const [tagOptions, locationOptions, rolls] = await Promise.all([
+export default async function AddMediaPage() {
+  const [drafts, rolls, locationOptions, cameraOptions, tagOptions] = await Promise.all([
+    loadDrafts(),
+    db.roll.findMany({ orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }], select: { id: true, name: true } }),
+    listPhotoLocations(),
+    listPhotoCameras(),
     listTagNames(),
-    kind === 'still' ? listPhotoLocations() : Promise.resolve([]),
-    kind === 'clip'
-      ? db.roll.findMany({ orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }], select: { id: true, name: true } })
-      : Promise.resolve([]),
   ]);
 
   return (
-    <AdminPage
-      title="Add media"
-      actions={
-        <div role="group" aria-label="Kind" className="flex gap-1 rounded-lg border border-hairline bg-film p-[3px] text-xs md:ml-auto">
-          {(['still', 'clip'] as const).map((option) => (
-            <Link
-              key={option}
-              href={option === 'clip' ? '/admin/add?kind=clip' : '/admin/add'}
-              aria-current={option === kind ? 'page' : undefined}
-              className={`flex h-7 items-center rounded-md px-3 ${option === kind ? 'bg-frame text-bone' : 'text-ash hover:text-bone'}`}
-            >
-              {option === 'still' ? 'Still' : 'Clip'}
-            </Link>
-          ))}
-        </div>
-      }
-    >
-      <div className="max-w-3xl">
-        {kind === 'still' ? (
-          <PhotoForm tagOptions={tagOptions} locationOptions={locationOptions} />
-        ) : (
-          <VideoForm tagOptions={tagOptions} rolls={rolls} />
-        )}
-      </div>
-    </AdminPage>
+    <AddMedia
+      drafts={drafts}
+      rolls={rolls}
+      locationOptions={locationOptions}
+      cameraOptions={cameraOptions}
+      tagOptions={tagOptions}
+    />
   );
 }

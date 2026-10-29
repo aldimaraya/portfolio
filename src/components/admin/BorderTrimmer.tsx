@@ -13,11 +13,20 @@ import { retouchPhoto } from '@/app/admin/photos/actions';
 interface Props {
   id: string;
   imageUrl: string;
+  /** Told the new file once the row points at it. */
+  onApplied?: (image: { imageUrl: string; width: number; height: number }) => void;
+}
+
+/** The stored copy, through our own origin so the canvas stays readable — see the route. */
+async function fetchStored(imageUrl: string): Promise<Blob> {
+  const response = await fetch(`/api/admin/photo-source?url=${encodeURIComponent(imageUrl)}`);
+  if (!response.ok) throw new Error(`Could not load the image (${response.status})`);
+  return response.blob();
 }
 
 /**
  * Crops a baked-in white frame off an *already stored* photo. The same tool runs
- * inside PhotoForm for photos that have not been uploaded yet; the difference is
+ * in the Add media queue (LocalTrimmer) before a photo is uploaded; the difference is
  * only what happens on apply, so the preview and inset controls are shared —
  * see TrimControls.
  *
@@ -25,7 +34,7 @@ interface Props {
  * the pre-trim file is then deleted. There is no undo, so the original should
  * exist somewhere outside R2 before this is used.
  */
-export function BorderTrimmer({ id, imageUrl }: Props) {
+export function BorderTrimmer({ id, imageUrl, onApplied }: Props) {
   const router = useRouter();
   const bitmapRef = useRef<ImageBitmap | null>(null);
   const [bitmap, setBitmap] = useState<ImageBitmap | null>(null);
@@ -40,13 +49,7 @@ export function BorderTrimmer({ id, imageUrl }: Props) {
 
     async function load() {
       try {
-        // Through our own origin, so the canvas stays readable — see the route.
-        const response = await fetch(
-          `/api/admin/photo-source?url=${encodeURIComponent(imageUrl)}`,
-        );
-        if (!response.ok) throw new Error(`Could not load the image (${response.status})`);
-
-        const decoded = await decodeImage(await response.blob());
+        const decoded = await decodeImage(await fetchStored(imageUrl));
         if (cancelled) {
           decoded.close();
           return;
@@ -112,6 +115,7 @@ export function BorderTrimmer({ id, imageUrl }: Props) {
       if (result.error) throw new Error(result.error);
 
       setStatus('Trimmed. The stored photo is now the cropped version.');
+      onApplied?.({ imageUrl: url, width: trimmed.width, height: trimmed.height });
       router.refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not trim the photo');

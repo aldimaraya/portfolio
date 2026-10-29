@@ -48,6 +48,7 @@ const PATHS = {
       <path d="M20 20l-4-4" />
     </>
   ),
+  upload: <path d="M12 16V4M7 9l5-5 5 5M4 20h16" />,
   check: <path d="M5 12l5 5 9-10" />,
   close: <path d="M6 6l12 12M18 6L6 18" />,
 } as const;

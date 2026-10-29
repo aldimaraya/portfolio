@@ -58,7 +58,7 @@ export function facetTotals(photos: FilterablePhoto[]): FacetCounts {
 }
 
 /** Case- and accent-blind, so "sao" finds São Paulo and "zur" finds Zürich. */
-function fold(text: string): string {
+export function fold(text: string): string {
   return text
     .normalize('NFD')
     .replace(/\p{Diacritic}/gu, '')

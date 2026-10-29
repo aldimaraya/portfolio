@@ -7,7 +7,9 @@ export const dynamic = "force-dynamic";
 export default async function AdminVideosPage() {
   const [rolls, videos] = await Promise.all([
     db.roll.findMany({ orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] }),
+    // Drafts wait on Add media until they are published.
     db.video.findMany({
+      where: { draft: false },
       orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
       include: { tags: { include: { tag: true } } },
     }),

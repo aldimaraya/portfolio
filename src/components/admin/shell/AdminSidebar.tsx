@@ -7,12 +7,14 @@ import { SITE_NAME } from '@/lib/site';
 import { Icon } from './Icon';
 import { ADD_MEDIA_HREF, NAV_GROUPS, OVERVIEW, isActive, type NavItem } from './nav';
 import { useSignOut } from './useSignOut';
+import { useQueueActivity } from '../add/AddQueue';
 
 /** Per-link annotations, keyed by href: a plain count, or a gold badge for something to act on. */
 export type NavNotes = Record<string, { text: string; badge?: boolean }>;
 
-export function AdminSidebar({ notes }: { notes: NavNotes }) {
+export function AdminSidebar({ notes, unpublished }: { notes: NavNotes; unpublished: number }) {
   const pathname = usePathname();
+  const activity = useQueueActivity();
   const router = useRouter();
   const { busy, signOut } = useSignOut();
 
@@ -38,16 +40,37 @@ export function AdminSidebar({ notes }: { notes: NavNotes }) {
         {SITE_NAME} / admin
       </Link>
 
-      <Link
-        href={ADD_MEDIA_HREF}
-        className="flex h-11 items-center justify-between gap-2 rounded-lg bg-gold px-3.5 font-semibold text-ink transition hover:brightness-110"
-      >
-        <span className="flex items-center gap-2">
-          <Icon name="plus" />
-          Add media
-        </span>
-        <kbd className="font-mono text-[11px] font-normal opacity-70">⌘U</kbd>
-      </Link>
+      {/* While a batch is running the button becomes its progress, so leaving
+          Add media for another page does not hide how far it has got. */}
+      {activity.running ? (
+        <Link
+          href={ADD_MEDIA_HREF}
+          className="flex h-11 items-center justify-between gap-2 rounded-lg border border-gold px-3.5 font-semibold text-gold transition hover:bg-gold/10"
+        >
+          <span>
+            {activity.sending ? 'Uploading' : 'Preparing'} {activity.running}
+          </span>
+          <span className="font-mono text-[11px] font-normal">{activity.percent}%</span>
+        </Link>
+      ) : (
+        <Link
+          href={ADD_MEDIA_HREF}
+          className="flex h-11 items-center justify-between gap-2 rounded-lg bg-gold px-3.5 font-semibold text-ink transition hover:brightness-110"
+        >
+          <span className="flex items-center gap-2">
+            <Icon name="plus" />
+            Add media
+          </span>
+          {/* Waiting in this browser, plus uploaded drafts a publish left behind. */}
+          {activity.waiting + unpublished ? (
+            <span className="rounded-full bg-ink/15 px-1.5 font-mono text-[11px]" title="Waiting to be published">
+              {activity.waiting + unpublished}
+            </span>
+          ) : (
+            <kbd className="font-mono text-[11px] font-normal opacity-70">⌘U</kbd>
+          )}
+        </Link>
+      )}
 
       <div className="flex flex-col gap-0.5">
         <SidebarLink item={OVERVIEW} pathname={pathname} note={notes[OVERVIEW.href]} />

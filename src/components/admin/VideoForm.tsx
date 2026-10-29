@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { UploadField } from './UploadField';
+import { useObjectUrl } from './useObjectUrl';
 import { TagInput } from './TagInput';
 import { BUTTON, FIELD, LABEL } from './fields';
 import {
@@ -200,26 +201,12 @@ export function VideoForm({
 
   // Preview the freshly generated strip. Derived, and revoked on replacement, so
   // the blobs are not pinned in memory for the life of the page.
-  const spritePreview = useMemo(
-    () => (sprite ? URL.createObjectURL(sprite.spriteBlob) : ''),
-    [sprite],
-  );
-  useEffect(() => {
-    if (!spritePreview) return;
-    return () => URL.revokeObjectURL(spritePreview);
-  }, [spritePreview]);
+  const spritePreview = useObjectUrl(sprite?.spriteBlob);
 
   // The clip itself, for the scrubber beside the window slider. Same derive-and-
   // revoke as above: this one holds the whole file, so leaking it pins a few
   // hundred megabytes for the life of the page.
-  const sourcePreview = useMemo(
-    () => (source ? URL.createObjectURL(source) : ''),
-    [source],
-  );
-  useEffect(() => {
-    if (!sourcePreview) return;
-    return () => URL.revokeObjectURL(sourcePreview);
-  }, [sourcePreview]);
+  const sourcePreview = useObjectUrl(source);
 
   /**
    * Parks the scrubber on the first frame the window would take. Driven off the
@@ -862,7 +849,7 @@ export function VideoForm({
           </p>
           {/* The generated strip, shown so a bad grab is caught before upload. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={spritePreview} alt="" className="mt-2 w-full rounded" />
+          <img src={spritePreview || undefined} alt="" className="mt-2 w-full rounded" />
           <p className="mt-2 font-mono text-xs text-ash">
             {sprite.frameCount} frames · {sprite.frameWidth}×{sprite.frameHeight} ·{' '}
             {sprite.durationSeconds.toFixed(1)}s
@@ -887,7 +874,7 @@ export function VideoForm({
                   window disagree about where they are. */}
               <video
                 ref={scrubber}
-                src={sourcePreview}
+                src={sourcePreview || undefined}
                 muted
                 playsInline
                 preload="metadata"

@@ -53,7 +53,7 @@ export function matchesFilter(photo: LibraryPhoto, filter: StillsFilter, now: nu
     case 'untagged':
       return photo.tags.length === 0;
     case 'untitled':
-      // Trimmed like savePhoto trims, so a stray space still counts as untitled.
+      // Trimmed like the photo actions trim, so a stray space still counts as untitled.
       return photo.title.trim() === '';
     case 'week':
       return now - photo.createdAt.getTime() < WEEK_MS;

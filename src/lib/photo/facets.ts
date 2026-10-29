@@ -13,3 +13,13 @@ export async function listPhotoLocations(): Promise<string[]> {
   });
   return rows.map((row) => row.location).filter((location) => location.length > 0);
 }
+
+/** The same for cameras, for the Add media queue's bulk bar. */
+export async function listPhotoCameras(): Promise<string[]> {
+  const rows = await db.photo.findMany({
+    distinct: ['camera'],
+    select: { camera: true },
+    orderBy: { camera: 'asc' },
+  });
+  return rows.map((row) => row.camera).filter((camera) => camera.length > 0);
+}

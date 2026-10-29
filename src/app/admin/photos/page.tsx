@@ -15,7 +15,9 @@ const first = (value: string | string[] | undefined) => (Array.isArray(value) ? 
 export default async function AdminPhotosPage({ searchParams }: { searchParams: Promise<Search> }) {
   const params = await searchParams;
   const [photos, tagOptions, locationOptions] = await Promise.all([
+    // Drafts wait on Add media until they are published.
     db.photo.findMany({
+      where: { draft: false },
       orderBy: { createdAt: 'desc' },
       select: {
         id: true,

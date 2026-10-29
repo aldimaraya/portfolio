@@ -20,10 +20,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       select: { slug: true, publishedAt: true },
       orderBy: { publishedAt: 'desc' },
     }),
-    db.video.findMany({ select: { id: true, createdAt: true }, orderBy: { sortOrder: 'asc' } }),
+    db.video.findMany({
+      where: { draft: false },
+      select: { id: true, createdAt: true },
+      orderBy: { sortOrder: 'asc' },
+    }),
     // The wall has no per-photo page, so /stills only needs the date of its
     // newest photo to carry a meaningful lastModified.
-    db.photo.findFirst({ select: { createdAt: true }, orderBy: { createdAt: 'desc' } }),
+    db.photo.findFirst({
+      where: { draft: false },
+      select: { createdAt: true },
+      orderBy: { createdAt: 'desc' },
+    }),
   ]);
 
   const newestVideo = videos.reduce<Date | undefined>(
