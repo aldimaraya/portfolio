@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import { db } from '@/lib/db';
 
 export type AdminCounts = {
@@ -13,9 +14,10 @@ export type AdminCounts = {
 
 /**
  * The numbers the admin chrome shows beside each section, and the Overview's
- * "needs attention" list. All counts, so one round of cheap queries per render.
+ * "needs attention" list. All counts, so one round of cheap queries per render —
+ * and one per request, not two: `cache` lets the layout and the Overview share it.
  */
-export async function loadAdminCounts(): Promise<AdminCounts> {
+export const loadAdminCounts = cache(async (): Promise<AdminCounts> => {
   const [photos, videos, drafts, undated, untagged, unfiled] = await Promise.all([
     db.photo.count(),
     db.video.count(),
@@ -25,7 +27,7 @@ export async function loadAdminCounts(): Promise<AdminCounts> {
     db.video.count({ where: { rollId: null } }),
   ]);
   return { photos, videos, drafts, undated, untagged, unfiled };
-}
+});
 
 /** What the Overview badge counts: things only a person can fix. Drafts are work in progress, not a fault. */
 export function attentionCount(counts: AdminCounts): number {
