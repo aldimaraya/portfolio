@@ -31,7 +31,8 @@ environment is whatever that server was started with.
 
 Next.js 16 (App Router) + React 19 + TypeScript · Tailwind v4 (theme tokens live in an `@theme` block in
 `src/app/globals.css`; there is no `tailwind.config.ts`) · Prisma 7 on Neon Postgres · Cloudflare R2 for
-media · `bcryptjs` + `jose` for the single-admin session · Zod 4 · Vitest + Playwright · Vercel.
+media · `mediabunny` over WebCodecs for the in-browser video re-encode · `bcryptjs` + `jose` for the
+single-admin session · Zod 4 · Vitest + Playwright · Vercel.
 
 ## Architecture
 
@@ -75,11 +76,25 @@ Load-bearing constraints — these are why the code is shaped this way:
   that way — the perforation pitch and the spool's gearing are two readings of one number, so a change to
   `PERFORATION_PITCH` must stay in step with `.film-rail`'s `background-size`. The gate spool on a clip
   page is the exception that loops, and only while `data-playing` is true.
+- **Video is re-encoded in the browser as soon as it is picked**, not on a server:
+  `lib/video/transcode-client.ts` drives WebCodecs through mediabunny to hit 1080p H.264 at ~6 Mbps. Still
+  no ffmpeg and no wasm, so the no-server-side-processing rule holds. The trigger is **bitrate, not file
+  size** (`lib/video/transcode.ts`) — size cannot tell a fine ten-minute clip from an unencoded
+  twenty-second one. The encode runs **on pick**, while the form is filled in, and save waits for it;
+  swapping or removing the clip aborts it, and every async step checks the `pickId` counter so a superseded
+  pick never writes to the form. Frames are grabbed from the encode, so the preview and stored
+  `width`/`height` describe the uploaded bytes. **Desktop only** (`isHandheld`): the output is buffered
+  whole in memory at ~45 MB/min, which kills a phone tab — lifting that means a streaming target feeding the
+  multipart uploader. Undecodable input (ProRes), an encode that saves nothing, and an encode that throws
+  all fall back to uploading the original rather than blocking; Cancel drops the pick rather than uploading
+  the master. **A dropped audio track is refused**, because mediabunny leaves a conversion valid after
+  discarding one — the default is a silently published silent clip, and Safari before 26 has no audio
+  classes at all. Regenerating preview frames must never re-encode: the stored clip already is the encode.
+  4K masters stay offline; the encode is lossy and one-way.
 - **Likes and views are fetched after hydration, never rendered into a page** (`components/engagement/`,
   `app/api/engagement/*`): the pages are static and shared by every visitor, so their HTML cannot say who
   liked what. Views are recorded only when `VERCEL_ENV` is `production` — dev and previews share the live
   DB — and never for the admin. No IP or cookie value is stored, only hashes (`lib/engagement/visitor.ts`).
-- **Video encoding is a manual pre-upload step** (local 1080p H.264, ~5–8 Mbps). 4K masters stay offline.
 
 ## Conventions that bite
 

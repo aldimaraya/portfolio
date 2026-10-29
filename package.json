@@ -38,6 +38,7 @@
     "jose": "^6.2.4",
     "mdast-util-from-markdown": "^2.1.0",
     "mdast-util-gfm": "^3.1.0",
+    "mediabunny": "^1.53.0",
     "micromark-extension-gfm": "^3.0.0",
     "next": "16.2.12",
     "react": "19.2.4",
