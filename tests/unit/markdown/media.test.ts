@@ -32,6 +32,7 @@ describe('youtubeId', () => {
     expect(youtubeId('https://youtu.be/dQw4w9WgXcQ')).toBe('dQw4w9WgXcQ');
     expect(youtubeId('https://www.youtube.com/embed/dQw4w9WgXcQ')).toBe('dQw4w9WgXcQ');
     expect(youtubeId('https://www.youtube.com/shorts/dQw4w9WgXcQ')).toBe('dQw4w9WgXcQ');
+    expect(youtubeId('https://www.youtube.com/live/dQw4w9WgXcQ?si=abc')).toBe('dQw4w9WgXcQ');
     expect(youtubeId('https://m.youtube.com/watch?v=dQw4w9WgXcQ&t=30s')).toBe('dQw4w9WgXcQ');
   });
 

@@ -412,7 +412,7 @@ One password, one session. Photos, videos and posts each get a list and a form.
   Regenerate redoes the strip but leaves a cover in place.
 - **A YouTube link** can be attached to any clip, for one whose 4K cut is on
   YouTube — what reaches R2 is our own 1080p encode, and 4K masters stay offline.
-  The clip page offers it as a `4K ↗` link in the gate's slate rather than an
+  The clip page offers it as a `YouTube ↗` link in the gate's slate rather than an
   embedded player, so the page loads no YouTube script or cookie unless the
   visitor follows it.
 - **Rolls** are renamed, reordered and deleted on their own headings in the

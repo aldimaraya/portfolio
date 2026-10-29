@@ -121,7 +121,9 @@ export function ClipStage({
           : 'clip-stage clip-gate mx-auto rounded-sm border border-goldline bg-frame p-3 pb-3.5'
       }
     >
-      <div className="mb-2 flex items-center justify-between font-mono text-[0.7rem] font-semibold tracking-[0.08em] text-gold uppercase">
+      {/* Wraps rather than overflowing: with the YouTube link and "Exit theater" both
+          showing, the slate is wider than a 360px phone's gate. */}
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 font-mono text-[0.7rem] font-semibold tracking-[0.08em] text-gold uppercase">
         <span className="flex items-center gap-2.5">
           {/* The same ring-and-cross as the head of the roll: one mechanism,
               shown here doing the thing it does when there is film running. */}
@@ -131,22 +133,27 @@ export function ClipStage({
           </span>
           <span>{playing ? 'Projecting' : started ? 'Paused' : 'Ready'}</span>
         </span>
-        <span className="flex items-center gap-4">
+        <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
           <span>Frame {frameCode(index, letter)}</span>
           {/* A link out, not an embedded YouTube player: the gate keeps playing
               our own file, so the page stays free of third-party scripts and
               cookies until the visitor chooses to go. The local clip is paused
-              on the way out, or it would carry on playing to an empty tab. */}
+              on the way out, or it would carry on playing to an empty tab —
+              but not on a modified click, which opens YouTube behind this tab
+              for later and leaves the visitor watching here. */}
           {clip.youtubeId ? (
             <a
               href={youtubeWatchUrl(clip.youtubeId)}
               target="_blank"
               rel="noopener noreferrer"
-              onClick={() => videoRef.current?.pause()}
+              onClick={(event) => {
+                if (event.metaKey || event.ctrlKey || event.shiftKey) return;
+                videoRef.current?.pause();
+              }}
               title="Watch the full-resolution version on YouTube"
               className="text-ash uppercase transition hover:text-gold"
             >
-              4K ↗
+              YouTube ↗
             </a>
           ) : null}
           <button

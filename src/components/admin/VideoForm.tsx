@@ -993,10 +993,13 @@ export function VideoForm({
           />
           {/* For a clip whose full-resolution cut lives on YouTube: what goes to
               R2 is a 1080p encode, so this is where 4K is offered instead. Any
-              link shape works — only the video id is kept. */}
+              link shape works, with or without https:// — only the video id is
+              kept, so a pasted start time is dropped and the link always opens
+              at 0:00. type="text", not "url": the browser's own check would
+              refuse a scheme-less youtu.be/ID before the server could take it. */}
           <input
             className={FIELD}
-            type="url"
+            type="text"
             inputMode="url"
             placeholder="YouTube link, for the 4K version (optional)"
             aria-label="YouTube link"
