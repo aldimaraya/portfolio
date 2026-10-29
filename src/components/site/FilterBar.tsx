@@ -495,8 +495,6 @@ function FilterSheet({
       if (!state || state.mode !== 'drag' || !sheet) return;
       // A finger that stopped before lifting has placed the sheet, not flung it.
       if (event.timeStamp - state.at > FLICK_STALE_MS) state.velocity = 0;
-      sheet.style.transform = '';
-      if (backdropRef.current) backdropRef.current.style.opacity = '';
 
       // Far enough, or fast enough: a flick should close the sheet without
       // having to haul it a quarter of the screen.
@@ -504,13 +502,20 @@ function FilterSheet({
         state.dy > Math.min(DISMISS_DISTANCE, sheet.offsetHeight / 3) ||
         state.velocity > DISMISS_VELOCITY
       ) {
+        // The inline styles stay: dismiss fades the backdrop from where the
+        // drag left it, and clearing it first would flash it back to full.
         dismiss(state.dy);
         return;
       }
-      sheet.animate([{ transform: `translateY(${state.dy}px)` }, { transform: 'none' }], {
-        duration: 200,
-        easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
-      });
+      const settle = { duration: 200, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' } as const;
+      sheet.style.transform = '';
+      sheet.animate([{ transform: `translateY(${state.dy}px)` }, { transform: 'none' }], settle);
+      const backdrop = backdropRef.current;
+      if (backdrop) {
+        const from = backdrop.style.opacity;
+        backdrop.style.opacity = '';
+        if (from) backdrop.animate([{ opacity: from }, { opacity: 1 }], settle);
+      }
     }
 
     sheet.addEventListener('touchstart', onTouchStart, { passive: true });

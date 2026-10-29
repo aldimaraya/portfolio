@@ -468,13 +468,17 @@ body {
   animation: gesture-label-y var(--gesture-time) ease-out both;
 }
 
-/* The mat giving under the finger, so the demonstration shows cause and effect. */
-.gesture-follow {
-  animation: gesture-follow 3.6s ease-in-out 0.4s both;
-}
+/* The mat giving under the finger, so the demonstration shows cause and effect.
+   Phone width only, like the finger (sm:hidden on GestureHint): on a desktop the
+   mat would lurch with nothing on screen to have moved it. */
+@media (max-width: 40rem) {
+  .gesture-follow {
+    animation: gesture-follow 3.6s ease-in-out 0.4s both;
+  }
 
-.gesture-follow[data-browse='false'] {
-  animation-name: gesture-follow-down;
+  .gesture-follow[data-browse='false'] {
+    animation-name: gesture-follow-down;
+  }
 }
 
 @keyframes gesture-touch {
