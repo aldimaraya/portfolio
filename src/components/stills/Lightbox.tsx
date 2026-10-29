@@ -45,11 +45,11 @@ const SWIPE_THRESHOLD = 60;
  */
 const DISMISS_THRESHOLD = 110;
 /**
- * How long the gesture hint is up: its delay plus the length of `.gesture-hint`'s
- * animation in globals.css, which it must match — the timer is what unmounts it
- * once the animation has faded it out.
+ * How long the gesture hint is up: the delay plus the duration of the
+ * .gesture-hint timeline in globals.css (0.4s + 3.6s), which it must match — the
+ * timer is what unmounts it once the demonstration has finished.
  */
-const HINT_MS = 3100;
+const HINT_MS = 4000;
 /**
  * The mat follows the finger at less than full speed. A drag that tracks 1:1
  * feels like the photo has come loose; damped, it reads as resistance that
@@ -401,7 +401,13 @@ export function Lightbox({ photos, index, originFor, onClose, onNavigate }: Ligh
           // touch-none because the mat now owns both axes: without it Safari
           // claims the vertical drag for its own overscroll bounce and the
           // dismiss never fires.
-          className="flex touch-none cursor-default flex-col rounded-sm bg-mat p-3 pb-2.5 shadow-[0_18px_50px_rgba(0,0,0,0.6)]"
+          // gesture-follow is the mat giving under the hint's finger; it comes
+          // off with the hint, at the first real touch, before any drag can
+          // write an inline transform for the CSS animation to override.
+          className={`flex touch-none cursor-default flex-col rounded-sm bg-mat p-3 pb-2.5 shadow-[0_18px_50px_rgba(0,0,0,0.6)] ${
+            hint ? 'gesture-follow' : ''
+          }`}
+          data-browse={photos.length > 1}
           // Clicks on the photo itself shouldn't dismiss — only the backdrop.
           onClick={(event) => event.stopPropagation()}
           onTouchStart={onTouchStart}
@@ -543,66 +549,35 @@ function flipTransform(origin: DOMRect, box: DOMRect): string {
 }
 
 /**
- * The phone's replacement for the arrows, drawn on the print itself: a down
- * arrow for closing and a two-headed one for browsing, in gold with a word under
- * each. On the photograph rather than in the chrome around it because that is
- * where the thumb is about to go — the same words as a line of text up by the
- * counter were read as a caption and skipped. And brief for the reason the
- * arrows were taken off the phone in the first place: anything that stays on a
- * photograph is clutter on it.
+ * The phone's replacement for the arrows, acted out on the print itself: the
+ * translucent dot iPhone screen recordings use for a finger presses the photo
+ * and drags it — left, as if to the next photo, then down, as if to close —
+ * while the mat gives a little under it (.gesture-follow on the figure) and a
+ * line at the foot of the photo names each move. Shown rather than told: a
+ * line of text up by the counter was read as a caption and skipped, and
+ * arrows drawn on the print were either too stiff or too loud. Once, on open,
+ * then gone — anything that stays on a photograph is clutter on it.
  *
- * Drawn as if by hand, and animated as if being drawn: wobbly strokes that ink
- * themselves in, heads last, then the arrows act out their own gesture twice —
- * the down arrow dips, the sideways one sways — before the whole thing fades.
- * Ruler-straight strokes that blinked read as a warning sign, not a note
- * scribbled on the print. The timeline lives in .gesture-hint in globals.css.
- *
- * Gold for the site's accent, with a dark shadow so it holds over a white sky
- * as well as a black wall.
+ * The dot is drawn three times, the two copies lagging behind it as a short
+ * motion trail. With a single photo there is nothing to browse to, so only the
+ * downward half plays. The timeline lives in .gesture-hint in globals.css.
  */
 function GestureHint({ browse }: { browse: boolean }) {
   return (
     <div
       aria-hidden
-      className="gesture-hint pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-evenly py-[8%] font-mono text-xs font-bold tracking-[0.2em] text-gold uppercase sm:hidden"
+      data-browse={browse}
+      className="gesture-hint pointer-events-none absolute inset-0 z-10 overflow-hidden sm:hidden"
     >
-      <div className="flex flex-col items-center gap-2">
-        <svg viewBox="0 0 26 58" className="gesture-bob h-20 w-9">
-          <Stroke d="M13 3c-3 10 3 18-1 29s2 15 1 21" delay={0} />
-          <Stroke d="M4 43c3 3 6 7 9 10 2-4 6-8 9-11" delay={0.45} />
-        </svg>
-        <span className="gesture-label">Close</span>
-      </div>
-      {browse ? (
-        <div className="flex w-3/4 flex-col items-center gap-2">
-          <svg viewBox="0 0 200 26" className="gesture-sway w-full overflow-visible">
-            <Stroke d="M6 14c30-9 58 7 94-1s62-7 94 0" delay={0.15} />
-            <Stroke d="M17 4C13 8 9 11 6 14c4 2 8 5 11 9" delay={0.6} />
-            <Stroke d="M184 4c4 3 7 7 10 10-3 3-7 6-11 10" delay={0.6} />
-          </svg>
-          <span className="gesture-label" style={{ animationDelay: '0.75s' }}>
-            Swipe
-          </span>
-        </div>
-      ) : null}
+      <span className="gesture-touch gesture-trail-2" />
+      <span className="gesture-touch gesture-trail-1" />
+      <span className="gesture-touch" />
+      {browse ? <span className="gesture-label gesture-label-x">Swipe to browse</span> : null}
+      <span className="gesture-label gesture-label-y">Swipe down to close</span>
+      <span className="gesture-label gesture-label-calm">
+        {browse ? 'Swipe to browse · ' : ''}Swipe down to close
+      </span>
     </div>
-  );
-}
-
-/** One pen stroke of the hint, inked in after `delay` seconds — see .gesture-hint path. */
-function Stroke({ d, delay }: { d: string; delay: number }) {
-  return (
-    <path
-      d={d}
-      // Normalises every stroke's length to 1, so one dash keyframe draws any of them.
-      pathLength={1}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2.4}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      style={{ animationDelay: `${0.3 + delay}s` }}
-    />
   );
 }
 
