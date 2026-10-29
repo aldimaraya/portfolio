@@ -17,6 +17,7 @@ import {
   isHandheld,
   mp4Filename,
   pcmBitrate,
+  playbackCodec,
   type TranscodePlan,
 } from './transcode';
 
@@ -83,32 +84,37 @@ export async function probeVideo(file: File): Promise<VideoProbe> {
     const track = await input.getPrimaryVideoTrack();
     if (!track) throw new UnreadableVideoError('That file has no video track.');
 
-    const [durationSeconds, width, height, canDecode, audio] = await Promise.all([
+    const [durationSeconds, width, height, canDecode, audioTracks] = await Promise.all([
       track.computeDuration(),
       track.getDisplayWidth(),
       track.getDisplayHeight(),
       track.canDecode(),
-      input.getPrimaryAudioTrack(),
+      input.getAudioTracks(),
     ]);
 
-    if (!audio) return { durationSeconds, width, height, canDecode, audioBitrate: 0 };
-
+    // Every track, not just the primary: ./audio.ts passes a clip if any track
+    // plays, and every track's bytes are in the bitrate the planner judges.
     // The async getters, not the deprecated `.codec`: that one throws on a
     // backing that cannot answer synchronously, which would fail the whole probe.
     // And null is kept as null — a track mediabunny cannot name is a problem, not
     // the absence of one.
-    const [audioCodec, sampleRate, channels] = await Promise.all([
-      audio.getCodec(),
-      audio.getSampleRate(),
-      audio.getNumberOfChannels(),
-    ]);
+    const audio = await Promise.all(
+      audioTracks.map(async (entry) => {
+        const [codec, sampleRate, channels] = await Promise.all([
+          entry.getCodec(),
+          entry.getSampleRate(),
+          entry.getNumberOfChannels(),
+        ]);
+        return { codec, bitrate: pcmBitrate(codec, sampleRate, channels) };
+      }),
+    );
     return {
       durationSeconds,
       width,
       height,
       canDecode,
-      audioCodec,
-      audioBitrate: pcmBitrate(audioCodec, sampleRate, channels),
+      audioCodec: playbackCodec(audio.map((entry) => entry.codec)),
+      audioBitrate: audio.reduce((sum, entry) => sum + entry.bitrate, 0),
     };
   } finally {
     input.dispose();
@@ -122,7 +128,10 @@ export async function probeVideo(file: File): Promise<VideoProbe> {
  * Returns the *original* file untouched if the encode came out no smaller. That
  * is the same guard `keepsOriginal` applies to photos: a second generation that
  * saves nothing is pure loss, and the honest answer is to keep the first. Except
- * when the plan fixes the audio, where the first generation publishes silent.
+ * when the plan fixes the audio, where the first generation publishes silent:
+ * then a re-encoded picture that came out larger is thrown away for one more
+ * pass that copies the video and fixes only the sound — an efficient 4K master
+ * squeezed to 1080p is otherwise published bigger *and* worse.
  */
 export async function transcodeVideo(
   file: File,
@@ -218,12 +227,20 @@ export async function transcodeVideo(
     const buffer = output.target.buffer;
     if (!buffer) throw new Error('The re-encode produced no output.');
 
-    if (buffer.byteLength >= file.size && !plan.fixesAudio) return file;
-
-    return new File([buffer], mp4Filename(file.name), { type: 'video/mp4' });
+    if (buffer.byteLength < file.size) {
+      return new File([buffer], mp4Filename(file.name), { type: 'video/mp4' });
+    }
+    if (!plan.fixesAudio) return file;
+    if (!plan.reencodesVideo) {
+      return new File([buffer], mp4Filename(file.name), { type: 'video/mp4' });
+    }
   } finally {
     input.dispose();
   }
+
+  // Outside the try, so the larger buffer is out of scope and collectable
+  // before the second pass starts filling memory with its own.
+  return transcodeVideo(file, { ...plan, reencodesVideo: false }, { onProgress, signal });
 }
 
 /**
