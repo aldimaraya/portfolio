@@ -20,7 +20,9 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
   const links = await loadSiteLinks();
 
   return (
-    <div className="mx-auto max-w-[1300px] px-6 py-10">
+    // Less above the masthead than below the footer: the top of the window is
+    // where the work is seen first, the bottom is where the page simply ends.
+    <div className="mx-auto max-w-[1300px] px-6 pt-7 pb-10 sm:pt-8">
       {/* Above the header, and outside the transition for the same reason: the
           bar is chrome, and it should not re-animate on every navigation. */}
       <AdminBar />

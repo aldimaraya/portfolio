@@ -79,10 +79,11 @@ export function Header({ links }: { links: readonly SiteLink[] }) {
   }, [underline, slides]);
 
   return (
-    // Tighter on a phone: the masthead and tabs were spending 129px of a 659px
-    // screen before the filters even began, so the first photograph started
-    // two-thirds of the way down the first view of a photography site.
-    <header className="mb-5 flex flex-wrap items-end justify-between gap-3 border-b border-hairline pb-4 sm:mb-8 sm:gap-4 sm:pb-5">
+    // Kept tight at every size: everything above the work is height taken from
+    // it — on a phone the masthead was spending 129px of a 659px screen before
+    // the first photograph, and on a clip page every rem here is a rem the
+    // frame cannot have (the reserve in `.clip-gate` counts it).
+    <header className="mb-3 flex flex-wrap items-end justify-between gap-3 border-b border-hairline pb-4 sm:gap-4">
       <div>
         {/* The wordmark doubles as the way home, which is what people try first. */}
         <Link href="/" className="block">
@@ -126,13 +127,13 @@ export function Header({ links }: { links: readonly SiteLink[] }) {
 
           {/* One bar for the whole nav rather than a pseudo-element per tab: two
               separate underlines cannot animate into one another, so sliding needs
-              a single element that moves. -bottom-5 lands it on the header's
-              bottom rule, matching the pb-5 above. */}
+              a single element that moves. -bottom-4 lands it on the header's
+              bottom rule, matching the pb-4 above. */}
           {underline ? (
             <span
               aria-hidden
               data-testid="tab-underline"
-              className={`absolute -bottom-4 left-0 h-0.5 bg-gold sm:-bottom-5 ${
+              className={`absolute -bottom-4 left-0 h-0.5 bg-gold ${
                 slides
                   ? 'motion-safe:transition-[transform,width] motion-safe:duration-300 motion-safe:ease-out'
                   : ''
