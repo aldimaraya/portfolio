@@ -515,10 +515,16 @@ body {
 }
 
 /* On a phone the side budget goes to the picture: the nav arrows already float
-   over the mat, and there is no room to inset them as well. */
+   over the mat, and there is no room to inset them as well.
+ *
+ * The height budget goes the other way. The mat is narrow here, so the caption's
+ * meta line wraps — to three lines at 320px — and 14.5rem left a portrait mat
+ * taller than its box, overflowing up over the counter row and the gesture hint
+ * in it. 17rem covers the three-line case. */
 @media (max-width: 40rem) {
   .lightbox-photo {
     --lightbox-side: 3rem;
+    --lightbox-chrome: 17rem;
   }
 }
 

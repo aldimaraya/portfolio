@@ -361,10 +361,31 @@ export function Lightbox({ photos, index, originFor, onClose, onNavigate }: Ligh
         if (closing && event.target === event.currentTarget) onClose();
       }}
     >
-      <div className="lightbox-chrome flex items-center justify-between px-5 py-4 text-xs">
+      <div className="lightbox-chrome relative flex items-center justify-between px-5 py-4 text-xs">
         <div className="font-mono tracking-[0.05em] text-ash">
           {index + 1} / {photos.length}
         </div>
+        {/* The phone's replacement for the arrows: say what the gestures are,
+            once, then get out of the way. Up here between the counter and the
+            close button, not under the mat: since the like pill joined the
+            caption the mat fills the height it is given, which squeezed the
+            note into the last few pixels of the screen — against the mat's foot,
+            and where a phone's toolbar and home indicator sit. Two short lines,
+            so it fits between them at 320px. */}
+        <p
+          aria-hidden
+          className={`pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 text-center font-mono text-[0.6rem] leading-[1.45] tracking-[0.08em] text-ash uppercase transition-opacity duration-500 sm:hidden ${
+            hint ? 'opacity-100' : 'opacity-0'
+          }`}
+        >
+          {photos.length > 1 ? (
+            <>
+              Swipe to browse
+              <br />
+            </>
+          ) : null}
+          Swipe down to close
+        </p>
         <div className="flex items-center gap-4">
           {/* Renders nothing for a visitor. The click must not reach the
               backdrop, whose job is to dismiss — leaving here should be a
@@ -473,18 +494,6 @@ export function Lightbox({ photos, index, originFor, onClose, onNavigate }: Ligh
         </figure>
         <NavButton side="right" disabled={photos.length < 2} onClick={() => step(1)} />
 
-        {/* The phone's replacement for the arrows: say what the gestures are,
-            once, then get out of the way. Positioned over the backdrop below the
-            mat rather than inside it — this is a note about the interface, not
-            part of the print. */}
-        <p
-          aria-hidden
-          className={`lightbox-chrome pointer-events-none absolute inset-x-0 bottom-1 text-center font-mono text-[0.65rem] tracking-[0.08em] text-ash/70 uppercase transition-opacity duration-500 sm:hidden ${
-            hint ? 'opacity-100' : 'opacity-0'
-          }`}
-        >
-          {photos.length > 1 ? 'Swipe to browse · ' : ''}Swipe down to close
-        </p>
       </div>
       <Prefetch photos={photos} index={index} />
     </div>

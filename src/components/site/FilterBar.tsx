@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import {
   EMPTY_FILTERS,
@@ -52,6 +52,19 @@ const SEARCH_THRESHOLD = 15;
 const PANEL_ROWS = 6;
 const PANEL_MAX_COLUMNS = 4;
 const PANEL_COLUMN_REM = 16;
+
+/**
+ * The phone sheet's pull-down. A pull counts once it has gone DISMISS_DISTANCE
+ * (or a third of a short sheet), or at any distance if it was still moving
+ * faster than DISMISS_VELOCITY px/ms when the finger lifted — a flick. Below
+ * DRAG_SLOP the touch may still be a tap on a row, and the sheet holds still.
+ */
+const DISMISS_DISTANCE = 120;
+const DISMISS_VELOCITY = 0.5;
+const DRAG_SLOP = 4;
+const FLICK_STALE_MS = 80;
+/** Shorter than the 220ms the sheet takes to come up: leaving should not keep you waiting. */
+const SHEET_CLOSE_MS = 180;
 
 /**
  * Filter and sort state live in the URL, not in component state, so a narrowed
@@ -370,32 +383,165 @@ function FilterSheet({
   onClear: () => void;
   onClose: () => void;
 }) {
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const backdropRef = useRef<HTMLButtonElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  /** Set once a close has started, so a second tap on Done cannot start another. */
+  const closing = useRef(false);
+
+  /**
+   * Every way out goes through here, so the sheet always leaves the way it
+   * came — down — rather than vanishing. `from` is where a drag let go, so a
+   * flicked sheet carries on from under the finger instead of jumping back up
+   * to slide out from the top.
+   */
+  const dismiss = useCallback(
+    (from = 0) => {
+      const sheet = sheetRef.current;
+      if (closing.current) return;
+      closing.current = true;
+      if (!sheet || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        onClose();
+        return;
+      }
+      const options = { duration: SHEET_CLOSE_MS, easing: 'ease-in', fill: 'forwards' } as const;
+      sheet
+        .animate([{ transform: `translateY(${from}px)` }, { transform: 'translateY(100%)' }], options)
+        .finished.then(onClose, onClose);
+      backdropRef.current?.animate([{ opacity: getComputedStyle(backdropRef.current).opacity }, { opacity: 0 }], options);
+    },
+    [onClose],
+  );
+
   useEffect(() => {
     const previous = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') onClose();
+      if (event.key === 'Escape') dismiss();
     }
     document.addEventListener('keydown', onKeyDown);
     return () => {
       document.body.style.overflow = previous;
       document.removeEventListener('keydown', onKeyDown);
     };
-  }, [onClose]);
+  }, [dismiss]);
+
+  /**
+   * Pull down to put the sheet away. Native listeners rather than React's,
+   * because React registers touchmove as passive and a passive listener cannot
+   * stop the browser: without preventDefault, iOS rubber-bands the list under
+   * the finger while the sheet is following it, and the two fight.
+   *
+   * A drag that starts on the list only moves the sheet while the list is at
+   * its top and the finger goes down — anywhere else the list is being
+   * scrolled, and taking that over would make a long facet impossible to read
+   * back up. The direction is decided on the first move and held: a scroll
+   * that reverses past the top should stop at the top, not grab the sheet.
+   */
+  useEffect(() => {
+    const sheet = sheetRef.current;
+    if (!sheet) return;
+    let drag: {
+      y: number;
+      dy: number;
+      /** When the last move landed, for the release velocity. */
+      at: number;
+      velocity: number;
+      mode: 'pending' | 'drag' | 'scroll';
+    } | null = null;
+
+    function onTouchStart(event: TouchEvent) {
+      if (closing.current || event.touches.length > 1) return;
+      const list = listRef.current;
+      const onList = list?.contains(event.target as Node) ?? false;
+      drag = {
+        y: event.touches[0].clientY,
+        dy: 0,
+        at: event.timeStamp,
+        velocity: 0,
+        mode: onList && list!.scrollTop > 0 ? 'scroll' : 'pending',
+      };
+    }
+
+    function onTouchMove(event: TouchEvent) {
+      if (!drag || drag.mode === 'scroll' || !sheet) return;
+      const dy = event.touches[0].clientY - drag.y;
+      if (drag.mode === 'pending') {
+        if (dy < 0) {
+          drag.mode = 'scroll';
+          return;
+        }
+        // Claimed before the threshold, or iOS has begun its own bounce by the
+        // time the sheet starts to move.
+        if (event.cancelable) event.preventDefault();
+        if (dy < DRAG_SLOP) return;
+        drag.mode = 'drag';
+      }
+      if (event.cancelable) event.preventDefault();
+      const elapsed = event.timeStamp - drag.at;
+      if (elapsed > 0) drag.velocity = (Math.max(0, dy) - drag.dy) / elapsed;
+      drag.at = event.timeStamp;
+      // Downward only: there is nothing under the bottom edge to pull up into view.
+      drag.dy = Math.max(0, dy);
+      sheet.style.transform = `translateY(${drag.dy}px)`;
+      if (backdropRef.current) {
+        backdropRef.current.style.opacity = `${1 - drag.dy / sheet.offsetHeight}`;
+      }
+    }
+
+    function onTouchEnd(event: TouchEvent) {
+      const state = drag;
+      drag = null;
+      if (!state || state.mode !== 'drag' || !sheet) return;
+      // A finger that stopped before lifting has placed the sheet, not flung it.
+      if (event.timeStamp - state.at > FLICK_STALE_MS) state.velocity = 0;
+      sheet.style.transform = '';
+      if (backdropRef.current) backdropRef.current.style.opacity = '';
+
+      // Far enough, or fast enough: a flick should close the sheet without
+      // having to haul it a quarter of the screen.
+      if (
+        state.dy > Math.min(DISMISS_DISTANCE, sheet.offsetHeight / 3) ||
+        state.velocity > DISMISS_VELOCITY
+      ) {
+        dismiss(state.dy);
+        return;
+      }
+      sheet.animate([{ transform: `translateY(${state.dy}px)` }, { transform: 'none' }], {
+        duration: 200,
+        easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
+      });
+    }
+
+    sheet.addEventListener('touchstart', onTouchStart, { passive: true });
+    sheet.addEventListener('touchmove', onTouchMove, { passive: false });
+    sheet.addEventListener('touchend', onTouchEnd);
+    sheet.addEventListener('touchcancel', onTouchEnd);
+    return () => {
+      sheet.removeEventListener('touchstart', onTouchStart);
+      sheet.removeEventListener('touchmove', onTouchMove);
+      sheet.removeEventListener('touchend', onTouchEnd);
+      sheet.removeEventListener('touchcancel', onTouchEnd);
+    };
+  }, [dismiss]);
 
   return (
     <div className="fixed inset-0 z-50 sm:hidden" role="dialog" aria-modal="true" aria-label="Filter and sort">
       <button
+        ref={backdropRef}
         type="button"
         aria-label="Close filters"
-        onClick={onClose}
+        onClick={() => dismiss()}
         className="absolute inset-0 bg-ink/70 motion-safe:animate-[fade-in_150ms_ease-out]"
       />
 
-      <div className="absolute inset-x-0 bottom-0 flex max-h-[85vh] flex-col rounded-t-xl border-t border-hairline bg-frame motion-safe:animate-[sheet-up_220ms_cubic-bezier(0.16,1,0.3,1)]">
-        {/* The grab handle is decoration — the sheet is dismissed by the
-            backdrop, the Done button, or Escape — but it is the shape people
-            read as "this pulls up from the bottom". */}
+      <div
+        ref={sheetRef}
+        className="absolute inset-x-0 bottom-0 flex max-h-[85vh] flex-col rounded-t-xl border-t border-hairline bg-frame motion-safe:animate-[sheet-up_220ms_cubic-bezier(0.16,1,0.3,1)]"
+      >
+        {/* The grab handle: the shape people read as "this pulls up from the
+            bottom", and so also as "this pulls back down" — which it does, from
+            here, the header, or the list once it is scrolled to the top. */}
         <div className="flex justify-center pt-2.5 pb-1">
           <span aria-hidden className="h-1 w-9 rounded-full bg-white/20" />
         </div>
@@ -415,7 +561,7 @@ function FilterSheet({
           ) : null}
         </div>
 
-        <div className="overflow-y-auto overscroll-contain px-5 pb-4">
+        <div ref={listRef} className="overflow-y-auto overscroll-contain px-5 pb-4">
           <SheetSection label="Sort">
             {SORT_ORDER.map((value) => (
               <SheetRow
@@ -447,7 +593,7 @@ function FilterSheet({
         <div className="border-t border-hairline p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => dismiss()}
             className="min-h-11 w-full rounded border border-goldline bg-gold/10 text-sm text-gold transition active:bg-gold/20"
           >
             Done
