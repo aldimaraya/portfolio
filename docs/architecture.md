@@ -387,11 +387,44 @@ links held to http(s), mailto and on-site targets.
 
 ### Admin
 
-One password, one session. Photos, videos and posts each get a list and a form.
+One password, one session. A grouped sidebar (a bottom tab bar on a phone)
+with **Add media** at the top, which is where every upload starts.
 
-- **Photo upload** with client-side EXIF extraction, compression, an interactive
-  border trimmer, tag input with suggestions, and colour analysis — all before
-  anything reaches R2.
+- **Stills** (`/admin/photos`) is a library, not a list: every photo as a
+  justified grid, filtered to what needs fixing (no date, untagged, untitled)
+  and ordered by date taken, wall order or upload. The selected photo is edited
+  in a resizable inspector beside it that **autosaves** (`savePhotoDetails`) —
+  title, place, date, tags, camera and exposure, and the border trim. There is
+  no per-photo page any more; `/admin/photos/[id]` redirects into the library,
+  and the wall's Edit link opens the inspector with a way back to the wall.
+  Filter, order, search and selection live in the query string.
+- **Add media** (`/admin/add`) is one queue for stills and clips together, and
+  **nothing is uploaded until Publish**. A picked or dropped file is processed
+  at once in the browser — EXIF read off the original, border found and cut,
+  re-encode and colour analysis for a still; probe, 1080p encode and frame grab
+  for a clip — and the result is kept in **IndexedDB**
+  ([`lib/admin/queue-store.ts`](../src/lib/admin/queue-store.ts)), details and
+  files in separate stores so an edit never rewrites a clip. So a refresh loses
+  only what was still processing (`beforeunload` warns), and removing a wrong
+  pick costs no R2 storage or operations. A still's original is kept beside its
+  processed copy, never uploaded, so the trim review (`LocalTrimmer`) re-cuts
+  from the uncut picture and can give a border back. Items are described in
+  their rows or a selection at a time from the bulk bar (place, camera, roll,
+  added tags); a missing place or camera (still) or title or roll (clip) holds
+  an item back, a missing date only warns
+  ([`lib/admin/drafts.ts`](../src/lib/admin/drafts.ts)).
+  **Publish N** uploads each chosen item and writes it as a hidden draft row
+  (`Photo.draft` / `Video.draft`), dropping the local copy once the row exists,
+  then puts every uploaded row live in one `publishDrafts` call
+  ([`app/admin/add/actions.ts`](../src/app/admin/add/actions.ts)), which re-checks
+  each against the stored row, sets `createdAt` to that moment, puts a clip at
+  the end of its roll, and runs `announce()`. An upload that fails leaves the
+  item local and retryable; a row a publish uploaded but could not put live is
+  read back by the page and adopted, and publishes without uploading again.
+  The one orphan left possible is a tab closed mid-upload — an upload cannot be
+  stopped (`uploadFile` has no abort), so Remove is withheld while one runs.
+  The queue lives in a provider in the admin layout, so it carries on while the
+  admin moves to another page and the sidebar button shows its progress.
 - **Video upload** generating a poster and an 18-frame sprite sheet locally,
   capturing dimensions and duration in the same metadata read. The frames come
   from a 1.5s window, not the whole clip — spread across a 28s clip they read as
@@ -415,13 +448,25 @@ One password, one session. Photos, videos and posts each get a list and a form.
   The clip page offers it as a `YouTube ↗` link in the gate's slate rather than an
   embedded player, so the page loads no YouTube script or cookie unless the
   visitor follows it.
-- **Rolls** are renamed, reordered and deleted on their own headings in the
-  `/admin/videos` clip list, and added at its foot. A roll with clips on it
-  cannot be deleted — the admin says so, and `onDelete: Restrict` guarantees
-  it. A clip's roll can also be picked on its form; moving it that way puts it
-  at the end of the new roll.
+- **Motion** (`/admin/videos`) is every roll as a list of clips, one per row,
+  with the Stills inspector's drawer beside it. The inspector **autosaves**
+  title, description, roll, YouTube link and tags (`saveVideoDetails`), and the
+  thumbnail is picked from the clip's own scrub frames: one frame is cut out of
+  the stored strip in the browser (read back through `photo-source`, so the
+  canvas is not tainted) and uploaded under `posters/`, so the next Regenerate
+  replaces it like any grabbed frame. Regenerating the strip and picking a cover
+  image stay on the per-clip form at `/admin/videos/[id]`, which fetches the
+  whole clip. The public clip page's Edit link opens the inspector
+  (`?clip=`) with a way back to the clip.
+- **Rolls** are renamed, reordered and deleted on their own headings on that
+  board, and added at its foot (`#new-roll` opens the form). A roll with clips
+  on it cannot be deleted — the admin says so, and `onDelete: Restrict`
+  guarantees it. Picking another roll in the inspector puts the clip at the end
+  of it. Clips on no roll are listed first, in amber, to be filed.
 - **Drag-to-reorder** for videos, one list per roll — and across them, to move
   a clip onto another roll, landing above or below the row by pointer position.
+  ⌥↑/⌥↓ (or the inspector's Up/Down, which is the phone's route) moves the
+  selected clip one place, crossing into the neighbouring roll at either end.
   Persisted as the destination roll's whole ordering in one transaction rather
   than a moved pair, so the result cannot drift from what is on screen.
 - **Links** (`/admin/links`) are the outbound links drawn as icons beside the
@@ -445,8 +490,8 @@ motion and stills. There is **no schedule**: the site is updated occasionally,
 and a weekly newsletter would mostly be empty. Code in
 [`lib/newsletter/`](../src/lib/newsletter), sending through Resend.
 
-- **Publishing queues, the cron sends.** `savePost` (on a post's first publish),
-  `savePhoto` and `saveVideo` (on create, never on edit) call `announce()`,
+- **Publishing queues, the cron sends.** `savePost` (on a post's first publish)
+  and `publishDrafts` (for every still and clip it puts live) call `announce()`,
   which adds an `Announcement`. A daily Vercel Cron
   (`vercel.json` → `/api/cron/newsletter`, authorised by `CRON_SECRET`) sends
   everything pending as one `Dispatch` once nothing new has been added for
@@ -567,6 +612,7 @@ Columns whose *shape* carries a decision:
 | `Video.width/height` | Default 0, meaning "uploaded before these were stored". `FRAME_FALLBACK_RATIO` shapes those, and the clip page corrects itself from the file's own metadata. |
 | `Video.durationSeconds` | `Float`, default 0 meaning unknown. Rounding on the way in would make the roll's running total drift. |
 | `Video.youtubeId` | Default `""`, meaning no YouTube copy. Holds the 11-character id, never the pasted link, so share-link tracking parameters are not published; the clip page rebuilds the watch URL from it. |
+| `Photo.draft` / `Video.draft` | Default `false`, so every existing row and any write that never mentions it is published. `true` only between Add media's upload and its Publish; every public read, the libraries and the counts filter on it by hand — Prisma has no default scope, so a new query over either table needs `draft: false`. |
 | `Video.sortOrder` | Videos *do* have a manual order, unlike photos — but only within their roll; values on different rolls are not comparable. |
 | `Video.rollId` (nullable) | Nullable only so the push stayed additive. `saveVideo` requires one; a clip without one (older than rolls, until `backfill:rolls` runs) is shown at the end of the first roll rather than dropped. |
 | `SiteLink` (no icon column) | The mark is derived from `href`'s host at render, so a row cannot name one brand's icon and point at another's site. |

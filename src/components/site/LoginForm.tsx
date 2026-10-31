@@ -40,7 +40,11 @@ export function LoginForm({ next }: { next: string }) {
   }
 
   return (
-    <form onSubmit={submit} className="mt-4 flex flex-col gap-3">
+    // method="post" for the submit that happens before hydration (or when it never
+    // comes — a dev origin Next refuses): the browser's default is GET, which puts
+    // the password in the URL, the server log and the browser history. A POST to
+    // this page signs nobody in, but it carries the password in the body, unlogged.
+    <form method="post" onSubmit={submit} className="mt-4 flex flex-col gap-3">
       <input
         type="password"
         name="password"

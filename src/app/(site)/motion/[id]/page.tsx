@@ -22,7 +22,7 @@ type Params = { params: Promise<{ id: string }> };
  * revalidatePath keeps them honest after an edit.
  */
 export async function generateStaticParams() {
-  const videos = await db.video.findMany({ select: { id: true } });
+  const videos = await db.video.findMany({ where: { draft: false }, select: { id: true } });
   return videos.map((video) => ({ id: video.id }));
 }
 
@@ -36,6 +36,7 @@ async function loadClip(id: string) {
   const [rolls, videos] = await Promise.all([
     loadRolls(),
     db.video.findMany({
+      where: { draft: false },
       orderBy: [...CLIP_ORDER],
       select: {
         id: true,

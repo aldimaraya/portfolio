@@ -170,11 +170,14 @@ export async function listPostMedia(): Promise<PostMediaLibrary> {
     if (!(await isAuthenticated())) return { photos: [], videos: [] };
 
     const [photos, videos] = await Promise.all([
+      // Drafts are not on the site yet, so a post cannot point at one.
       db.photo.findMany({
+        where: { draft: false },
         select: { id: true, imageUrl: true, width: true, height: true, title: true, location: true },
         orderBy: { createdAt: 'desc' },
       }),
       db.video.findMany({
+        where: { draft: false },
         select: { id: true, videoUrl: true, posterImageUrl: true, width: true, height: true, title: true },
         orderBy: { sortOrder: 'asc' },
       }),

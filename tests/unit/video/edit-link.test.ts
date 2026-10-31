@@ -3,10 +3,11 @@ import { editVideoHref } from "@/lib/video/edit-link";
 import { safeNextPath } from "@/lib/auth/next-path";
 
 describe("editVideoHref", () => {
-  it("points at the clip form with the clip page as the way back", () => {
+  it("opens the clip in the Motion inspector with the clip page as the way back", () => {
     const href = editVideoHref("clip123");
     const url = new URL(href, "https://example.invalid");
-    expect(url.pathname).toBe("/admin/videos/clip123");
+    expect(url.pathname).toBe("/admin/videos");
+    expect(url.searchParams.get("clip")).toBe("clip123");
     expect(url.searchParams.get("return")).toBe("/motion/clip123");
   });
 

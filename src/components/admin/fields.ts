@@ -10,3 +10,7 @@ export const LABEL = 'font-mono text-xs tracking-[0.15em] text-ash uppercase';
 
 export const BUTTON =
   'self-start rounded border border-gold px-4 py-2 text-gold transition hover:bg-gold/10 disabled:opacity-50';
+
+/** The quiet sibling of BUTTON, for a row of actions where gold would shout. */
+export const GHOST_BUTTON =
+  'inline-flex h-9 items-center rounded-md border border-white/15 px-3.5 text-sm text-bone transition hover:border-gold disabled:opacity-50';

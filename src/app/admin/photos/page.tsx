@@ -1,59 +1,65 @@
-import Link from 'next/link';
 import { db } from '@/lib/db';
 import { listTagNames } from '@/lib/tags';
 import { listPhotoLocations } from '@/lib/photo/facets';
-import { PhotoForm } from '@/components/admin/PhotoForm';
-import { LABEL } from '@/components/admin/fields';
-import { summarizeSettings, toSettings } from '@/lib/photo/settings';
+import { parseFilter, parseOrder } from '@/lib/admin/stills';
+import { safeNextPath } from '@/lib/auth/next-path';
+import { OPEN_PHOTO_PARAM, RETURN_PARAM } from '@/lib/photo/lightbox-link';
+import { toSettings } from '@/lib/photo/settings';
+import { StillsLibrary } from '@/components/admin/stills/StillsLibrary';
 
 export const dynamic = 'force-dynamic';
 
-export default async function AdminPhotosPage() {
+type Search = Record<string, string | string[] | undefined>;
+const first = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value);
+
+export default async function AdminPhotosPage({ searchParams }: { searchParams: Promise<Search> }) {
+  const params = await searchParams;
   const [photos, tagOptions, locationOptions] = await Promise.all([
+    // Drafts wait on Add media until they are published.
     db.photo.findMany({
+      where: { draft: false },
       orderBy: { createdAt: 'desc' },
-      include: { tags: { include: { tag: true } } },
+      select: {
+        id: true,
+        imageUrl: true,
+        width: true,
+        height: true,
+        title: true,
+        location: true,
+        camera: true,
+        settings: true,
+        avgHue: true,
+        avgChroma: true,
+        avgLightness: true,
+        warmth: true,
+        isMonochrome: true,
+        takenAt: true,
+        createdAt: true,
+        tags: { select: { tag: { select: { name: true } } } },
+      },
     }),
     listTagNames(),
     listPhotoLocations(),
   ]);
 
   return (
-    <div className="flex flex-col gap-10">
-      <section>
-        <h2 className={`mb-4 ${LABEL}`}>Add a photo</h2>
-        <PhotoForm tagOptions={tagOptions} locationOptions={locationOptions} />
-      </section>
-
-      <section>
-        <h2 className={`mb-4 ${LABEL}`}>All photos ({photos.length})</h2>
-        <ul className="flex flex-col divide-y divide-hairline">
-          {photos.map((photo) => (
-            <li key={photo.id} className="flex items-center gap-4 py-3">
-              {/* Plain <img>: these are tiny admin thumbnails, not worth an
-                  optimisation request each. */}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={photo.imageUrl} alt="" className="h-12 w-16 rounded object-cover" />
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-sm">{photo.title || photo.location}</div>
-                <div className="truncate font-mono text-xs text-ash">
-                  {[
-                    photo.camera,
-                    summarizeSettings(toSettings(photo.settings)),
-                    photo.tags.map((entry) => entry.tag.name).join(', '),
-                  ]
-                    .filter(Boolean)
-                    .join(' · ')}
-                </div>
-              </div>
-              <Link href={`/admin/photos/${photo.id}`} className="text-sm text-gold">
-                Edit
-              </Link>
-            </li>
-          ))}
-        </ul>
-        {photos.length === 0 ? <p className="text-sm text-ash">No photos yet.</p> : null}
-      </section>
-    </div>
+    <StillsLibrary
+      photos={photos.map(({ tags, settings, ...photo }) => ({
+        ...photo,
+        // The Json column is untyped at the DB boundary — coerce it here.
+        settings: toSettings(settings),
+        tags: tags.map((entry) => entry.tag.name),
+      }))}
+      tagOptions={tagOptions}
+      locationOptions={locationOptions}
+      initial={{
+        filter: parseFilter(first(params.filter)),
+        order: parseOrder(first(params.order)),
+        query: first(params.q) ?? '',
+        photo: first(params[OPEN_PHOTO_PARAM]) ?? null,
+      }}
+      // Crafted input like any query parameter, so reduced to a path on this site.
+      returnTo={safeNextPath(params[RETURN_PARAM], '') || null}
+    />
   );
 }

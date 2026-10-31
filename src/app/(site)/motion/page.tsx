@@ -33,6 +33,7 @@ export default async function MotionPage() {
   const [rolls, videos] = await Promise.all([
     loadRolls(),
     db.video.findMany({
+      where: { draft: false },
       orderBy: [...CLIP_ORDER],
       // Only what a row draws. The video URL belongs to the clip page, and
       // selecting it here would ship it to the browser for every clip nobody

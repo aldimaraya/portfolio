@@ -1,9 +1,9 @@
+import { AdminPage } from '@/components/admin/shell/AdminPage';
 import { notFound } from 'next/navigation';
 import { db } from '@/lib/db';
 import { listTagNames } from '@/lib/tags';
 import { VideoForm } from '@/components/admin/VideoForm';
 import { DeleteButton } from '@/components/admin/DeleteButton';
-import { LABEL } from '@/components/admin/fields';
 import { safeNextPath } from '@/lib/auth/next-path';
 import { RETURN_PARAM } from '@/lib/photo/lightbox-link';
 import { youtubeWatchUrl } from '@/lib/markdown/media';
@@ -37,34 +37,35 @@ export default async function EditVideoPage({
   if (!video) notFound();
 
   return (
-    <div className="flex flex-col gap-6">
-      <h2 className={LABEL}>Edit video</h2>
-      <VideoForm
-        tagOptions={tagOptions}
-        rolls={rolls}
-        returnTo={returnTo}
-        initial={{
-          id: video.id,
-          videoUrl: video.videoUrl,
-          posterImageUrl: video.posterImageUrl,
-          spriteUrl: video.spriteUrl,
-          spriteFrames: video.spriteFrames,
-          width: video.width,
-          height: video.height,
-          durationSeconds: video.durationSeconds,
-          title: video.title,
-          description: video.description,
-          youtubeUrl: video.youtubeId ? youtubeWatchUrl(video.youtubeId) : '',
-          rollId: video.rollId ?? '',
-          tags: video.tags.map((entry) => entry.tag.name).join(', '),
-        }}
-      />
-      <DeleteButton
-        id={video.id}
-        action={deleteVideo}
-        redirectTo="/admin/videos"
-        label="Delete video"
-      />
-    </div>
+    <AdminPage title="Edit clip">
+      <div className="flex flex-col gap-6">
+        <VideoForm
+          tagOptions={tagOptions}
+          rolls={rolls}
+          returnTo={returnTo}
+          initial={{
+            id: video.id,
+            videoUrl: video.videoUrl,
+            posterImageUrl: video.posterImageUrl,
+            spriteUrl: video.spriteUrl,
+            spriteFrames: video.spriteFrames,
+            width: video.width,
+            height: video.height,
+            durationSeconds: video.durationSeconds,
+            title: video.title,
+            description: video.description,
+            youtubeUrl: video.youtubeId ? youtubeWatchUrl(video.youtubeId) : '',
+            rollId: video.rollId ?? '',
+            tags: video.tags.map((entry) => entry.tag.name).join(', '),
+          }}
+        />
+        <DeleteButton
+          id={video.id}
+          action={deleteVideo}
+          redirectTo="/admin/videos"
+          label="Delete video"
+        />
+      </div>
+    </AdminPage>
   );
 }

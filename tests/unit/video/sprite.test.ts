@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   METADATA_TIMEOUT_MS,
   SEEK_TIMEOUT_MS,
+  isBlankFrame,
   once,
   spriteProgress,
 } from '@/lib/video/sprite';
@@ -93,5 +94,24 @@ describe('timeout budgets', () => {
 
   it('leaves a slow 4K seek far more time than it needs', () => {
     expect(SEEK_TIMEOUT_MS).toBeGreaterThanOrEqual(10_000);
+  });
+});
+
+describe('isBlankFrame', () => {
+  const pixels = (count: number, rgba: [number, number, number, number]) =>
+    new Uint8ClampedArray(Array.from({ length: count }, () => rgba).flat());
+
+  it('calls a transparent or pure-black frame blank', () => {
+    expect(isBlankFrame(pixels(1000, [0, 0, 0, 0]))).toBe(true);
+    expect(isBlankFrame(pixels(1000, [0, 0, 0, 255]))).toBe(true);
+    // Encoder noise in a black frame is still black.
+    expect(isBlankFrame(pixels(1000, [2, 3, 1, 255]))).toBe(true);
+  });
+
+  it('calls a frame with any picture in it not blank', () => {
+    const frame = pixels(1000, [0, 0, 0, 255]);
+    frame.set([180, 40, 40, 255], 0);
+    expect(isBlankFrame(frame)).toBe(false);
+    expect(isBlankFrame(pixels(1000, [20, 20, 20, 255]))).toBe(false);
   });
 });

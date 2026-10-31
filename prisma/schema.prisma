@@ -61,6 +61,14 @@ model Photo {
   // by hand rather than backfilled.
   takenAt DateTime?
 
+  // Uploaded through Add media but not yet published: off the wall, out of the
+  // library and out of every count until "Publish" flips it. Lets a batch be
+  // uploaded, survive a refresh, and go live together. Drafts are allowed blank
+  // location and camera; publishDrafts (app/admin/add/actions.ts) holds the
+  // line savePhoto holds. Defaulted false so every existing row, and any write
+  // that never mentions it, is published — additive for db push.
+  draft Boolean @default(false)
+
   createdAt DateTime   @default(now())
   tags      PhotoTag[]
 
@@ -126,6 +134,11 @@ model Video {
   // which a cascade would orphan — with it.
   rollId String?
   roll   Roll?   @relation(fields: [rollId], references: [id], onDelete: Restrict)
+
+  // As Photo.draft. A draft clip has a roll but no meaningful sortOrder: it is
+  // given the end of its roll when published, so a batch lands in upload order
+  // after whatever was dragged around in the meantime.
+  draft Boolean @default(false)
 
   createdAt DateTime   @default(now())
   tags      VideoTag[]

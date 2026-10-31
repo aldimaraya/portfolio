@@ -14,14 +14,15 @@ export const OPEN_PHOTO_PARAM = 'photo';
 export const RETURN_PARAM = 'return';
 
 /**
- * The admin form for one photo, told to come back to this exact wall with the
- * photo open. `search` is the wall's current query string, with or without `?`.
+ * The photo open in the admin Stills library, with a way back to this exact
+ * wall with the photo open. `search` is the wall's current query string, with
+ * or without `?`.
  */
 export function editPhotoHref(id: string, search: string): string {
   const params = new URLSearchParams(search);
   params.set(OPEN_PHOTO_PARAM, id);
   const back = `/stills?${params.toString()}`;
-  return `/admin/photos/${encodeURIComponent(id)}?${RETURN_PARAM}=${encodeURIComponent(back)}`;
+  return `/admin/photos?${OPEN_PHOTO_PARAM}=${encodeURIComponent(id)}&${RETURN_PARAM}=${encodeURIComponent(back)}`;
 }
 
 /**
