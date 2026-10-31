@@ -26,6 +26,7 @@ export const metadata: Metadata = {
  */
 export default async function StillsPage() {
   const photos = await db.photo.findMany({
+    where: { draft: false },
     // Colour decides the wall order below, but the query still needs one of its
     // own: without it Postgres may return rows in a different order between
     // renders, and photos that tie on hue would shuffle for no visible reason.

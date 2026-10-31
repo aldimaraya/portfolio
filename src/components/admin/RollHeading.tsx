@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { FIELD } from "./fields";
 
 type Draft = { name: string; description: string };
+
+export const NEW_ROLL_ID = "new-roll";
 
 /** Small bordered text buttons, the same weight as the row arrows beside them. */
 const CONTROL =
@@ -115,8 +117,9 @@ export function RollHeading({
 
 /**
  * The foot of the board: a button until it is wanted, so an empty form does not
- * sit under the clips on every visit. The anchor is what the video form links
- * to when there is no roll to pick.
+ * sit under the clips on every visit. The anchor is what Add media, the
+ * Overview and the board's own header link to, and arriving by it opens the
+ * form — those links mean "make a roll", not "show me the button".
  */
 export function NewRoll({
   busy,
@@ -130,8 +133,27 @@ export function NewRoll({
 }) {
   const [open, setOpen] = useState(startOpen);
 
+  useEffect(() => {
+    function onHash() {
+      if (window.location.hash === `#${NEW_ROLL_ID}`) setOpen(true);
+    }
+    onHash();
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+
+  function close() {
+    setOpen(false);
+    // Dropped, or following the same link again would change nothing and so
+    // never reopen the form.
+    if (window.location.hash) {
+      const { pathname, search } = window.location;
+      window.history.replaceState(null, "", pathname + search);
+    }
+  }
+
   return (
-    <div id="new-roll" className="scroll-mt-6">
+    <div id={NEW_ROLL_ID} className="scroll-mt-6">
       {open ? (
         <RollFields
           initial={{ name: "", description: "" }}
@@ -139,9 +161,9 @@ export function NewRoll({
           submitLabel="Add roll"
           onSubmit={async (draft) => {
             // Closing unmounts the fields, so the next roll starts from a blank form.
-            if (await onAdd(draft)) setOpen(false);
+            if (await onAdd(draft)) close();
           }}
-          onCancel={startOpen ? undefined : () => setOpen(false)}
+          onCancel={startOpen ? undefined : close}
         />
       ) : (
         <button type="button" onClick={() => setOpen(true)} className={CONTROL}>

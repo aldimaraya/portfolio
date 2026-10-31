@@ -54,13 +54,13 @@ export async function loadPostMedia(postId: string, blocks: Block[]): Promise<Po
       : [],
     ids.stills.length
       ? db.photo.findMany({
-          where: { id: { in: ids.stills } },
+          where: { id: { in: ids.stills }, draft: false },
           select: { id: true, imageUrl: true, width: true, height: true, title: true, location: true },
         })
       : [],
     ids.clips.length
       ? db.video.findMany({
-          where: { id: { in: ids.clips } },
+          where: { id: { in: ids.clips }, draft: false },
           select: { id: true, videoUrl: true, posterImageUrl: true, width: true, height: true, title: true },
         })
       : [],

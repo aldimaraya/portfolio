@@ -21,9 +21,9 @@ export type WallCounts = { likes: Record<string, number>; liked: string[] };
 export async function isPublicTarget({ kind, id }: Target): Promise<boolean> {
   switch (kind) {
     case 'stills':
-      return (await db.photo.count({ where: { id } })) > 0;
+      return (await db.photo.count({ where: { id, draft: false } })) > 0;
     case 'motion':
-      return (await db.video.count({ where: { id } })) > 0;
+      return (await db.video.count({ where: { id, draft: false } })) > 0;
     case 'journal':
       return (await db.blogPost.count({ where: { id, draft: false } })) > 0;
   }

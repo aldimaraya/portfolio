@@ -10,7 +10,7 @@ import { BUTTON } from './fields';
  * the editor is always working on a post that exists — trip photos uploaded
  * before the first save need one to belong to.
  */
-export function NewPostButton() {
+export function NewPostButton({ label = 'New post', className = BUTTON }: { label?: string; className?: string }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -29,8 +29,8 @@ export function NewPostButton() {
 
   return (
     <div className="flex flex-col gap-2">
-      <button type="button" onClick={start} disabled={busy} className={BUTTON}>
-        {busy ? 'Starting…' : 'New post'}
+      <button type="button" onClick={start} disabled={busy} className={className}>
+        {busy ? 'Starting…' : label}
       </button>
       {error ? <p className="text-sm text-red-400">{error}</p> : null}
     </div>

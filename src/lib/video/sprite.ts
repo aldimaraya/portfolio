@@ -152,6 +152,58 @@ async function seekTo(video: HTMLVideoElement, time: number): Promise<void> {
   await seeked;
 }
 
+/**
+ * Whether a drawn frame came out empty: every sampled pixel transparent or
+ * pure black. Sampled on a stride rather than read whole — a real frame has
+ * detail almost everywhere, so a few hundred pixels settle it.
+ */
+export function isBlankFrame(data: Uint8ClampedArray, stride = 97): boolean {
+  for (let i = 0; i < data.length; i += 4 * stride) {
+    if (data[i + 3] > 0 && Math.max(data[i], data[i + 1], data[i + 2]) > 3) return false;
+  }
+  return true;
+}
+
+/** How many times a blank draw is retried before the frame is taken as it is. */
+export const BLANK_RETRIES = 6;
+
+/**
+ * Resolves once the element has a new frame to give, or after a short wait
+ * where requestVideoFrameCallback is missing or never fires — it can stay
+ * silent for a <video> that is not in the document.
+ */
+function nextFrame(video: HTMLVideoElement): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, 80);
+    video.requestVideoFrameCallback?.(() => {
+      clearTimeout(timer);
+      resolve();
+    });
+  });
+}
+
+/**
+ * Draws the current frame into one cell of the strip, and redraws it while it
+ * comes out blank. Chrome reports a seek done, and even HAVE_CURRENT_DATA,
+ * before an off-document video has a picture it will hand to drawImage — the
+ * first seek after loading most of all — which is how a strip opened on a
+ * black cell, and the poster copied from it was black, while every later frame
+ * was fine. A clip that genuinely opens on black costs half a second here.
+ */
+async function drawFrame(
+  context: CanvasRenderingContext2D,
+  video: HTMLVideoElement,
+  x: number,
+  width: number,
+  height: number,
+): Promise<void> {
+  for (let attempt = 0; ; attempt += 1) {
+    context.drawImage(video, x, 0, width, height);
+    if (attempt >= BLANK_RETRIES || !isBlankFrame(context.getImageData(x, 0, width, height).data)) return;
+    await nextFrame(video);
+  }
+}
+
 export async function generateSpriteSheet(
   file: File,
   {
@@ -195,7 +247,8 @@ export async function generateSpriteSheet(
     const sprite = document.createElement('canvas');
     sprite.width = frameWidth * timestamps.length;
     sprite.height = frameHeight;
-    const spriteContext = sprite.getContext('2d');
+    // Read back by drawFrame's blank check, which this tells the browser to expect.
+    const spriteContext = sprite.getContext('2d', { willReadFrequently: true });
     if (!spriteContext) throw new Error('Could not get a 2D canvas context');
 
     const poster = document.createElement('canvas');
@@ -210,13 +263,7 @@ export async function generateSpriteSheet(
     // seeks would race and every frame would come out identical.
     for (const [index, time] of timestamps.entries()) {
       await seekTo(video, time);
-      spriteContext.drawImage(
-        video,
-        index * frameWidth,
-        0,
-        frameWidth,
-        frameHeight,
-      );
+      await drawFrame(spriteContext, video, index * frameWidth, frameWidth, frameHeight);
       onProgress?.(spriteProgress(index + 1, timestamps.length));
     }
 

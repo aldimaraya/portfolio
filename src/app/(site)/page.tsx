@@ -56,6 +56,7 @@ export default async function HomePage() {
     }),
     db.blogPost.count({ where: { draft: false } }),
     db.photo.findMany({
+      where: { draft: false },
       orderBy: { createdAt: 'desc' },
       take: STRIP_POOL,
       select: {
@@ -80,6 +81,7 @@ export default async function HomePage() {
     // to be laid out in full before any can be quoted — and every one is in the
     // deal anyway.
     db.video.findMany({
+      where: { draft: false },
       orderBy: [...CLIP_ORDER],
       select: {
         id: true,

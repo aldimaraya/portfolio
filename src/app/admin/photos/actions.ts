@@ -11,8 +11,9 @@ import { photoSettingsSchema } from '@/lib/photo/settings';
 import { inputValueToTakenAt } from '@/lib/photo/date';
 import { deleteObjectsByUrl } from '@/lib/storage/r2';
 import { attempt } from '@/lib/actions/errors';
-import { announce } from '@/lib/newsletter/queue';
 
+// New photos arrive as drafts through Add media (app/admin/add/actions.ts);
+// what is left here edits one that already exists.
 const photoSchema = z.object({
   id: z.string().optional(),
   imageUrl: z.url('Upload an image before saving'),
@@ -41,47 +42,42 @@ const photoSchema = z.object({
   tags: z.string(),
 });
 
-export type PhotoInput = z.infer<typeof photoSchema>;
+const detailsSchema = photoSchema
+  .pick({ title: true, location: true, camera: true, settings: true, takenAt: true, tags: true })
+  .extend({
+    id: z.string().min(1),
+  });
 
-export async function savePhoto(input: PhotoInput): Promise<{ error?: string }> {
-  // Wrapped so a failure past validation still arrives as `{ error }` rather
-  // than as a rejected promise the form cannot see — see lib/actions/errors.
-  return attempt('savePhoto', async () => {
-    // Server actions are publicly reachable endpoints — re-check auth here rather
-    // than trusting that the proxy gate covered the page that rendered the form.
+export type PhotoDetailsInput = z.infer<typeof detailsSchema>;
+
+/**
+ * The library inspector's autosave: every field a person types, none of the
+ * derived ones. Writing the whole row would need it back — image URL, size,
+ * colour stats — just to change a date, and a stale copy of those riding along
+ * would undo a border trim applied from the same inspector.
+ */
+export async function savePhotoDetails(input: PhotoDetailsInput): Promise<{ error?: string }> {
+  return attempt('savePhotoDetails', async () => {
     if (!(await isAuthenticated())) return { error: 'Unauthorized' };
 
-    const parsed = photoSchema.safeParse(input);
-    if (!parsed.success) {
-      return { error: parsed.error.issues[0].message };
-    }
+    const parsed = detailsSchema.safeParse(input);
+    if (!parsed.success) return { error: parsed.error.issues[0].message };
 
     const { id, tags, takenAt, ...data } = parsed.data;
     const connections = await tagConnections(tags);
-    const write = { ...data, takenAt: inputValueToTakenAt(takenAt) };
-
-    if (id) {
-      // Replace the tag set wholesale rather than diffing it — but as one
-      // transaction, because the two halves are not independently useful: a delete
-      // that commits while the update fails leaves the photo with no tags at all,
-      // silently, and the admin has no way to tell that happened.
-      await db.$transaction([
-        db.photoTag.deleteMany({ where: { photoId: id } }),
-        db.photo.update({
-          where: { id },
-          data: { ...write, tags: { create: connections } },
-        }),
-      ]);
-    } else {
-      const created = await db.photo.create({ data: { ...write, tags: { create: connections } } });
-      // Only new photos are news; an edit or a retouch is not.
-      await announce('stills', created.id);
-    }
-
-    // An edit that drops the last photo carrying a tag leaves it behind.
+    // Replace the tag set wholesale rather than diffing it — but as one
+    // transaction, because a delete that commits while the update fails leaves
+    // the photo with no tags at all, silently.
+    await db.$transaction([
+      db.photoTag.deleteMany({ where: { photoId: id } }),
+      db.photo.update({
+        where: { id },
+        data: { ...data, takenAt: inputValueToTakenAt(takenAt), tags: { create: connections } },
+      }),
+    ]);
     await pruneUnusedTags();
 
-    revalidatePath('/admin/photos');
+    revalidatePath('/admin', 'layout');
     revalidatePath('/stills');
     revalidatePath('/');
     return {};

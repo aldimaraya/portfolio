@@ -96,21 +96,20 @@ test.describe('signed in', () => {
     }
   });
 
-  test('the photo form waits for a photo before asking anything about it', async ({ page }) => {
+  // Only when no drafts are waiting: development points at the live database,
+  // and a real queue there is not this test's to clear.
+  test('Add media opens on a drop zone, with nothing to publish', async ({ page }) => {
     await signIn(page);
-    await page.goto('/admin/photos');
+    await page.goto('/admin/add');
 
-    // Every field below the picker describes a picture, so until one is chosen
-    // there is nothing to fill in and nothing to save.
-    await expect(page.getByRole('button', { name: 'Save photo' })).toBeHidden();
-    await expect(page.getByLabel('Location')).toBeHidden();
-    await expect(page.getByLabel('Camera')).toBeHidden();
-    await expect(page.getByText('Drag a file here, or')).toBeVisible();
+    const empty = page.getByText('Drop photos and clips here');
+    test.skip(!(await empty.isVisible()), 'Drafts are waiting in the queue');
+    await expect(page.getByRole('button', { name: 'Choose files' })).toBeVisible();
+    await expect(page.getByRole('button', { name: /^Publish/ })).toBeHidden();
   });
 
   // Stops short of pressing Save: development points at the live database, so
   // this follows the link out and the return path back without writing a row.
-  // The save's own redirect is the one line in PhotoForm that pushes returnTo.
   test('editing from the lightbox finds its way back to the open photo', async ({ page }) => {
     await signIn(page);
     await page.goto('/stills');
@@ -143,8 +142,9 @@ test.describe('signed in', () => {
     const clipPath = new URL(page.url()).pathname;
 
     await page.getByRole('link', { name: 'Edit clip' }).click();
-    await page.waitForURL('**/admin/videos/*?return=*', { timeout: 60_000 });
+    await page.waitForURL('**/admin/videos?clip=*', { timeout: 60_000 });
     expect(new URL(page.url()).searchParams.get('return')).toBe(clipPath);
+    await expect(page.getByRole('link', { name: '‹ Back to the clip' })).toHaveAttribute('href', clipPath);
   });
 
   test('signing out closes the session', async ({ page }) => {

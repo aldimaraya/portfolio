@@ -24,8 +24,10 @@ const nextConfig: NextConfig = {
   // refuses to carry device-to-device traffic — guest and travel networks
   // routinely isolate clients, and no amount of correct config here helps with
   // that. Reaching the laptop over the tailnet sidesteps the LAN entirely, and
-  // survives changing networks without the address changing at all.
-  allowedDevOrigins: ['192.168.*.*', '10.*.*.*', '172.16.*.*', '100.*.*.*', '*.local'],
+  // survives changing networks without the address changing at all. Its
+  // MagicDNS name (machine.tailnet.ts.net) is a different origin from the 100.*
+  // address and needs its own entry; a `*` here is exactly one label.
+  allowedDevOrigins: ['192.168.*.*', '10.*.*.*', '172.16.*.*', '100.*.*.*', '*.local', '*.*.ts.net'],
   images: {
     remotePatterns: mediaHostname
       ? [{ protocol: 'https', hostname: mediaHostname }]
