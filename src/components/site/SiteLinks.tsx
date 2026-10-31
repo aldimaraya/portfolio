@@ -36,6 +36,25 @@ function fallbackSize(viewBox: string) {
   return { width: Math.round((16 * width) / height), height: 16 };
 }
 
+/** One link's brand mark, in currentColor. Also drawn by the admin's Links preview. */
+export function LinkMark({ icon, className }: { icon: LinkIcon; className?: string }) {
+  return (
+    <svg
+      aria-hidden
+      viewBox={ICONS[icon].viewBox}
+      // A floor, not the size: the classes override both. An svg with neither
+      // attribute renders at 300×150 whenever its stylesheet is late or stale —
+      // a hot reload that swaps the markup but not the CSS did exactly that —
+      // and two of those swallow the header.
+      {...fallbackSize(ICONS[icon].viewBox)}
+      fill="currentColor"
+      className={className}
+    >
+      <path d={ICONS[icon].d} />
+    </svg>
+  );
+}
+
 /**
  * The outbound links, drawn in the header beside the wordmark and again in the
  * footer. Monochrome ash rather than brand colours: YouTube red would be the
@@ -95,22 +114,12 @@ export function SiteLinks({
                 }`}
               >
                 {icon ? (
-                  <svg
-                    aria-hidden
-                    viewBox={ICONS[icon].viewBox}
-                    // A floor, not the size: the classes below override both. An
-                    // svg with neither attribute renders at 300×150 whenever its
-                    // stylesheet is late or stale — a hot reload that swaps the
-                    // markup but not the CSS did exactly that — and two of those
-                    // swallow the header.
-                    {...fallbackSize(ICONS[icon].viewBox)}
-                    fill="currentColor"
-                    // Preflight makes every svg a block; the header needs it back
-                    // in the line.
+                  // Preflight makes every svg a block; the header needs it back
+                  // in the line.
+                  <LinkMark
+                    icon={icon}
                     className={header ? 'inline h-[1.15em] w-auto align-baseline' : 'h-4 w-auto'}
-                  >
-                    <path d={ICONS[icon].d} />
-                  </svg>
+                  />
                 ) : (
                   <span className="font-mono text-xs tracking-[0.15em] uppercase">
                     {link.label}

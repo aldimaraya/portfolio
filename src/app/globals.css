@@ -1481,24 +1481,104 @@ body {
  */
 .editor-shell {
   background: var(--color-ink);
+  display: flex;
+  flex-direction: column;
   inset: 0;
-  overflow-y: auto;
+  overflow: hidden;
   position: fixed;
   z-index: 40;
 }
+/* Beside the admin sidebar, folded to its 60px rail on this route
+   (AdminSidebar's SidebarRail), rather than over it. */
+@media (min-width: 48rem) { .editor-shell { left: 60px; } }
 .editor-bar {
   align-items: center;
-  backdrop-filter: blur(8px);
-  background: rgba(11, 11, 13, 0.92);
+  background: var(--color-ink);
   border-bottom: 1px solid var(--color-hairline);
   display: flex;
+  flex-shrink: 0;
   flex-wrap: wrap;
-  gap: 0.75rem 1rem;
-  padding: 0.75rem 1.5rem;
-  position: sticky;
-  top: 0;
+  gap: 0.625rem 1rem;
+  min-height: 3.75rem;
+  padding: max(0.5rem, env(safe-area-inset-top)) 1.25rem 0.5rem;
+  position: relative;
   z-index: 30;
 }
+.editor-kbd { color: var(--color-ash); font-family: var(--font-mono); font-size: 0.6875rem; margin-left: 0.5rem; }
+/* The phone gets the bar of M6: back, status, save and publish. Preview and the
+   width toggle describe a desktop, and ⌘S a keyboard. */
+@media (max-width: 47.99rem) {
+  .editor-bar { gap: 0.5rem; padding-left: 0.75rem; padding-right: 0.75rem; }
+  .editor-bar-desktop,
+  .editor-kbd { display: none; }
+}
+.editor-segmented > button > svg { display: block; }
+
+/* Outline · sheet · tray, each scrolling on its own under the bar. */
+.editor-body { display: flex; flex: 1; min-height: 0; }
+
+.editor-outline {
+  border-right: 1px solid var(--color-hairline);
+  display: none;
+  flex: 0 0 14.375rem;
+  flex-direction: column;
+  gap: 1.25rem;
+  overflow-y: auto;
+  padding: 1.125rem 0.75rem;
+}
+@media (min-width: 64rem) { .editor-outline { display: flex; } }
+/* The outline is the index while writing; the sheet's own would say it twice. */
+@media (min-width: 64rem) {
+  .editor-body[data-mode="edit"] .post-rail,
+  .editor-body[data-mode="edit"] .post-index-inline { display: none; }
+}
+.editor-outline-group { display: flex; flex-direction: column; gap: 2px; }
+.editor-outline-post { border-top: 1px solid var(--color-hairline); gap: 0.75rem; padding-top: 1rem; }
+.editor-outline-heading {
+  color: var(--color-ash);
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.15em;
+  padding: 0 0.5rem 0.5rem;
+  text-transform: uppercase;
+}
+.editor-outline-post .editor-outline-heading { padding-bottom: 0; }
+.editor-outline-list { display: flex; flex-direction: column; gap: 2px; }
+.editor-outline-row { align-items: center; border-radius: 6px; display: flex; }
+.editor-outline-row:hover,
+.editor-outline-row[data-current] { background: var(--color-frame); }
+.editor-outline-jump {
+  align-items: center;
+  color: #b4b4ba;
+  display: flex;
+  flex: 1;
+  font-size: 0.875rem;
+  gap: 0.5rem;
+  min-height: 2.125rem;
+  min-width: 0;
+  padding: 0 0.5rem;
+  text-align: left;
+}
+.editor-outline-row[data-current] .editor-outline-jump { color: var(--color-bone); }
+.editor-outline-number { color: var(--color-ash); flex-shrink: 0; font-family: var(--font-mono); font-size: 0.6875rem; }
+.editor-outline-row[data-current] .editor-outline-number { color: var(--color-gold); }
+.editor-outline-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.editor-outline-dot { background: #e0a050; border-radius: 999px; flex-shrink: 0; height: 6px; margin-left: auto; width: 6px; }
+/* The moves show under the pointer or the keyboard, so the names keep the room. */
+.editor-outline-moves { display: flex; opacity: 0; transition: opacity 120ms; }
+.editor-outline-row:hover .editor-outline-moves,
+.editor-outline-row:focus-within .editor-outline-moves { opacity: 1; }
+.editor-outline-moves button { color: var(--color-ash); font-size: 0.8rem; height: 2.125rem; width: 1.5rem; }
+.editor-outline-moves button:hover:not(:disabled) { color: var(--color-gold); }
+.editor-outline-moves button:disabled { opacity: 0.3; }
+.editor-outline-empty { padding: 0 0.5rem; }
+.editor-outline-add { display: flex; gap: 0.375rem; padding: 0.5rem 0.5rem 0; }
+.editor-outline-add .editor-button { font-size: 0.75rem; height: 1.875rem; padding: 0 0.625rem; }
+.editor-outline-fact { display: flex; flex-direction: column; font-size: 0.75rem; gap: 2px; padding: 0 0.5rem; }
+.editor-outline-fact > :first-child { color: var(--color-ash); }
+.editor-outline-fact .editor-muted { font-size: 0.6875rem; }
+.editor-outline-mono { font-family: var(--font-mono); font-size: 0.6875rem; word-break: break-all; }
+.editor-outline-cover { border-radius: 2px; height: 1.875rem; margin: 0.125rem 0; object-fit: cover; width: 3rem; }
 .editor-back {
   color: var(--color-ash);
   font-family: var(--font-mono);
@@ -1518,12 +1598,15 @@ body {
 .editor-bar-title > :first-child { font-size: 0.95rem; font-weight: 600; }
 .editor-bar-title [data-error] { color: #f87171; }
 
-.editor-canvas { margin: 0 auto; max-width: 1300px; padding: 2.5rem 1.5rem 8rem; }
+.editor-canvas { flex: 1; min-width: 0; overflow-y: auto; padding: 2.5rem 1.5rem 8rem; }
+.editor-canvas > :not(.editor-phone) { margin-left: auto; margin-right: auto; max-width: 1300px; }
+@media (max-width: 47.99rem) { .editor-canvas { padding: 0 0 8rem; } }
 /* The sheet at a phone's width; PostSheet's container queries do the rest. */
 .editor-phone { margin: 0 auto; max-width: 390px; }
-/* The rail and fragment links clear the editor's own sticky bar. */
-.post-editing .post-sheet { --rail-top: 9rem; }
-.editor-block-anchor { scroll-margin-top: 10rem; }
+/* The canvas scrolls under the bar rather than the window under it, so the
+   rail sits near the canvas's top; a jump leaves room for the block's toolbar. */
+.post-editing .post-sheet { --rail-top: 2rem; }
+.editor-block-anchor { scroll-margin-top: 4.5rem; }
 .editor-footer {
   align-items: center;
   display: flex;
@@ -1699,16 +1782,35 @@ body {
 .editor-row[data-drop="before"]::before { top: calc(var(--line) / -2 - 1px); }
 .post-row--section.editor-row[data-drop="before"]::before { top: -1px; }
 .editor-row[data-drop="after"]::before { bottom: calc(var(--line) / -2 - 1px); }
-/* The second row of the sticky bar, holding the selected block's toolbar
-   (BlockToolbar portals into it). Always the same height, so selecting a block
-   never shifts the page under the pointer. */
-.editor-context {
-  align-items: center;
-  border-top: 1px solid var(--color-hairline);
-  display: flex;
-  flex-basis: 100%;
-  min-height: 2.75rem;
-  padding-top: 0.625rem;
+/* The selected block's toolbar (BlockToolbar): a zero-height sticky marker at
+   the cell's top, with the bar hung just above it, so it sits on the block's
+   top edge and stops under the canvas's top once the block scrolls past. */
+.editor-float { height: 0; position: sticky; top: 3.75rem; z-index: 20; }
+.editor-float > .editor-toolbar {
+  background: var(--color-frame);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  bottom: 0.875rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  left: -0.5rem;
+  max-width: calc(100% + 1rem);
+  padding: 4px;
+  position: absolute;
+  width: max-content;
+}
+/* On a phone it docks to the screen's bottom edge, under the thumb. */
+@media (max-width: 47.99rem) {
+  .editor-float { bottom: 0; height: auto; left: 0; position: fixed; right: 0; top: auto; z-index: 45; }
+  .editor-float > .editor-toolbar {
+    border-radius: 0;
+    border-width: 1px 0 0;
+    flex-wrap: nowrap;
+    max-width: none;
+    overflow-x: auto;
+    padding: 0.375rem 0.5rem calc(0.375rem + env(safe-area-inset-bottom));
+    position: static;
+    width: auto;
+  }
 }
 .editor-toolbar {
   align-items: center;
@@ -1845,6 +1947,43 @@ body {
 }
 .editor-menu-label { display: block; font-size: 0.8rem; font-weight: 600; }
 .editor-menu-hint { color: var(--color-ash); display: block; font-size: 0.75rem; }
+.editor-menu-head { align-items: center; display: flex; }
+.editor-insert-backdrop,
+.editor-menu .editor-menu-cancel { display: none; }
+
+/* A phone's insert menu: a sheet from the bottom with the same eleven blocks
+   as tiles big enough for a thumb (M6), hints dropped for the room. */
+@media (max-width: 47.99rem) {
+  .editor-insert-backdrop { background: rgba(0, 0, 0, 0.5); display: block; inset: 0; position: fixed; z-index: 55; }
+  .editor-insert-menu,
+  .editor-insert-menu--end { bottom: 0; left: 0; position: fixed; right: 0; top: auto; z-index: 56; }
+  .editor-menu {
+    border-radius: 18px 18px 0 0;
+    display: grid;
+    gap: 0.5rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    max-width: none;
+    padding: 0.5rem 1rem calc(1rem + env(safe-area-inset-bottom));
+    width: auto;
+  }
+  .editor-menu-head { grid-column: 1 / -1; }
+  .editor-menu-heading { font-family: inherit; font-size: 1.125rem; font-weight: 600; letter-spacing: 0; padding: 0; text-transform: none; color: var(--color-bone); }
+  .editor-menu .editor-menu-cancel { color: var(--color-gold); display: inline-flex; height: 2.75rem; margin-left: auto; padding: 0 0.25rem; width: auto; align-items: center; }
+  .editor-menu button[role="menuitem"] {
+    align-items: center;
+    background: var(--color-frame);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    flex-direction: column;
+    gap: 0.375rem;
+    height: 4.75rem;
+    justify-content: center;
+    text-align: center;
+  }
+  .editor-menu-glyph { border: 0; flex: 0 0 auto; font-size: 1.0625rem; height: auto; }
+  .editor-menu-label { font-size: 0.8125rem; font-weight: 400; }
+  .editor-menu-hint { display: none; }
+}
 
 .editor-empty {
   align-items: center;
@@ -1948,14 +2087,15 @@ body {
 }
 .editor-toast button { font-weight: 600; text-decoration: underline; }
 
-/* The photo tray: a drawer over the page, so the sheet underneath keeps the
-   width it will be published at. */
+/* The photo tray: a column beside the sheet from 80rem, always open, so
+   placing photos never covers the post. Narrower, a drawer over the page, so
+   the sheet underneath keeps the width it will be published at. */
 .editor-tray {
   background: var(--color-film);
   border-left: 1px solid rgba(255, 255, 255, 0.12);
   bottom: 0;
   box-shadow: -24px 0 60px rgba(0, 0, 0, 0.55);
-  display: flex;
+  display: none;
   flex-direction: column;
   max-width: 100%;
   position: fixed;
@@ -1964,6 +2104,14 @@ body {
   width: 27rem;
   z-index: 50;
 }
+.editor-tray[data-open] { display: flex; }
+@media (min-width: 80rem) {
+  .editor-tray,
+  .editor-tray[data-open] { box-shadow: none; display: flex; flex: 0 0 20.625rem; position: static; width: auto; z-index: auto; }
+  .editor-tray-close,
+  .editor-tray-toggle { display: none; }
+}
+.editor-body[data-mode="preview"] .editor-tray { display: none; }
 .editor-tray-head { align-items: center; display: flex; gap: 0.75rem; justify-content: space-between; padding: 1rem 1rem 0.5rem; }
 .editor-tray-target {
   align-items: center;

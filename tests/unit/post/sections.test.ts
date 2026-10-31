@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { Block } from '@/lib/post/content';
-import { defaultLabel, indexEntries, sectionAnchor, sectionEntries } from '@/lib/post/sections';
+import { emptyRichText, richTextFromPlain, type Block } from '@/lib/post/content';
+import { defaultLabel, indexEntries, sectionAnchor, sectionEntries, unwrittenSections } from '@/lib/post/sections';
 
 const day = (id: string, extra: Partial<Extract<Block, { type: 'section' }>> = {}): Block => ({
   id,
@@ -65,5 +65,22 @@ describe('indexEntries', () => {
   it('ignores headings once there are sections', () => {
     const blocks: Block[] = [day('a'), { id: 'h1', type: 'heading', text: 'The market' }];
     expect(indexEntries(blocks).map((entry) => entry.id)).toEqual(['a']);
+  });
+});
+
+describe('unwrittenSections', () => {
+  const text = (id: string, body: string): Block => ({ id, type: 'text', body: body ? richTextFromPlain(body) : emptyRichText() });
+
+  it('names the sections with no words before the next one', () => {
+    const blocks = [day('a'), text('t1', 'Arrival'), day('b'), divider('x'), plain('c', 'Last night')];
+    expect(unwrittenSections(blocks)).toEqual(['b', 'c']);
+  });
+
+  it('does not count an empty text block or the section title as writing', () => {
+    expect(unwrittenSections([day('a', { title: 'Haeundae' }), text('t', '')])).toEqual(['a']);
+  });
+
+  it('ignores blocks before the first section', () => {
+    expect(unwrittenSections([text('intro', ''), day('a'), text('t', 'Words')])).toEqual([]);
   });
 });

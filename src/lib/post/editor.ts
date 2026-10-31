@@ -68,6 +68,28 @@ export function moveBlock(blocks: Block[], id: string, delta: -1 | 1): Block[] {
 }
 
 /**
+ * Moves a whole section — the section block and everything under it, up to the
+ * next section — past its neighbouring section, for the outline's ↑/↓. Blocks
+ * before the first section belong to none and stay put: a section moved up
+ * never lands above the post's opening text. A move off either end is a no-op.
+ */
+export function moveSection(blocks: Block[], id: string, delta: -1 | 1): Block[] {
+  const starts = blocks.flatMap((block, at) => (block.type === 'section' ? [at] : []));
+  const which = starts.findIndex((at) => blocks[at].id === id);
+  const other = which + delta;
+  if (which < 0 || other < 0 || other >= starts.length) return blocks;
+
+  const span = (n: number) => [starts[n], n + 1 < starts.length ? starts[n + 1] : blocks.length] as const;
+  const [first, second] = delta === -1 ? [span(other), span(which)] : [span(which), span(other)];
+  return [
+    ...blocks.slice(0, first[0]),
+    ...blocks.slice(second[0], second[1]),
+    ...blocks.slice(first[0], first[1]),
+    ...blocks.slice(second[1]),
+  ];
+}
+
+/**
  * Moves a block into a gap — 0 above the first block, `blocks.length` below the
  * last — counted in the list as it stands before the move, because that is what
  * the drop line is drawn against. The gaps directly above and below a block are

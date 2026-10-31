@@ -18,7 +18,13 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
       { href: '/admin/posts', label: 'Journal', icon: 'journal' },
     ],
   },
-  { label: 'Audience', items: [{ href: '/admin/newsletter', label: 'Newsletter', icon: 'newsletter' }] },
+  {
+    label: 'Audience',
+    items: [
+      { href: '/admin/newsletter', label: 'Newsletter', icon: 'newsletter' },
+      { href: '/admin/engagement', label: 'Engagement', icon: 'engagement' },
+    ],
+  },
   { label: 'Site', items: [{ href: '/admin/links', label: 'Links', icon: 'links' }] },
 ];
 
@@ -27,4 +33,12 @@ export const ADD_MEDIA_HREF = '/admin/add';
 
 export function isActive(href: string, pathname: string): boolean {
   return href === '/admin' ? pathname === '/admin' : pathname === href || pathname.startsWith(`${href}/`);
+}
+
+/**
+ * The journal editor's route. The sidebar folds to an icon rail there, because
+ * the editor needs the width for its outline, sheet and tray at once.
+ */
+export function isEditorPath(pathname: string): boolean {
+  return /^\/admin\/posts\/[^/]+$/.test(pathname);
 }

@@ -5,10 +5,13 @@ import { z } from 'zod';
 import { db } from '@/lib/db';
 import { isAuthenticated } from '@/lib/auth/guard';
 import { attempt } from '@/lib/actions/errors';
-import { runDispatch, sendPreview } from '@/lib/newsletter/queue';
+import { CONTENT_KINDS } from '@/lib/newsletter/kinds';
+import { MESSAGE_MAX } from '@/lib/newsletter/layout';
+import { runDispatch, saveDraft, sendPreview } from '@/lib/newsletter/queue';
 import { emailConfigured } from '@/lib/newsletter/send';
 
 const idSchema = z.string().min(1);
+const kindSchema = z.enum(CONTENT_KINDS);
 
 /**
  * Sends the pending batch now instead of waiting for it to go quiet. Also
@@ -27,7 +30,7 @@ export async function sendNow(): Promise<{ error?: string; message?: string }> {
       case 'blocked':
         return {
           error:
-            'Sending to subscribers only works on the production deployment. Here it would use up the batch without delivering it — use “Email me a preview” instead.',
+            'Sending to subscribers only works on the production deployment. Here it would use up the batch without delivering it — use “Send a test to me” instead.',
         };
       case 'idle':
         return { error: 'Nothing is pending.' };
@@ -60,9 +63,12 @@ export async function setSkipped(announcementId: string, skipped: boolean): Prom
     if (!idSchema.safeParse(announcementId).success) return { error: 'Unknown item' };
 
     // dispatchId: null, so an item already sent cannot be toggled after the fact.
+    // Position cleared either way: a reorder numbers only the items listed, so
+    // one kept its old number while left out and came back tied with whatever
+    // had taken that place since. Unplaced, it rejoins after the placed ones.
     await db.announcement.updateMany({
       where: { id: announcementId, dispatchId: null },
-      data: { skipped },
+      data: { skipped, position: null },
     });
     revalidatePath('/admin/newsletter');
     return {};
@@ -93,6 +99,56 @@ export async function removeSubscriber(id: string): Promise<{ error?: string }> 
     if (!idSchema.safeParse(id).success) return { error: 'Unknown subscriber' };
 
     await db.subscriber.deleteMany({ where: { id } });
+    revalidatePath('/admin/newsletter');
+    return {};
+  });
+}
+
+/** The note at the top of the next email. Empty clears it. */
+export async function saveMessage(message: string): Promise<{ error?: string }> {
+  return attempt('saveMessage', async () => {
+    if (!(await isAuthenticated())) return { error: 'Unauthorized' };
+    const parsed = z.string().max(MESSAGE_MAX).safeParse(message);
+    if (!parsed.success) return { error: `Keep the note under ${MESSAGE_MAX} characters.` };
+
+    await saveDraft({ message: parsed.data.trim() });
+    revalidatePath('/admin/newsletter');
+    return {};
+  });
+}
+
+/** The order of the email's sections, every kind exactly once. */
+export async function setSectionOrder(order: string[]): Promise<{ error?: string }> {
+  return attempt('setSectionOrder', async () => {
+    if (!(await isAuthenticated())) return { error: 'Unauthorized' };
+    const parsed = z.array(kindSchema).length(CONTENT_KINDS.length).safeParse(order);
+    if (!parsed.success || new Set(parsed.data).size !== CONTENT_KINDS.length) return { error: 'Unknown section order' };
+
+    await saveDraft({ sections: parsed.data });
+    revalidatePath('/admin/newsletter');
+    return {};
+  });
+}
+
+/**
+ * Places one section's items in the order given. Only pending items move —
+ * dispatchId: null — so an item claimed by a send that began meanwhile keeps
+ * the place it went out in.
+ */
+export async function reorderSection(kind: string, ids: string[]): Promise<{ error?: string }> {
+  return attempt('reorderSection', async () => {
+    if (!(await isAuthenticated())) return { error: 'Unauthorized' };
+    const parsed = z.object({ kind: kindSchema, ids: z.array(idSchema).max(500) }).safeParse({ kind, ids });
+    if (!parsed.success) return { error: 'Unknown items' };
+
+    await db.$transaction(
+      parsed.data.ids.map((id, position) =>
+        db.announcement.updateMany({
+          where: { id, kind: parsed.data.kind, dispatchId: null },
+          data: { position },
+        }),
+      ),
+    );
     revalidatePath('/admin/newsletter');
     return {};
   });

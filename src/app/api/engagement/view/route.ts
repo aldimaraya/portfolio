@@ -15,6 +15,8 @@ export const dynamic = 'force-dynamic';
 /**
  * Counts a view of a clip or a post, `{ kind, id }`, and answers with the
  * item's counts — so a page that shows its numbers makes one request, not two.
+ * A still's view answers with nothing: the lightbox already has the wall's
+ * likes, and a still's view count is the admin's alone (see VIEWABLE).
  *
  * The answer is the same whether or not a view was recorded, and there are
  * several reasons one is not:
@@ -46,6 +48,7 @@ export async function POST(request: NextRequest) {
       await recordView(target, day, viewerHash(authEnv().SESSION_SECRET, day, address, userAgent ?? ''));
     }
 
+    if (target.kind === 'stills') return new Response(null, { status: 204, headers: { 'Cache-Control': 'no-store' } });
     return json(await countsFor(target, visitorKey(request)));
   } catch (cause) {
     return failed('view', cause);

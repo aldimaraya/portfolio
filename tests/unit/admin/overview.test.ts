@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { batchSummary, countOf, dailySeries, kindCount, weekStartDay } from '@/lib/admin/overview';
+import { batchSummary, countOf, countsSummary, dailySeries, kindCount, weekStartDay } from '@/lib/admin/overview';
 
 describe('countOf', () => {
   it('uses the singular only for exactly one', () => {
@@ -62,5 +62,13 @@ describe('dailySeries', () => {
 
   it('is all zeros with no rows', () => {
     expect(dailySeries([], now)).toHaveLength(7);
+  });
+});
+
+describe('countsSummary', () => {
+  it('orders and pluralises tallied counts as batchSummary does', () => {
+    expect(countsSummary({ journal: 1, stills: 9 })).toBe('9 stills · 1 post');
+    expect(countsSummary({ motion: 0, journal: 2 })).toBe('2 posts');
+    expect(countsSummary({})).toBe('');
   });
 });

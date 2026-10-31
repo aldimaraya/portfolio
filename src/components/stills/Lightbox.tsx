@@ -4,6 +4,7 @@ import Image from 'next/image';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { LikeButton } from '@/components/engagement/LikeButton';
+import { recordStillView } from '@/components/engagement/useEngagement';
 import { AdminEditLink } from '@/components/site/AdminEditLink';
 import { placeholderColor } from '@/lib/color/analyze';
 import { photoCaption } from '@/lib/photo/caption';
@@ -51,6 +52,10 @@ const DISMISS_THRESHOLD = 110;
  * timer is what unmounts it once the demonstration has finished.
  */
 const HINT_MS = 4000;
+
+/** How long the lightbox must stay on a photo for it to count as viewed. */
+const VIEW_DWELL_MS = 1000;
+
 /**
  * The mat follows the finger at less than full speed. A drag that tracks 1:1
  * feels like the photo has come loose; damped, it reads as resistance that
@@ -147,6 +152,13 @@ export function Lightbox({ photos, index, originFor, onClose, onNavigate }: Ligh
       document.body.style.overflow = previousOverflow;
     };
   }, [requestClose, step]);
+
+  // A view is the lightbox resting on a photo, not passing through it: arrowing
+  // across the wall to reach one should not count every photo on the way.
+  useEffect(() => {
+    const timer = setTimeout(() => recordStillView(photo.id), VIEW_DWELL_MS);
+    return () => clearTimeout(timer);
+  }, [photo.id]);
 
   useEffect(() => {
     if (!hint) return;

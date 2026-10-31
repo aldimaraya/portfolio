@@ -32,6 +32,16 @@ export function isQuiet(newest: Date, now: Date): boolean {
 }
 
 /**
+ * Whole hours a pending batch has been quiet, capped at QUIET_HOURS — the
+ * admin's progress bar towards "finished". Floored, so it never claims quiet
+ * before it is.
+ */
+export function quietHours(newest: Date, now: Date): number {
+  const hours = Math.floor((now.getTime() - newest.getTime()) / HOUR_MS);
+  return Math.min(Math.max(hours, 0), QUIET_HOURS);
+}
+
+/**
  * The first cron run at which a batch whose newest item was added at `newest`
  * will be quiet — an estimate for the admin page, since Hobby may fire anywhere
  * in the hour. Adding anything to the batch moves this.

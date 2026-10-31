@@ -26,9 +26,9 @@ jobs:
     env:
       # Must be *reachable*, not merely present: prerendering runs the page
       # queries, so a placeholder string fails the build. Points at a
-      # long-lived Neon branch cut from production — reset it from parent
-      # after any `db:push`, or CI starts validating against a schema
-      # production no longer has.
+      # long-lived Neon branch cut from production, which CI owns — the step
+      # before the build pushes each run's schema onto it. Never production's
+      # URL: that push would apply an unmerged branch's schema to the live DB.
       DATABASE_URL: ${{ secrets.CI_DATABASE_URL }}
       R2_PUBLIC_BASE_URL: https://media.example.com
 
@@ -49,6 +49,18 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
+
+      # The branch is brought to *this* run's schema rather than kept in step
+      # with production by hand. Kept that way it lagged every production
+      # `db:push` until someone reset it, and failed every build in between;
+      # this way a PR builds against the schema it ships, which is the one
+      # production will have — schema is pushed before merge.
+      #
+      # No --accept-data-loss: with schema changes additive, a run only ever
+      # adds. The one case that would drop something is a branch cut before
+      # another PR's column landed on this database; that fails here, loudly,
+      # and resetting the Neon branch from its parent clears it.
+      - run: npx prisma db push
 
       - run: npm run build
 

@@ -3,6 +3,7 @@ import { formatTakenAt } from '@/lib/photo/date';
 import { justifyRows } from '@/lib/photo/justify';
 import { OPEN_PHOTO_PARAM } from '@/lib/photo/lightbox-link';
 import { chosenKinds, KIND_LABELS, type ContentKind, type Preferences } from './kinds';
+import { messageParagraphs, sectionOrder } from './layout';
 
 /**
  * The emails themselves, as plain strings. Pure — no database, no env — so the
@@ -358,43 +359,74 @@ export interface DigestLinks {
   manage: string;
 }
 
-/** One subscriber's digest. `content` must already be narrowed by `contentFor`. */
+/** What the admin arranged for this email, beyond its items (lib/newsletter/layout.ts). */
+export interface DigestLayout {
+  /** The note above everything else; empty for none. */
+  message?: string;
+  /** Section order; missing kinds follow in the default order. */
+  sections?: readonly ContentKind[];
+}
+
+/** The note, as paragraphs in the body's serif — it is a letter, not a caption. */
+function messageRows(paragraphs: string[]): string {
+  const body = paragraphs
+    .map(
+      (paragraph, i) =>
+        `<p style="margin:${i ? 12 : 0}px 0 0;font:16px/1.6 ${SERIF};color:${INK};">${escapeHtml(paragraph).replace(/\n/g, '<br>')}</p>`,
+    )
+    .join('\n  ');
+  return `<tr><td style="padding:24px 0 4px;">
+  ${body}
+</td></tr>`;
+}
+
+/**
+ * One subscriber's digest. `content` must already be narrowed by `contentFor`,
+ * and each list already in the order it should appear.
+ */
 export function renderDigest(
   content: DigestContent,
   prefs: Preferences,
   links: DigestLinks,
+  layout: DigestLayout = {},
 ): RenderedEmail {
   const subject = digestSubject(content);
   const { site, manage } = links;
   const images = links.images ?? site;
+  const message = messageParagraphs(layout.message ?? '');
 
   const sections: string[] = [];
   const text: string[] = [subject, ''];
 
-  if (content.journal.length) {
-    sections.push(sectionHeading(SECTION_LABELS.journal), postRows(site, content.journal));
-    text.push(SECTION_LABELS.journal.toUpperCase());
-    for (const post of content.journal) {
-      text.push(`${post.title}`, post.excerpt, `${site}/journal/${post.slug}`, '');
-    }
+  if (message.length) {
+    sections.push(messageRows(message));
+    text.push(message.join('\n\n'), '');
   }
-  if (content.motion.length) {
-    sections.push(sectionHeading(SECTION_LABELS.motion), clipRows(site, images, content.motion));
-    text.push(SECTION_LABELS.motion.toUpperCase());
-    for (const clip of content.motion) {
-      text.push(clip.title, ...(clip.description ? [clip.description] : []), `${site}/motion/${clip.id}`, '');
+
+  for (const kind of sectionOrder(layout.sections)) {
+    if (kind === 'journal' && content.journal.length) {
+      sections.push(sectionHeading(SECTION_LABELS.journal), postRows(site, content.journal));
+      text.push(SECTION_LABELS.journal.toUpperCase());
+      for (const post of content.journal) {
+        text.push(`${post.title}`, post.excerpt, `${site}/journal/${post.slug}`, '');
+      }
+    } else if (kind === 'motion' && content.motion.length) {
+      sections.push(sectionHeading(SECTION_LABELS.motion), clipRows(site, images, content.motion));
+      text.push(SECTION_LABELS.motion.toUpperCase());
+      for (const clip of content.motion) {
+        text.push(clip.title, ...(clip.description ? [clip.description] : []), `${site}/motion/${clip.id}`, '');
+      }
+    } else if (kind === 'stills' && content.stills.length) {
+      sections.push(sectionHeading(SECTION_LABELS.stills), photoGrid(site, images, content.stills));
+      text.push(SECTION_LABELS.stills.toUpperCase());
+      for (const photo of content.stills.slice(0, MAX_PHOTO_THUMBNAILS)) {
+        const { heading, meta } = photoEmailCaption(photo);
+        text.push(meta ? `${heading} — ${meta}` : heading);
+      }
+      const more = content.stills.length - MAX_PHOTO_THUMBNAILS;
+      if (more > 0) text.push(`…and ${more} more`);
+      text.push(`${site}/stills`, '');
     }
-  }
-  if (content.stills.length) {
-    sections.push(sectionHeading(SECTION_LABELS.stills), photoGrid(site, images, content.stills));
-    text.push(SECTION_LABELS.stills.toUpperCase());
-    for (const photo of content.stills.slice(0, MAX_PHOTO_THUMBNAILS)) {
-      const { heading, meta } = photoEmailCaption(photo);
-      text.push(meta ? `${heading} — ${meta}` : heading);
-    }
-    const more = content.stills.length - MAX_PHOTO_THUMBNAILS;
-    if (more > 0) text.push(`…and ${more} more`);
-    text.push(`${site}/stills`, '');
   }
 
   sections.push(footer(manage, prefs, site));
@@ -402,7 +434,9 @@ export function renderDigest(
 
   return {
     subject,
-    html: shell(subject, subject, sections.join('\n')),
+    // The inbox's preview line: the note's opening when there is one, which says
+    // more than the subject repeated.
+    html: shell(subject, message[0]?.replace(/\s+/g, ' ') ?? subject, sections.join('\n')),
     text: text.filter((line, i, all) => !(line === '' && all[i - 1] === '')).join('\n'),
   };
 }

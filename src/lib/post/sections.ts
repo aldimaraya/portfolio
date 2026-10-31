@@ -1,4 +1,4 @@
-import type { Block, BlockOf } from './content';
+import { isRichTextEmpty, type Block, type BlockOf } from './content';
 
 /**
  * Sections are how a post is divided: a day of a trip, or something named like
@@ -71,4 +71,44 @@ export function indexEntries(blocks: Block[]): SectionEntry[] {
       ? [{ id: block.id, anchor: sectionAnchor(block.id), label: '', day: null, title: block.text.trim(), date: '', place: '' }]
       : [],
   );
+}
+
+/**
+ * Ids of the sections with no words under them before the next section starts:
+ * the editor's outline marks them, the admin list warns about them. A section's
+ * own title does not count — it heads the writing, it is not the writing.
+ * Blocks before the first section belong to none.
+ */
+export function unwrittenSections(blocks: Block[]): string[] {
+  const unwritten: string[] = [];
+  let current: string | null = null;
+  let written = false;
+
+  for (const block of blocks) {
+    if (block.type === 'section') {
+      if (current !== null && !written) unwritten.push(current);
+      current = block.id;
+      written = false;
+    } else if (hasWords(block)) {
+      written = true;
+    }
+  }
+  if (current !== null && !written) unwritten.push(current);
+  return unwritten;
+}
+
+function hasWords(block: Block): boolean {
+  switch (block.type) {
+    case 'text':
+      return !isRichTextEmpty(block.body);
+    case 'tip':
+      return !isRichTextEmpty(block.body) || block.title.trim() !== '';
+    case 'heading':
+    case 'quote':
+      return block.text.trim() !== '';
+    case 'list':
+      return block.groups.some((group) => group.items.some((item) => item.name.trim() !== ''));
+    default:
+      return false;
+  }
 }

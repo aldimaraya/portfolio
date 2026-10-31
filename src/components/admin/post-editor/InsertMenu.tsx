@@ -19,7 +19,9 @@ const ITEMS: { kind: Insertable; glyph: string; label: string; hint: string }[] 
 
 /**
  * Where a new block goes in: a small + sitting on the margin rule between two
- * blocks, or the full-width "Add a block" at the end of the post.
+ * blocks, or the full-width "Add a block" at the end of the post. On a phone
+ * the menu opens as a sheet from the bottom of the screen instead, its entries
+ * a grid of thumb-sized tiles — the backdrop and Cancel only show there.
  */
 export function InsertPoint({
   open,
@@ -33,7 +35,12 @@ export function InsertPoint({
   onToggle: () => void;
   onPick: (kind: Insertable) => void;
 }) {
-  const menu = <InsertMenu onPick={onPick} onClose={onToggle} />;
+  const menu = (
+    <>
+      <button type="button" className="editor-insert-backdrop" aria-label="Close" tabIndex={-1} onClick={onToggle} />
+      <InsertMenu onPick={onPick} onClose={onToggle} />
+    </>
+  );
 
   if (last) {
     return (
@@ -65,7 +72,7 @@ function InsertMenu({ onPick, onClose }: { onPick: (kind: Insertable) => void; o
   // Focus the first entry so the menu is usable from the keyboard, and let
   // Escape put it away.
   useEffect(() => {
-    ref.current?.querySelector('button')?.focus();
+    ref.current?.querySelector<HTMLButtonElement>('button[role="menuitem"]')?.focus();
   }, []);
 
   return (
@@ -78,14 +85,19 @@ function InsertMenu({ onPick, onClose }: { onPick: (kind: Insertable) => void; o
         if (event.key === 'Escape') onClose();
         if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
           event.preventDefault();
-          const buttons = [...(ref.current?.querySelectorAll('button') ?? [])];
+          const buttons = [...(ref.current?.querySelectorAll<HTMLButtonElement>('button[role="menuitem"]') ?? [])];
           const at = buttons.indexOf(document.activeElement as HTMLButtonElement);
           const next = buttons[(at + (event.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length];
           next?.focus();
         }
       }}
     >
-      <p className="editor-menu-heading">Add a block</p>
+      <div className="editor-menu-head">
+        <p className="editor-menu-heading">Add a block</p>
+        <button type="button" className="editor-menu-cancel" onClick={onClose}>
+          Cancel
+        </button>
+      </div>
       {ITEMS.map((item) => (
         <button key={item.kind} type="button" role="menuitem" onClick={() => onPick(item.kind)}>
           <span className="editor-menu-glyph" aria-hidden="true">

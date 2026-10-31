@@ -12,6 +12,7 @@ export type AdminCounts = {
   unfiled: number;
   /** Stills and clips uploaded through Add media and waiting there to be published. */
   unpublished: number;
+  links: number;
 };
 
 /**
@@ -20,7 +21,7 @@ export type AdminCounts = {
  * and one per request, not two: `cache` lets the layout and the Overview share it.
  */
 export const loadAdminCounts = cache(async (): Promise<AdminCounts> => {
-  const [photos, videos, drafts, undated, untagged, unfiled, unpublishedPhotos, unpublishedVideos] = await Promise.all([
+  const [photos, videos, drafts, undated, untagged, unfiled, unpublishedPhotos, unpublishedVideos, links] = await Promise.all([
     db.photo.count({ where: { draft: false } }),
     db.video.count({ where: { draft: false } }),
     db.blogPost.count({ where: { draft: true } }),
@@ -29,8 +30,18 @@ export const loadAdminCounts = cache(async (): Promise<AdminCounts> => {
     db.video.count({ where: { rollId: null, draft: false } }),
     db.photo.count({ where: { draft: true } }),
     db.video.count({ where: { draft: true } }),
+    db.siteLink.count(),
   ]);
-  return { photos, videos, drafts, undated, untagged, unfiled, unpublished: unpublishedPhotos + unpublishedVideos };
+  return {
+    photos,
+    videos,
+    drafts,
+    undated,
+    untagged,
+    unfiled,
+    unpublished: unpublishedPhotos + unpublishedVideos,
+    links,
+  };
 });
 
 /** What the Overview badge counts: things only a person can fix. Drafts are work in progress, not a fault. */

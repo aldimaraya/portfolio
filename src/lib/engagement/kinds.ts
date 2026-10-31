@@ -2,11 +2,14 @@ import { z } from 'zod';
 import type { ContentKind } from '@/lib/newsletter/kinds';
 
 /**
- * What each surface collects. Stills take likes only: a photo is seen on the
- * wall, not on a page of its own, so there is no single moment that counts as
- * having viewed one — opening the lightbox is a closer look, not a visit.
+ * What each surface collects. Every kind records views, but only clips and
+ * posts *show* them. A photo is seen on the wall, not on a page of its own, so a
+ * still's view is a closer look — the lightbox resting on it — rather than a
+ * visit, and a public "12 views" beside it would claim more than that. Its count
+ * is for the admin's Engagement page alone.
  */
 export const LIKEABLE = ['stills', 'motion', 'journal'] as const satisfies readonly ContentKind[];
+/** Kinds whose view count is public. */
 export const VIEWABLE = ['motion', 'journal'] as const satisfies readonly ContentKind[];
 
 export type LikeableKind = (typeof LIKEABLE)[number];
@@ -21,7 +24,7 @@ export function isViewable(kind: ContentKind): kind is ViewableKind {
 const idSchema = z.string().regex(/^[a-z0-9]{20,32}$/, 'Unknown item');
 
 export const targetSchema = z.object({ kind: z.enum(LIKEABLE), id: idSchema });
-export const viewSchema = z.object({ kind: z.enum(VIEWABLE), id: idSchema });
+export const viewSchema = z.object({ kind: z.enum(LIKEABLE), id: idSchema });
 export const likeSchema = targetSchema.extend({ liked: z.boolean() });
 
 export type Target = z.infer<typeof targetSchema>;

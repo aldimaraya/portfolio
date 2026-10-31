@@ -9,6 +9,7 @@ import {
   moveBlock,
   moveBlockTo,
   movePhoto,
+  moveSection,
   removeBlock,
   removePhotoRefs,
   updateBlock,
@@ -82,6 +83,28 @@ describe('block list edits', () => {
     const list: Block[] = [{ id: 'q', type: 'quote', text: 'old' }];
     expect(updateBlock(list, 'q', 'quote', { text: 'new' })[0]).toEqual({ id: 'q', type: 'quote', text: 'new' });
     expect(updateBlock(list, 'q', 'heading', { text: 'new' })[0]).toEqual(list[0]);
+  });
+});
+
+describe('moveSection', () => {
+  const section = (id: string): Block => ({ ...makeBlock('day'), id });
+  // An intro, then three sections of uneven length.
+  const blocks = [divider('intro'), section('A'), divider('a1'), divider('a2'), section('B'), section('C'), divider('c1')];
+  const ids = (next: Block[]) => next.map((b) => b.id);
+
+  it('moves a section with everything under it past its neighbour', () => {
+    expect(ids(moveSection(blocks, 'A', 1))).toEqual(['intro', 'B', 'A', 'a1', 'a2', 'C', 'c1']);
+    expect(ids(moveSection(blocks, 'C', -1))).toEqual(['intro', 'A', 'a1', 'a2', 'C', 'c1', 'B']);
+  });
+
+  it('keeps the blocks before the first section where they are', () => {
+    expect(ids(moveSection(blocks, 'B', -1))).toEqual(['intro', 'B', 'A', 'a1', 'a2', 'C', 'c1']);
+  });
+
+  it('does nothing off either end, or for a block that is not a section', () => {
+    expect(moveSection(blocks, 'A', -1)).toBe(blocks);
+    expect(moveSection(blocks, 'C', 1)).toBe(blocks);
+    expect(moveSection(blocks, 'a1', 1)).toBe(blocks);
   });
 });
 
