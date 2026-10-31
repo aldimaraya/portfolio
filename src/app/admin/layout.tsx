@@ -19,6 +19,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const notes: NavNotes = {
     '/admin/photos': { text: String(counts.photos) },
     '/admin/videos': { text: String(counts.videos) },
+    '/admin/links': { text: String(counts.links) },
   };
   if (attention > 0) notes['/admin'] = { text: String(attention), badge: true };
   if (counts.drafts > 0) {

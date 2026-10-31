@@ -14,7 +14,8 @@ describe('engagement kinds', () => {
     expect(isViewable('motion')).toBe(true);
     expect(isViewable('journal')).toBe(true);
     expect(isViewable('stills')).toBe(false);
-    expect(viewSchema.safeParse({ kind: 'stills', id: ID }).success).toBe(false);
+    // Recorded, but never shown: see VIEWABLE.
+    expect(viewSchema.safeParse({ kind: 'stills', id: ID }).success).toBe(true);
   });
 
   it('refuses ids that are not the shape of a row id', () => {

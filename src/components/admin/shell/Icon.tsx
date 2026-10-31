@@ -32,6 +32,7 @@ const PATHS = {
       <path d="M3 7l9 6 9-6" />
     </>
   ),
+  engagement: <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />,
   links: (
     <path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" />
   ),

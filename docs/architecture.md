@@ -470,8 +470,11 @@ with **Add media** at the top, which is where every upload starts.
   Persisted as the destination roll's whole ordering in one transaction rather
   than a moved pair, so the result cannot drift from what is on screen.
 - **Links** (`/admin/links`) are the outbound links drawn as icons beside the
-  wordmark and again in the footer of every public page. Added, edited,
-  reordered and deleted in place; each save revalidates the whole site, because
+  wordmark and again in the footer of every public page. Added, edited
+  (the fields open in the row), dragged or ⌥↑/⌥↓-nudged into order, and deleted
+  in place, beside a preview of the header and footer drawn from the list and
+  any unsaved edit. Ordering is optimistic, as on Motion; a save is not, since
+  the URL check is the likely refusal. Each save revalidates the whole site, because
   every page carries them. The icon is derived from the URL's host
   ([`lib/links/link.ts`](../src/lib/links/link.ts)), never stored, and a host
   with no mark is drawn as its label. URLs are pinned to http(s) — the string
@@ -565,6 +568,12 @@ reads as missing. Code in
   A clip or post page's one request is `POST /api/engagement/view`, which
   records the view and answers with the counts; the lightbox asks for every
   still's likes in one `GET`, the first time it opens.
+- **A still's views are recorded but never shown publicly.** A photo has no
+  page of its own, so its view is the lightbox resting on it for a second
+  (`recordStillView`, once per photo per page session) — a closer look, which a
+  public "12 views" would overstate. The view endpoint answers a still with an
+  empty 204 and `countsFor` leaves its views out; only `/admin/engagement`
+  reads them. Stills began counting on 31 Oct 2026, so earlier ranges hold none.
 - **No accounts, so two stand-ins.** A like belongs to a random id in an
   httpOnly cookie, set only on the first click — a cookie for something the
   visitor asked for, not one that follows them around. The table holds a
@@ -587,6 +596,14 @@ reads as missing. Code in
   hourly budget for likes and for views
   ([`throttle.ts`](../src/lib/engagement/throttle.ts), in-memory like the other
   limiters, with the same accepted trade).
+- **`/admin/engagement`** reads the same tables for a range of 7, 30 or 90
+  days and one surface or all, both held in the query string: views (stills'
+  included),
+  visitor-days, likes and new subscribers set against the range before, visitors
+  per day with the days a newsletter went out marked, and the top items by likes
+  or by views with likes per hundred views beside them
+  ([`lib/admin/engagement.ts`](../src/lib/admin/engagement.ts)). The Overview's
+  week is the 7-day view of it, and shares its bars.
 - **Deleting content drops its rows** (`forgetEngagement`, called by the three
   delete actions after the content row has gone, and unable to fail them).
 - **Comments are not built.** They were scoped out of the first pass; with no
@@ -781,7 +798,10 @@ What has to exist for that to mean anything:
   `build` — because a branch ruleset can only require checks that already exist.
   Note that `next build` needs a reachable `DATABASE_URL` (prerendering runs the
   page queries, see [Conventions that bite](#conventions-that-bite)), so CI needs
-  a real connection string rather than a placeholder. E2E stays out
+  a real connection string rather than a placeholder. That is a Neon branch
+  owned by CI (`CI_DATABASE_URL`), and each run `db push`es its own schema onto
+  it before building — so a PR builds against the schema it ships instead of
+  whatever production had when the branch was last reset by hand. E2E stays out
   of the required set: Playwright needs its own server and a seeded database, and
   a check that flakes gets bypassed, which trains the habit that defeats the
   ruleset.

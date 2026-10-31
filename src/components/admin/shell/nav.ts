@@ -18,7 +18,13 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
       { href: '/admin/posts', label: 'Journal', icon: 'journal' },
     ],
   },
-  { label: 'Audience', items: [{ href: '/admin/newsletter', label: 'Newsletter', icon: 'newsletter' }] },
+  {
+    label: 'Audience',
+    items: [
+      { href: '/admin/newsletter', label: 'Newsletter', icon: 'newsletter' },
+      { href: '/admin/engagement', label: 'Engagement', icon: 'engagement' },
+    ],
+  },
   { label: 'Site', items: [{ href: '/admin/links', label: 'Links', icon: 'links' }] },
 ];
 

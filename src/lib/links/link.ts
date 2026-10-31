@@ -16,6 +16,14 @@ export interface SiteLink {
 /** Marks drawn by components/site/SiteLinks.tsx. Add the path there to add one here. */
 export type LinkIcon = 'youtube' | 'github' | 'instagram' | 'vimeo';
 
+/** How each mark's service is written, for the admin's "icon found" note. */
+export const ICON_NAMES: Record<LinkIcon, string> = {
+  youtube: 'YouTube',
+  github: 'GitHub',
+  instagram: 'Instagram',
+  vimeo: 'Vimeo',
+};
+
 /**
  * Registrable domain → mark. Matched on the domain and its subdomains, so
  * m.youtube.com and www.instagram.com resolve, and youtube.com.evil.test does

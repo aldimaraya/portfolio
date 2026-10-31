@@ -113,6 +113,24 @@ async function loadItem(kind: LikeableKind, id: string, view: boolean): Promise<
 }
 
 /**
+ * A still the lightbox has rested on. Sent once per photo per page session and
+ * never read back: a still's view count is not shown publicly (see VIEWABLE).
+ * `keepalive`, because the last photo looked at is often the one the visitor
+ * closes the tab on.
+ */
+export function recordStillView(id: string): void {
+  const key = `view:${keyOf('stills', id)}`;
+  if (requested.has(key)) return;
+  requested.add(key);
+  void fetch('/api/engagement/view', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ kind: 'stills', id }),
+    keepalive: true,
+  }).catch(() => requested.delete(key));
+}
+
+/**
  * The like each item is being moved towards, while a request for it is in
  * flight. Clicks are not sent one per click: a request is out at most once per
  * item, and when it lands, whatever the visitor wants *now* is sent if it

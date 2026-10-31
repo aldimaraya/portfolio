@@ -236,3 +236,40 @@ describe('photoRows', () => {
     expect(heights(row).size).toBe(1);
   });
 });
+
+describe('renderDigest layout', () => {
+  const content = { ...empty, journal: [post], motion: [clip], stills: [photo('a')] };
+
+  it('lays sections out in the order given, journal first by default', () => {
+    const order = (html: string) =>
+      ['>Journal<', '>Motion<', '>Stills<'].map((label) => html.indexOf(label)).map((at) => (at === -1 ? Infinity : at));
+    const [journal, motion, stills] = order(renderDigest(content, DEFAULT_PREFERENCES, { site, manage }).html);
+    expect(journal).toBeLessThan(motion);
+    expect(motion).toBeLessThan(stills);
+
+    const moved = order(
+      renderDigest(content, DEFAULT_PREFERENCES, { site, manage }, { sections: ['stills', 'journal', 'motion'] }).html,
+    );
+    expect(moved[2]).toBeLessThan(moved[0]);
+    expect(moved[0]).toBeLessThan(moved[1]);
+  });
+
+  it('puts the note above the sections, escaped, and leads the inbox preview with it', () => {
+    const { html, text } = renderDigest(
+      content,
+      DEFAULT_PREFERENCES,
+      { site, manage },
+      { message: 'Back from <Busan>.\n\nMore soon.' },
+    );
+    expect(html).toContain('Back from &lt;Busan&gt;.');
+    expect(html).not.toContain('<Busan>');
+    expect(html.indexOf('More soon.')).toBeLessThan(html.indexOf('>Journal<'));
+    expect(html).toMatch(/display:none[^>]*>Back from &lt;Busan&gt;\.</);
+    expect(text.indexOf('More soon.')).toBeLessThan(text.indexOf('JOURNAL'));
+  });
+
+  it('adds nothing for a blank note', () => {
+    const plain = renderDigest(content, DEFAULT_PREFERENCES, { site, manage });
+    expect(renderDigest(content, DEFAULT_PREFERENCES, { site, manage }, { message: '  \n ' })).toEqual(plain);
+  });
+});

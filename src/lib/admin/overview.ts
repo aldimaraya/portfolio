@@ -1,5 +1,6 @@
 import { db } from '@/lib/db';
 import type { ContentKind } from '@/lib/newsletter/kinds';
+import { daySeries, windowStart } from './engagement';
 
 /**
  * The Overview's numbers beyond the chrome's counts (lib/admin/counts.ts): what
@@ -26,39 +27,31 @@ export function kindCount(kind: ContentKind, count: number): string {
 
 /** "5 stills · 1 clip · 1 post" — stills first, as the email lays them out; empty kinds left out. */
 export function batchSummary(items: { kind: ContentKind }[]): string {
-  const order: ContentKind[] = ['stills', 'motion', 'journal'];
-  return order
-    .map((kind) => [kind, items.filter((item) => item.kind === kind).length] as const)
-    .filter(([, count]) => count > 0)
-    .map(([kind, count]) => kindCount(kind, count))
-    .join(' · ');
+  const counts: Partial<Record<ContentKind, number>> = {};
+  for (const item of items) counts[item.kind] = (counts[item.kind] ?? 0) + 1;
+  return countsSummary(counts);
 }
 
-/**
- * The start of the UTC day six days before `now`, so "last 7 days" of View rows
- * is today plus the six before it. Views are stored by UTC day, not instant.
- */
-export function weekStartDay(now: Date): Date {
-  const day = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-  day.setUTCDate(day.getUTCDate() - 6);
-  return day;
+/** batchSummary for counts already tallied — a sent dispatch's, from a groupBy. */
+export function countsSummary(counts: Partial<Record<ContentKind, number>>): string {
+  const order: ContentKind[] = ['stills', 'motion', 'journal'];
+  return order
+    .filter((kind) => (counts[kind] ?? 0) > 0)
+    .map((kind) => kindCount(kind, counts[kind]!))
+    .join(' · ');
 }
 
 /** Days in the Overview's window: today and the six before it. */
 export const WEEK_DAYS = 7;
 
-/**
- * Distinct visitors per day, oldest first and ending today, with a zero for a
- * day nobody came — the query only returns days that have rows.
- */
+/** The start of the UTC day six days before `now`; see windowStart. */
+export function weekStartDay(now: Date): Date {
+  return windowStart(now, WEEK_DAYS);
+}
+
+/** Distinct visitors per day over the Overview's week; see daySeries. */
 export function dailySeries(rows: { day: Date; visitors: number }[], now: Date): number[] {
-  const start = weekStartDay(now).getTime();
-  const series = new Array<number>(WEEK_DAYS).fill(0);
-  for (const row of rows) {
-    const index = Math.round((row.day.getTime() - start) / (24 * 60 * 60 * 1000));
-    if (index >= 0 && index < WEEK_DAYS) series[index] = row.visitors;
-  }
-  return series;
+  return daySeries(rows, weekStartDay(now), WEEK_DAYS);
 }
 
 const MOST_VIEWED = 5;

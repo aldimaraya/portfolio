@@ -4,8 +4,9 @@ import { AdminPage } from "@/components/admin/shell/AdminPage";
 import { Icon, type IconName } from "@/components/admin/shell/Icon";
 import { ADD_MEDIA_HREF } from "@/components/admin/shell/nav";
 import { GHOST_BUTTON, LABEL } from "@/components/admin/fields";
-import { LocalTime } from "@/components/admin/NewsletterControls";
+import { LocalTime } from "@/components/admin/newsletter/LocalTime";
 import { NewPostButton } from "@/components/admin/NewPostButton";
+import { VisitorBars } from "@/components/admin/VisitorBars";
 import { placeholderColor } from "@/lib/color/analyze";
 import { db } from "@/lib/db";
 import { attentionCount, loadAdminCounts } from "@/lib/admin/counts";
@@ -250,7 +251,15 @@ export default async function AdminOverview() {
           </section>
 
           <section className="flex flex-col gap-3.5 rounded-xl border border-hairline bg-film p-4 md:p-5">
-            <h2 className={LABEL}>Last 7 days</h2>
+            <div className="flex items-baseline gap-3">
+              <h2 className={LABEL}>Last 7 days</h2>
+              <Link
+                href="/admin/engagement?days=7"
+                className="text-xs text-gold hover:text-bone"
+              >
+                Engagement →
+              </Link>
+            </div>
             <dl className="grid grid-cols-2 gap-3">
               <Stat value={week.views} label="views" />
               <Stat value={week.visitors} label="visitors" />
@@ -409,64 +418,11 @@ function Stat({ value, label }: { value: number; label: string }) {
   );
 }
 
-const DAY_LABEL = new Intl.DateTimeFormat("en", {
-  weekday: "short",
-  day: "numeric",
-  month: "short",
-  // Views are stored by UTC day, so the days are labelled in UTC too.
-  timeZone: "UTC",
-});
-
-/**
- * Distinct visitors per day as seven bars, today last. A returning visitor counts
- * again on each day they come, which is also why the stat above is a sum of these
- * rather than a count of people — the view hash cannot match one day to the next.
- */
+/** The week's visitors per day, captioned; the bars themselves are shared with Engagement. */
 function DailyVisitors({ daily }: { daily: number[] }) {
-  const peak = Math.max(...daily, 1);
-  const start = weekStartDay(new Date());
   return (
     <div className="flex flex-col gap-1.5">
-      <ol className="flex h-12 items-end gap-0.5">
-        {daily.map((count, i) => {
-          const day = new Date(start);
-          day.setUTCDate(day.getUTCDate() + i);
-          const date = DAY_LABEL.format(day);
-          const visitors = countOf(count, ["visitor", "visitors"]);
-          // The end bars' tips hang inward, or they would poke out of the card.
-          const align =
-            i === 0
-              ? "left-0"
-              : i === daily.length - 1
-                ? "right-0"
-                : "left-1/2 -translate-x-1/2";
-          return (
-            <li key={i} className="group flex h-full flex-1 items-end">
-              <span className="sr-only">{`${date}: ${visitors}`}</span>
-              {/* A day nobody came keeps a hairline, so the week still reads as seven days. */}
-              <span
-                aria-hidden="true"
-                className={`relative w-full rounded-t-[4px] transition ${count ? "bg-gold/70 group-hover:bg-gold" : "bg-white/10"}`}
-                style={{
-                  height: count ? `${Math.max((count / peak) * 100, 6)}%` : 2,
-                }}
-              >
-                {/* Hung off the bar's top, so it points at the value it names. */}
-                <span
-                  className={`pointer-events-none absolute bottom-full z-10 mb-1.5 flex flex-col gap-0.5 rounded-md border border-hairline bg-frame px-2.5 py-1.5 whitespace-nowrap opacity-0 shadow-lg shadow-black/40 transition-opacity group-hover:opacity-100 motion-reduce:transition-none ${align}`}
-                >
-                  <span className="font-mono text-[10px] tracking-[0.15em] text-ash uppercase">
-                    {date}
-                  </span>
-                  <span className="text-sm text-bone tabular-nums">
-                    {visitors}
-                  </span>
-                </span>
-              </span>
-            </li>
-          );
-        })}
-      </ol>
+      <VisitorBars daily={daily} start={weekStartDay(new Date())} />
       <span
         className="flex justify-between text-[11px] text-ash"
         aria-hidden="true"

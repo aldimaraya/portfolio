@@ -12,12 +12,13 @@
 
 /**
  * Generous for a person: liking and unliking every photo on the wall once is
- * well inside it. A view is one per page load, so its budget is a browsing
- * session's worth of pages.
+ * well inside it. A view is one per page load or per still the lightbox rests
+ * on, so its budget is a browsing session's worth of both — someone stepping
+ * through the whole wall must not use up the views of the clips they open next.
  */
 export const BUDGETS = {
   like: { max: 120, windowMs: 60 * 60 * 1000 },
-  view: { max: 200, windowMs: 60 * 60 * 1000 },
+  view: { max: 400, windowMs: 60 * 60 * 1000 },
 } as const;
 
 export type Budget = keyof typeof BUDGETS;

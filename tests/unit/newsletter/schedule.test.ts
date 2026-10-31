@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { CRON_HOUR_UTC, estimatedSendTime, isQuiet, QUIET_HOURS } from '@/lib/newsletter/schedule';
+import { CRON_HOUR_UTC, estimatedSendTime, isQuiet, QUIET_HOURS, quietHours } from '@/lib/newsletter/schedule';
 
 const HOUR = 60 * 60 * 1000;
 
@@ -34,5 +34,18 @@ describe('estimatedSendTime', () => {
       const newest = new Date(Date.UTC(2026, 8, 20, hour, 30));
       expect(isQuiet(newest, estimatedSendTime(newest))).toBe(true);
     }
+  });
+});
+
+describe('quietHours', () => {
+  const newest = new Date('2026-09-20T10:00:00Z');
+
+  it('counts whole hours, never rounding up to quiet', () => {
+    expect(quietHours(newest, new Date(newest.getTime() + 7.9 * HOUR))).toBe(7);
+  });
+
+  it('stops at the quiet period and never goes below zero', () => {
+    expect(quietHours(newest, new Date(newest.getTime() + 40 * HOUR))).toBe(QUIET_HOURS);
+    expect(quietHours(newest, new Date(newest.getTime() - HOUR))).toBe(0);
   });
 });

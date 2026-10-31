@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { placeholderColor } from '@/lib/color/analyze';
 import { db } from '@/lib/db';
 import { postExcerpt } from '@/lib/post/excerpt';
 import { siteUrl } from '@/lib/site-url';
@@ -7,8 +8,10 @@ import {
   isEmpty,
   renderDigest,
   type DigestContent,
+  type DigestLayout,
 } from './digest';
 import { DEFAULT_PREFERENCES, type ContentKind, type Preferences } from './kinds';
+import { byPosition, sectionOrder } from './layout';
 import { manageUrl, unsubscribeHeaders } from './links';
 import { linkOrigin } from './origin';
 import { estimatedSendTime, isQuiet, UNCONFIRMED_TTL_MS } from './schedule';
@@ -48,7 +51,7 @@ export async function announce(kind: ContentKind, refIds: string | string[]): Pr
   }
 }
 
-type AnnouncementRow = { id: string; kind: ContentKind; refId: string; createdAt: Date };
+type AnnouncementRow = { id: string; kind: ContentKind; refId: string; createdAt: Date; position: number | null };
 
 /**
  * Where an announcement stands once looked up: `live` is sendable, `held` is a
@@ -57,6 +60,15 @@ type AnnouncementRow = { id: string; kind: ContentKind; refId: string; createdAt
  */
 export type ItemState = 'live' | 'held' | 'missing';
 
+/** A still or a clip's poster, for the admin's queue. Posts have none. */
+export interface BatchThumb {
+  url: string;
+  width: number;
+  height: number;
+  /** Shown while the image loads; a clip has no colour stats. */
+  color: string | null;
+}
+
 export interface BatchItem {
   announcementId: string;
   kind: ContentKind;
@@ -64,6 +76,9 @@ export interface BatchItem {
   title: string;
   createdAt: Date;
   state: ItemState;
+  thumb: BatchThumb | null;
+  /** The roll a clip is on, so two clips of the same name can be told apart. */
+  roll: string | null;
 }
 
 export interface ResolvedBatch {
@@ -84,11 +99,30 @@ async function resolve(rows: AnnouncementRow[]): Promise<ResolvedBatch> {
     }),
     db.video.findMany({
       where: { id: { in: refs('motion') } },
-      select: { id: true, title: true, description: true, posterImageUrl: true },
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        posterImageUrl: true,
+        width: true,
+        height: true,
+        roll: { select: { name: true } },
+      },
     }),
     db.photo.findMany({
       where: { id: { in: refs('stills') } },
-      select: { id: true, imageUrl: true, width: true, height: true, title: true, location: true, takenAt: true },
+      select: {
+        id: true,
+        imageUrl: true,
+        width: true,
+        height: true,
+        title: true,
+        location: true,
+        takenAt: true,
+        avgHue: true,
+        avgChroma: true,
+        avgLightness: true,
+      },
     }),
   ]);
 
@@ -100,11 +134,13 @@ async function resolve(rows: AnnouncementRow[]): Promise<ResolvedBatch> {
   const items: BatchItem[] = [];
   let newest: Date | null = null;
 
-  // Rows arrive oldest first, so each section of the email reads in the order
-  // things were published.
-  for (const row of rows) {
+  // Rows arrive oldest first; the ones placed by hand go first, in their places,
+  // and the rest follow in the order they were published.
+  for (const row of byPosition(rows)) {
     let title = '';
     let state: ItemState = 'missing';
+    let thumb: BatchThumb | null = null;
+    let roll: string | null = null;
 
     if (row.kind === 'journal') {
       const post = postById.get(row.refId);
@@ -125,6 +161,9 @@ async function resolve(rows: AnnouncementRow[]): Promise<ResolvedBatch> {
       if (clip) {
         title = clip.title;
         state = 'live';
+        // Clips stored before width/height existed are 0×0; 16:9 is what most are.
+        thumb = { url: clip.posterImageUrl, width: clip.width || 16, height: clip.height || 9, color: null };
+        roll = clip.roll?.name ?? null;
         content.motion.push(clip);
       }
     } else {
@@ -132,18 +171,46 @@ async function resolve(rows: AnnouncementRow[]): Promise<ResolvedBatch> {
       if (photo) {
         title = photo.title || photo.location;
         state = 'live';
+        thumb = { url: photo.imageUrl, width: photo.width, height: photo.height, color: placeholderColor(photo) };
         content.stills.push(photo);
       }
     }
 
     if (state === 'live' && (!newest || row.createdAt > newest)) newest = row.createdAt;
-    items.push({ announcementId: row.id, kind: row.kind, refId: row.refId, title, createdAt: row.createdAt, state });
+    items.push({
+      announcementId: row.id,
+      kind: row.kind,
+      refId: row.refId,
+      title,
+      createdAt: row.createdAt,
+      state,
+      thumb,
+      roll,
+    });
   }
 
   return { items, content, newest };
 }
 
-const announcementSelect = { id: true, kind: true, refId: true, createdAt: true } as const;
+const announcementSelect = { id: true, kind: true, refId: true, createdAt: true, position: true } as const;
+
+/** The draft row's id — there is only ever one next email. */
+const DRAFT_ID = 'next';
+
+export interface Draft {
+  message: string;
+  sections: ContentKind[];
+}
+
+/** The next email's note and section order, with the defaults when never saved. */
+export async function loadDraft(): Promise<Draft> {
+  const row = await db.newsletterDraft.findUnique({ where: { id: DRAFT_ID } });
+  return { message: row?.message ?? '', sections: sectionOrder(row?.sections) };
+}
+
+export async function saveDraft(data: Partial<Draft>): Promise<void> {
+  await db.newsletterDraft.upsert({ where: { id: DRAFT_ID }, create: { id: DRAFT_ID, ...data }, update: data });
+}
 
 /** Everything queued and not yet sent or skipped. */
 export async function pendingBatch(): Promise<ResolvedBatch> {
@@ -211,19 +278,29 @@ export async function runDispatch(options: { force?: boolean; now?: Date } = {})
 
   // The id is minted here so the create and the claim can go in one array
   // transaction. Only live items are claimed; a held draft stays pending.
+  //
+  // The note goes with this email and no further, so it is cleared in the same
+  // transaction — but only if it is still the text copied, so a note being
+  // rewritten at this moment is kept for the next email rather than lost.
   const id = randomUUID();
+  const draft = await loadDraft();
   const live = pending.items.filter((item) => item.state === 'live').map((item) => item.announcementId);
   const [dispatch, claimed] = await db.$transaction([
-    db.dispatch.create({ data: { id } }),
+    db.dispatch.create({ data: { id, message: draft.message, sections: draft.sections } }),
     db.announcement.updateMany({
       where: { id: { in: live }, dispatchId: null },
       data: { dispatchId: id },
+    }),
+    db.newsletterDraft.updateMany({
+      where: { id: DRAFT_ID, message: draft.message },
+      data: { message: '' },
     }),
   ]);
 
   // Two runs racing (a cron retry, or "Send now" at the same moment) both get
   // here, but only one can claim the items. The loser backs out before it
-  // touches a single subscriber.
+  // touches a single subscriber. It cannot have taken the note either: the
+  // claim blocks until the winner commits, and by then the note is cleared.
   if (claimed.count === 0) {
     await db.dispatch.delete({ where: { id } });
     return { status: 'idle' };
@@ -236,15 +313,26 @@ function digestEmail(
   content: DigestContent,
   subscriber: Preferences & { email: string; token: string },
   site: string,
+  layout: DigestLayout,
 ): OutgoingEmail {
-  const rendered = renderDigest(content, subscriber, {
-    site,
-    manage: manageUrl(site, subscriber.token),
-  });
+  const rendered = renderDigest(
+    content,
+    subscriber,
+    {
+      site,
+      manage: manageUrl(site, subscriber.token),
+    },
+    layout,
+  );
   return { to: subscriber.email, ...rendered, headers: unsubscribeHeaders(site, subscriber.token) };
 }
 
-async function deliver(dispatch: { id: string; createdAt: Date }): Promise<DispatchReport> {
+async function deliver(dispatch: {
+  id: string;
+  createdAt: Date;
+  message: string;
+  sections: ContentKind[];
+}): Promise<DispatchReport> {
   const rows = await db.announcement.findMany({
     where: { dispatchId: dispatch.id },
     select: announcementSelect,
@@ -274,7 +362,7 @@ async function deliver(dispatch: { id: string; createdAt: Date }): Promise<Dispa
 
     const emails = subscribers.flatMap((subscriber) => {
       const theirs = contentFor(content, subscriber);
-      return isEmpty(theirs) ? [] : [digestEmail(theirs, subscriber, site)];
+      return isEmpty(theirs) ? [] : [digestEmail(theirs, subscriber, site, dispatch)];
     });
 
     let handed = 0;
@@ -314,16 +402,35 @@ async function deliver(dispatch: { id: string; createdAt: Date }): Promise<Dispa
 
 /**
  * The pending batch as a subscriber who wants everything would get it — for the
- * admin preview. `manageFor` builds the manage link from the site origin; the
- * default is a stand-in, since the admin iframe has no subscriber behind it.
+ * emailed preview. `manageFor` builds the manage link from the site origin; the
+ * default is a stand-in, since a preview has no subscriber behind it.
  */
 export async function renderPendingPreview(
   manageFor: (site: string) => string = (site) => `${site}/newsletter`,
 ) {
-  const { content } = await pendingBatch();
-  if (isEmpty(content)) return null;
+  const [{ content }, draft] = await Promise.all([pendingBatch(), loadDraft()]);
+  const [preview] = await renderPreviews(content, draft, [DEFAULT_PREFERENCES], manageFor);
+  return preview;
+}
+
+/**
+ * The batch as each set of choices would get it, null where those choices get
+ * nothing — the admin's "Preview as". Takes the batch already resolved, since
+ * the page needs it for the queue anyway.
+ */
+export async function renderPreviews(
+  content: DigestContent,
+  layout: DigestLayout,
+  choices: Preferences[],
+  manageFor: (site: string) => string = (site) => `${site}/newsletter`,
+) {
   const site = await linkOrigin();
-  return renderDigest(content, DEFAULT_PREFERENCES, { site, images: siteUrl(), manage: manageFor(site) });
+  return choices.map((prefs) => {
+    const theirs = contentFor(content, prefs);
+    return isEmpty(theirs)
+      ? null
+      : renderDigest(theirs, prefs, { site, images: siteUrl(), manage: manageFor(site) }, layout);
+  });
 }
 
 /**

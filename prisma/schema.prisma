@@ -345,6 +345,11 @@ model Announcement {
   // deleted so the unique index below still stops it being queued again.
   skipped Boolean @default(false)
 
+  // Where it sits within its section of the email, set by dragging in
+  // /admin/newsletter. Null until moved: unmoved items follow the moved ones in
+  // the order they were queued, so something published later lands at the end.
+  position Int?
+
   // Null while pending. Restrict, because the alternative (SetNull) would turn
   // deleting old dispatch history into putting already-sent items back in the
   // queue, and the next cron run would email them all again.
@@ -369,6 +374,11 @@ model Dispatch {
   // Emails actually handed to the provider, for the admin history.
   sent Int @default(0)
 
+  // The note and section order as they stood when the dispatch began, copied
+  // off NewsletterDraft so a resumed send writes the email the first half got.
+  message  String        @default("")
+  sections ContentKind[] @default([])
+
   announcements Announcement[]
 
   @@index([completedAt])
@@ -384,6 +394,16 @@ model Dispatch {
 // refId is a Photo, Video or BlogPost id, and deliberately not a foreign key,
 // for the same reason as Announcement.refId. The delete actions clear an item's
 // rows; one they miss is invisible, because counts are only ever asked for by id.
+
+// The next email's own settings, beyond which items are in it: one row, id
+// "next", created on first save. The note is cleared when a dispatch takes it;
+// the section order stays until changed. Empty `sections` means the default.
+model NewsletterDraft {
+  id        String        @id @default("next")
+  message   String        @default("")
+  sections  ContentKind[] @default([])
+  updatedAt DateTime      @updatedAt
+}
 
 model Like {
   kind  ContentKind
