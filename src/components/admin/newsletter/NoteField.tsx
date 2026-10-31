@@ -22,6 +22,11 @@ export function NoteField({ initial }: { initial: string }) {
   const [saved, setSaved] = useState(initial);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const inFlight = useRef<Promise<boolean> | null>(null);
+  // The text last handed to saveMessage, and the text waiting on the timer.
+  // Refs, because blur and unmount must see them as they are now, not as the
+  // render that made the handler saw them.
+  const sent = useRef(initial);
+  const pending = useRef<string | null>(null);
 
   // A send clears the note on the server; take that in unless there are edits
   // here not yet saved, which win.
@@ -33,13 +38,23 @@ export function NoteField({ initial }: { initial: string }) {
       setSaved(initial);
     }
   }
+  // Follows what the server confirmed, which includes a send clearing it —
+  // otherwise retyping the note a send took would match `sent` and never save.
+  // A confirmation landing behind a newer save only costs that save a repeat.
+  useEffect(() => {
+    sent.current = saved;
+  }, [saved]);
 
   async function flush(text: string): Promise<boolean> {
     clearTimeout(timer.current);
-    if (text.trim() === saved.trim()) return false;
+    pending.current = null;
+    if (text.trim() === sent.current.trim()) return false;
+    const previous = sent.current;
+    sent.current = text;
     setStatus('saving');
     const result = await saveMessage(text);
     if (result.error) {
+      if (sent.current === text) sent.current = previous;
       setStatus('error');
       setError(result.error);
       return false;
@@ -54,19 +69,31 @@ export function NoteField({ initial }: { initial: string }) {
     setValue(text);
     setStatus('idle');
     clearTimeout(timer.current);
+    pending.current = text;
     timer.current = setTimeout(() => {
       inFlight.current = flush(text);
     }, SAVE_AFTER_MS);
   }
 
   async function blur() {
-    // A save already under way from the pause counts as this one.
-    const changed = (await inFlight.current) || (await flush(value));
+    // Saved now, not after any save already under way: server actions run in
+    // the order they are called, so starting this one here — blur fires on the
+    // mousedown of Send now — puts the latest text ahead of the send.
+    const [earlier, latest] = await Promise.all([inFlight.current, flush(value)]);
     inFlight.current = null;
-    if (changed) router.refresh();
+    if (earlier || latest) router.refresh();
   }
 
-  useEffect(() => () => clearTimeout(timer.current), []);
+  // Leaving the page inside the pause still saves what was typed.
+  useEffect(
+    () => () => {
+      clearTimeout(timer.current);
+      if (pending.current !== null && pending.current.trim() !== sent.current.trim()) {
+        void saveMessage(pending.current);
+      }
+    },
+    [],
+  );
 
   const near = value.length > MESSAGE_MAX * 0.8;
 

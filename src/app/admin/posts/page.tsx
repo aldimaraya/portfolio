@@ -10,11 +10,11 @@ import { firstImage, referencedMedia, type PostMedia, type ResolvedImage } from 
 import { markdownToContent } from '@/lib/markdown/legacy';
 import { parsePostFilter, summarizeDraft, type PostFilter } from '@/lib/admin/journal';
 import { countOf } from '@/lib/admin/overview';
+import { first } from '@/lib/admin/query';
 
 export const dynamic = 'force-dynamic';
 
 type Search = Record<string, string | string[] | undefined>;
-const first = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value);
 
 const FILTER_LABELS: Record<PostFilter, string> = { all: 'All', drafts: 'Drafts', published: 'Published' };
 
@@ -65,7 +65,14 @@ export default async function AdminPostsPage({ searchParams }: { searchParams: P
     stills.map((photo) => [photo.id, { url: photo.imageUrl, width: photo.width, height: photo.height, alt: '' }]),
   );
   const viewCounts = new Map(views.map((row) => [row.refId, row._count._all]));
-  const trayOf = (postId: string) => trayPhotos.filter((photo) => photo.postId === postId);
+  // Grouped once: filtering the whole list per call ran it twice per draft.
+  const trays = new Map<string, typeof trayPhotos>();
+  for (const photo of trayPhotos) {
+    const tray = trays.get(photo.postId);
+    if (tray) tray.push(photo);
+    else trays.set(photo.postId, [photo]);
+  }
+  const trayOf = (postId: string) => trays.get(postId) ?? [];
 
   /**
    * The post's first picture as a reader would see it, else — for a draft

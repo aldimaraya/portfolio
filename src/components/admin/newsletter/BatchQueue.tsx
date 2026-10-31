@@ -54,6 +54,10 @@ export function BatchQueue({
 }) {
   const router = useRouter();
   const [lists, setLists] = useState(sections);
+  // The order a section move swaps within, kept here rather than read off the
+  // prop: the prop is stale until the move's refresh lands, and a second move
+  // swapped against it saved an order other than the one on screen.
+  const [sectionOrder, setSectionOrderState] = useState(order);
   const [dragging, setDragging] = useState<Slot | null>(null);
   const [over, setOver] = useState<Slot | null>(null);
   const [showSkipped, setShowSkipped] = useState(false);
@@ -68,11 +72,12 @@ export function BatchQueue({
 
   // As on the Motion board: the server's fresh lists are taken in by content,
   // not identity, so a refresh mid-drag does not reset the order under the pointer.
-  const signature = JSON.stringify(sections);
+  const signature = JSON.stringify([sections, order]);
   const [syncedTo, setSyncedTo] = useState(signature);
   if (signature !== syncedTo) {
     setSyncedTo(signature);
     setLists(sections);
+    setSectionOrderState(order);
   }
 
   /** Runs a save, then refreshes so the preview shows what was saved. */
@@ -122,13 +127,18 @@ export function BatchQueue({
   function moveSectionBy(group: number, delta: -1 | 1) {
     const neighbour = lists[group + delta];
     if (!neighbour) return;
-    const before = lists;
+    const before = { lists, sectionOrder };
     const next = [...lists];
     [next[group], next[group + delta]] = [next[group + delta], next[group]];
+    const nextOrder = swapSections(sectionOrder, lists[group].kind, neighbour.kind);
     setLists(next);
+    setSectionOrderState(nextOrder);
     save(
-      () => setSectionOrder(swapSections(order, lists[group].kind, neighbour.kind)),
-      () => setLists(before),
+      () => setSectionOrder(nextOrder),
+      () => {
+        setLists(before.lists);
+        setSectionOrderState(before.sectionOrder);
+      },
     );
   }
 

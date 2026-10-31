@@ -7,6 +7,7 @@ import { VisitorBars } from '@/components/admin/VisitorBars';
 import {
   RANGES,
   SURFACES,
+  adminItemHref,
   change,
   engagementHref,
   likeRate,
@@ -17,8 +18,6 @@ import {
 import { countOf } from '@/lib/admin/overview';
 import { placeholderColor } from '@/lib/color/analyze';
 import { CONTENT_KINDS, KIND_LABELS } from '@/lib/newsletter/kinds';
-import { OPEN_PHOTO_PARAM } from '@/lib/photo/lightbox-link';
-import { adminClipHref } from '@/lib/video/edit-link';
 
 // Counts must reflect the database on every visit, never a build-time snapshot.
 export const dynamic = 'force-dynamic';
@@ -245,23 +244,12 @@ function Stat({ label, pair, days }: { label: string; pair: { now: number; befor
   );
 }
 
-function hrefFor(item: TopItem): string {
-  switch (item.kind) {
-    case 'stills':
-      return `/admin/photos?${OPEN_PHOTO_PARAM}=${encodeURIComponent(item.id)}`;
-    case 'motion':
-      return adminClipHref(item.id);
-    case 'journal':
-      return `/admin/posts/${item.id}`;
-  }
-}
-
 function TopRow({ item }: { item: TopItem }) {
   const rate = likeRate(item.likes, item.views);
   return (
     <tr className="border-t border-white/6">
       <td className="px-4 py-2 md:px-5">
-        <Link href={hrefFor(item)} className="group flex items-center gap-3">
+        <Link href={adminItemHref(item.kind, item.id)} className="group flex items-center gap-3">
           <Thumb item={item} />
           <span className="flex min-w-0 flex-col gap-0.5">
             <span className="truncate group-hover:text-gold">{item.title || 'Untitled'}</span>

@@ -6,11 +6,11 @@ import { safeNextPath } from '@/lib/auth/next-path';
 import { OPEN_PHOTO_PARAM, RETURN_PARAM } from '@/lib/photo/lightbox-link';
 import { toSettings } from '@/lib/photo/settings';
 import { StillsLibrary } from '@/components/admin/stills/StillsLibrary';
+import { first } from '@/lib/admin/query';
 
 export const dynamic = 'force-dynamic';
 
 type Search = Record<string, string | string[] | undefined>;
-const first = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value);
 
 export default async function AdminPhotosPage({ searchParams }: { searchParams: Promise<Search> }) {
   const params = await searchParams;

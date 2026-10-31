@@ -1,6 +1,9 @@
 import { Prisma } from '@prisma/client';
 import { db } from '@/lib/db';
 import { CONTENT_KINDS, type ContentKind } from '@/lib/newsletter/kinds';
+import { first } from '@/lib/admin/query';
+import { OPEN_PHOTO_PARAM } from '@/lib/photo/lightbox-link';
+import { adminClipHref } from '@/lib/video/edit-link';
 
 /**
  * The Engagement page: the Overview's week of numbers, opened out to a chosen
@@ -25,8 +28,6 @@ export type Ranking = 'likes' | 'views';
 
 export type EngagementQuery = { days: Range; surface: Surface; sort: Ranking };
 
-const first = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value);
-
 /**
  * The page's state, read from its query string so a view of it can be linked
  * to — the same reason the public filters live there. Anything unrecognised
@@ -34,10 +35,10 @@ const first = (value: string | string[] | undefined) => (Array.isArray(value) ? 
  */
 export function parseEngagementQuery(params: Record<string, string | string[] | undefined>): EngagementQuery {
   const days = Number(first(params.days));
-  const surface = first(params.surface);
+  const surface = first(params.surface) as ContentKind | undefined;
   return {
     days: (RANGES as readonly number[]).includes(days) ? (days as Range) : 30,
-    surface: surface === 'stills' || surface === 'motion' || surface === 'journal' ? surface : 'all',
+    surface: surface && CONTENT_KINDS.includes(surface) ? surface : 'all',
     sort: first(params.sort) === 'views' ? 'views' : 'likes',
   };
 }
@@ -63,9 +64,19 @@ export function windowStart(now: Date, days: number): Date {
   return day;
 }
 
-/** The index of the day `at` falls on, counted from `start`; out of range is the caller's to check. */
-function dayIndex(at: Date, start: Date): number {
-  return Math.floor((at.getTime() - start.getTime()) / DAY_MS);
+/**
+ * The admin page an item is edited on — a still's is the library with it open.
+ * Shared by the Engagement page's ranking and the Overview's most viewed.
+ */
+export function adminItemHref(kind: ContentKind, id: string): string {
+  switch (kind) {
+    case 'stills':
+      return `/admin/photos?${OPEN_PHOTO_PARAM}=${encodeURIComponent(id)}`;
+    case 'motion':
+      return adminClipHref(id);
+    case 'journal':
+      return `/admin/posts/${id}`;
+  }
 }
 
 /**
@@ -75,7 +86,10 @@ function dayIndex(at: Date, start: Date): number {
 export function daySeries(rows: { day: Date; visitors: number }[], start: Date, days: number): number[] {
   const series = new Array<number>(days).fill(0);
   for (const row of rows) {
-    const index = dayIndex(row.day, start);
+    // Rounded, not floored: `day` is a date column, and how it comes back as a
+    // Date depends on the driver — a value a little short of UTC midnight must
+    // still land on its own day, not the one before.
+    const index = Math.round((row.day.getTime() - start.getTime()) / DAY_MS);
     if (index >= 0 && index < days) series[index] = row.visitors;
   }
   return series;
@@ -85,7 +99,8 @@ export function daySeries(rows: { day: Date; visitors: number }[], start: Date, 
 export function markedDays(times: Date[], start: Date, days: number): boolean[] {
   const marks = new Array<boolean>(days).fill(false);
   for (const at of times) {
-    const index = dayIndex(at, start);
+    // Floored: these are instants, and 23:59 belongs to the day it is in.
+    const index = Math.floor((at.getTime() - start.getTime()) / DAY_MS);
     if (index >= 0 && index < days) marks[index] = true;
   }
   return marks;

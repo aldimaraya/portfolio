@@ -63,9 +63,12 @@ export async function setSkipped(announcementId: string, skipped: boolean): Prom
     if (!idSchema.safeParse(announcementId).success) return { error: 'Unknown item' };
 
     // dispatchId: null, so an item already sent cannot be toggled after the fact.
+    // Position cleared either way: a reorder numbers only the items listed, so
+    // one kept its old number while left out and came back tied with whatever
+    // had taken that place since. Unplaced, it rejoins after the placed ones.
     await db.announcement.updateMany({
       where: { id: announcementId, dispatchId: null },
-      data: { skipped },
+      data: { skipped, position: null },
     });
     revalidatePath('/admin/newsletter');
     return {};

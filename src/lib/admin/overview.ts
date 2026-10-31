@@ -25,7 +25,10 @@ export function kindCount(kind: ContentKind, count: number): string {
   return countOf(count, NOUNS[kind]);
 }
 
-/** "5 stills · 1 clip · 1 post" — stills first, as the email lays them out; empty kinds left out. */
+/**
+ * "5 stills · 1 clip · 1 post" — always in this fixed order, whatever order the
+ * email has been given, so summaries read alike; empty kinds left out.
+ */
 export function batchSummary(items: { kind: ContentKind }[]): string {
   const counts: Partial<Record<ContentKind, number>> = {};
   for (const item of items) counts[item.kind] = (counts[item.kind] ?? 0) + 1;
@@ -62,8 +65,8 @@ export type WeekEngagement = {
    * Visitor-days: distinct visitors each day, summed. Not weekly uniques — the
    * view hash is keyed per day (lib/engagement/visitor.ts) precisely so one
    * person's Monday and Tuesday cannot be matched, and someone who came back
-   * counts once for each day. Only readers who opened a clip or a post appear;
-   * the wall records no views.
+   * counts once for each day. A visitor appears once they open a clip or a
+   * post, or rest the lightbox on a still (see VIEWABLE in lib/engagement/kinds).
    */
   visitors: number;
   /** `visitors` split by day, oldest first; see dailySeries. */
@@ -72,7 +75,7 @@ export type WeekEngagement = {
   subscribers: number;
   /** The single most-liked item this week, by likes given this week. */
   mostLiked: { kind: ContentKind; title: string; likes: number } | null;
-  /** Clips and posts by views this week. Stills have no views to rank. */
+  /** Items of every kind by views this week — a still's being lightbox looks. */
   mostViewed: { kind: ContentKind; id: string; title: string; views: number }[];
 };
 

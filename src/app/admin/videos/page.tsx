@@ -5,11 +5,11 @@ import { RETURN_PARAM } from '@/lib/photo/lightbox-link';
 import { youtubeWatchUrl } from '@/lib/markdown/media';
 import { CLIP_PARAM } from '@/lib/video/edit-link';
 import { MotionLibrary, type Clip, type ClipGroup } from '@/components/admin/motion/MotionLibrary';
+import { first } from '@/lib/admin/query';
 
 export const dynamic = 'force-dynamic';
 
 type Search = Record<string, string | string[] | undefined>;
-const first = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value);
 
 export default async function AdminVideosPage({ searchParams }: { searchParams: Promise<Search> }) {
   const params = await searchParams;

@@ -76,6 +76,10 @@ describe('daySeries', () => {
     ];
     expect(daySeries(rows, start, 4)).toEqual([0, 0, 0, 0]);
   });
+  it('keeps a day that comes back just short of UTC midnight on its own bar', () => {
+    const rows = [{ day: new Date('2026-10-02T23:00:00Z'), visitors: 4 }];
+    expect(daySeries(rows, start, 4)).toEqual([0, 0, 4, 0]);
+  });
 });
 
 describe('markedDays', () => {

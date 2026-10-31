@@ -16,8 +16,8 @@ import {
   loadWeekEngagement,
   weekStartDay,
 } from "@/lib/admin/overview";
+import { adminItemHref } from "@/lib/admin/engagement";
 import { OPEN_PHOTO_PARAM } from "@/lib/photo/lightbox-link";
-import { adminClipHref } from "@/lib/video/edit-link";
 import { pendingBatch } from "@/lib/newsletter/queue";
 import { estimatedSendTime } from "@/lib/newsletter/schedule";
 
@@ -282,18 +282,11 @@ export default async function AdminOverview() {
                   {week.mostViewed.map((item) => (
                     <li key={item.kind + item.id}>
                       <Link
-                        href={
-                          item.kind === "motion"
-                            ? adminClipHref(item.id)
-                            : `/admin/posts/${item.id}`
-                        }
+                        href={adminItemHref(item.kind, item.id)}
                         className="flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm transition hover:bg-white/3"
                       >
                         <span className="text-ash" aria-hidden="true">
-                          <Icon
-                            name={item.kind === "motion" ? "motion" : "journal"}
-                            size={14}
-                          />
+                          <Icon name={item.kind} size={14} />
                         </span>
                         <span className="min-w-0 flex-1 truncate">
                           {item.title || "Untitled"}

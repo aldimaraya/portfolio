@@ -402,15 +402,17 @@ async function deliver(dispatch: {
 
 /**
  * The pending batch as a subscriber who wants everything would get it — for the
- * emailed preview. `manageFor` builds the manage link from the site origin; the
- * default is a stand-in, since a preview has no subscriber behind it.
+ * emailed preview — once per manage link, null when nothing is pending. Each
+ * builder makes a manage link from the site origin. The batch is resolved once
+ * for all of them: only the link differs between test addresses.
  */
-export async function renderPendingPreview(
-  manageFor: (site: string) => string = (site) => `${site}/newsletter`,
-) {
-  const [{ content }, draft] = await Promise.all([pendingBatch(), loadDraft()]);
-  const [preview] = await renderPreviews(content, draft, [DEFAULT_PREFERENCES], manageFor);
-  return preview;
+export async function renderPendingPreviews(manageLinks: ((site: string) => string)[]) {
+  const [{ content }, draft, site] = await Promise.all([pendingBatch(), loadDraft(), linkOrigin()]);
+  const theirs = contentFor(content, DEFAULT_PREFERENCES);
+  if (isEmpty(theirs)) return null;
+  return manageLinks.map((manageFor) =>
+    renderDigest(theirs, DEFAULT_PREFERENCES, { site, images: siteUrl(), manage: manageFor(site) }, draft),
+  );
 }
 
 /**
@@ -452,15 +454,18 @@ export async function sendPreview(): Promise<{ error?: string; sent?: number }> 
   });
   const tokenFor = new Map(subscribers.map((subscriber) => [subscriber.email, subscriber.token]));
 
-  const emails: OutgoingEmail[] = [];
-  for (const to of recipients) {
-    const token = tokenFor.get(to);
-    const preview = await renderPendingPreview((site) =>
-      token ? manageUrl(site, token) : `${site}/newsletter`,
-    );
-    if (!preview) return { error: 'Nothing is pending, so there is nothing to preview.' };
-    emails.push({ to, ...preview, subject: `[Preview] ${preview.subject}` });
-  }
+  const previews = await renderPendingPreviews(
+    recipients.map((to) => {
+      const token = tokenFor.get(to);
+      return (site: string) => (token ? manageUrl(site, token) : `${site}/newsletter`);
+    }),
+  );
+  if (!previews) return { error: 'Nothing is pending, so there is nothing to preview.' };
+  const emails: OutgoingEmail[] = previews.map((preview, i) => ({
+    to: recipients[i],
+    ...preview,
+    subject: `[Preview] ${preview.subject}`,
+  }));
 
   return { sent: await sendEmails(emails) };
 }

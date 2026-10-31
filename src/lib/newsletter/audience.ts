@@ -16,7 +16,11 @@ export interface PreferenceGroup {
   count: number;
 }
 
-/** The order the email lays its sections out in, which the labels follow. */
+/**
+ * A fixed order for the labels and keys, so one set of choices always reads
+ * and keys the same. Not the email's order: that is NewsletterDraft.sections,
+ * and changes when the admin drags a section.
+ */
 const LABEL_ORDER: ContentKind[] = ['stills', 'motion', 'journal'];
 
 function groupKey(prefs: Preferences): string {
