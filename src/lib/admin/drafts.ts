@@ -22,8 +22,20 @@ export const stillFieldsSchema = z.object({
   title: z.string().trim(),
   location: z.string().trim(),
   camera: z.string().trim(),
-  // A date input's "yyyy-mm-dd", or '' for unknown — see lib/photo/date.
-  takenAt: z.union([z.literal(''), z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'That is not a date')]),
+  // A date input's "yyyy-mm-dd", or '' for unknown — see lib/photo/date. Read
+  // back through Date as well as matched, because the shape alone lets
+  // 2024-13-40 through to an Invalid Date that Prisma throws on — and a browser
+  // with no date picker hands over whatever was typed.
+  takenAt: z.union([
+    z.literal(''),
+    z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, 'That is not a date')
+      .refine((value) => {
+        const date = new Date(`${value}T00:00:00Z`);
+        return !Number.isNaN(date.getTime()) && date.toISOString().startsWith(value);
+      }, 'That is not a date'),
+  ]),
   settings: photoSettingsSchema,
   tags: z.string(),
 });
@@ -65,15 +77,35 @@ export const clipUploadSchema = z.object({
   durationSeconds: z.number().nonnegative(),
 });
 
+const BARE_ID = /^[\w-]{11}$/;
+
 /**
  * A pasted YouTube link → the stored id, '' for none, null for a link that is
  * not to a YouTube video. Same reading as saveVideo's: a scheme-less youtu.be/ID
- * is given one, since URL() will not parse it otherwise.
+ * is given one, since URL() will not parse it otherwise. A bare id is taken as
+ * itself, which is also what lets publish check a row by its stored column.
  */
 export function youtubeIdOf(url: string): string | null {
   const trimmed = url.trim();
   if (!trimmed) return '';
+  if (BARE_ID.test(trimmed)) return trimmed;
   return youtubeId(/^[a-z][a-z\d+.-]*:/i.test(trimmed) ? trimmed : `https://${trimmed}`);
+}
+
+/**
+ * What a draft clip's youtubeId column holds: the id, '' for none, or — while
+ * it is a draft — the link exactly as pasted when no id can be read from it.
+ * Kept rather than blanked so publish, which reads only the row, still sees a
+ * bad link and refuses it; stored as none, it would go live as "no link". The
+ * raw text can never pass for an id: anything id-shaped was taken as one.
+ */
+export function draftYoutubeColumn(url: string): string {
+  return youtubeIdOf(url) ?? url.trim();
+}
+
+/** The column back as the field shows it: a link for an id, the pasted text otherwise. */
+export function draftYoutubeUrl(column: string): string {
+  return BARE_ID.test(column) ? `https://youtu.be/${column}` : column;
 }
 
 /**

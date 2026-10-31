@@ -32,6 +32,12 @@ interface StoredBase {
   width: number;
   height: number;
   selected: boolean;
+  /**
+   * Where Publish put the main file, written just before the draft row is
+   * created. A reload that finds a draft with this URL knows this copy already
+   * became that row — the tab closed before the copy could be forgotten.
+   */
+  sentUrl?: string;
 }
 
 export type StoredItem =

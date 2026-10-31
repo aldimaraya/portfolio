@@ -1,14 +1,26 @@
 import { db } from '@/lib/db';
 import { takenAtToInputValue } from '@/lib/photo/date';
 import { toSettings } from '@/lib/photo/settings';
-import type { ClipFields, StillFields } from './drafts';
+import { draftYoutubeUrl, type ClipFields, type StillFields } from './drafts';
 
+// `url` is the main object — the still, or the clip itself — which is what a
+// local copy remembers having uploaded, so the queue can tell it is this row.
 export type DraftRow =
-  | { kind: 'still'; id: string; name: string; thumb: string; width: number; height: number; fields: StillFields }
+  | {
+      kind: 'still';
+      id: string;
+      name: string;
+      url: string;
+      thumb: string;
+      width: number;
+      height: number;
+      fields: StillFields;
+    }
   | {
       kind: 'clip';
       id: string;
       name: string;
+      url: string;
       thumb: string;
       width: number;
       height: number;
@@ -44,6 +56,7 @@ export async function loadDrafts(): Promise<DraftRow[]> {
         kind: 'still' as const,
         id: photo.id,
         name: storedName(photo.imageUrl),
+        url: photo.imageUrl,
         thumb: photo.imageUrl,
         width: photo.width,
         height: photo.height,
@@ -63,6 +76,7 @@ export async function loadDrafts(): Promise<DraftRow[]> {
         kind: 'clip' as const,
         id: video.id,
         name: storedName(video.videoUrl),
+        url: video.videoUrl,
         thumb: video.posterImageUrl,
         width: video.width,
         height: video.height,
@@ -71,7 +85,7 @@ export async function loadDrafts(): Promise<DraftRow[]> {
           title: video.title,
           description: video.description,
           rollId: video.rollId ?? '',
-          youtubeUrl: video.youtubeId ? `https://youtu.be/${video.youtubeId}` : '',
+          youtubeUrl: draftYoutubeUrl(video.youtubeId),
           tags: video.tags.map((entry) => entry.tag.name).join(', '),
         },
       },

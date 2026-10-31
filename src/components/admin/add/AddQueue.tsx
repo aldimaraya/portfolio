@@ -74,6 +74,8 @@ interface ItemBase {
   /** The fields as last written — to IndexedDB or to the row — as JSON; differing means a write is due. */
   saved: string;
   saving: boolean;
+  /** The main file's object in R2: where a local item's upload went, or an uploaded draft's own. See StoredItem. */
+  sentUrl?: string;
 }
 
 export type StillItem = ItemBase & {
@@ -167,6 +169,7 @@ function toStored(item: QueueItem, extra: { colour?: Colour; spriteFrames?: numb
     width: item.width,
     height: item.height,
     selected: item.selected,
+    sentUrl: item.sentUrl,
   };
   return item.kind === 'still'
     ? { ...base, kind: 'still', fields: item.fields, insets: item.insets, colour: extra.colour! }
@@ -301,6 +304,7 @@ export function AddQueueProvider({ children }: { children: React.ReactNode }) {
             selected: entry.selected,
             saved: JSON.stringify(entry.fields),
             saving: false,
+            sentUrl: entry.sentUrl,
           };
           restoredItems.push(
             entry.kind === 'still'
@@ -586,6 +590,7 @@ export function AddQueueProvider({ children }: { children: React.ReactNode }) {
               selected: true,
               saved: JSON.stringify(row.fields),
               saving: false,
+              sentUrl: row.url,
             };
             return row.kind === 'still'
               ? { ...base, kind: 'still', fields: row.fields, insets: null, imageUrl: row.thumb }
@@ -603,6 +608,23 @@ export function AddQueueProvider({ children }: { children: React.ReactNode }) {
     },
     [update],
   );
+
+  // A local copy whose upload already became a draft row: the tab closed after
+  // the row was made and before the copy was forgotten. The row wins — it is
+  // what publish would make anyway — and the copy goes, so it is not uploaded
+  // and published a second time. Either side can arrive first, so this watches
+  // the list rather than living in restore or adopt.
+  useEffect(() => {
+    const uploaded = new Set(items.filter((item) => item.id && item.sentUrl).map((item) => item.sentUrl));
+    const stale = items.filter((item) => !item.id && item.stage === 'ready' && item.sentUrl && uploaded.has(item.sentUrl));
+    if (!stale.length) return;
+    for (const item of stale) {
+      void forgetItem(item.key).catch(() => undefined);
+      forget(item.key);
+    }
+    const keys = new Set(stale.map((item) => item.key));
+    update((prev) => prev.filter((item) => !keys.has(item.key)));
+  }, [items, forget, update]);
 
   const edit: AddQueue['edit'] = (key, kind, change) =>
     patch(key, (item) => (item.kind === kind ? { fields: { ...item.fields, ...change } } : {}) as Partial<QueueItem>);
@@ -882,15 +904,29 @@ export function AddQueueProvider({ children }: { children: React.ReactNode }) {
         return url;
       };
 
+      /**
+       * Remembers where the main file went before the row is made: if the tab
+       * closes between the row and the forget below, the reload matches this
+       * copy to the row instead of offering to upload it a second time.
+       */
+      const remember = async (sentUrl: string) => {
+        patch(key, { stage: 'saving', sentUrl });
+        await storeDetails(toStored(current(key)!, extras.current.get(key) ?? {})).catch(() => undefined);
+      };
+
       let id: string;
+      // The fields as sent, which is what the row holds. Anything typed while
+      // the row was being made still differs from these, and is saved after.
+      let sent: StillFields | ClipFields;
       if (item.kind === 'still') {
         const imageUrl = await put(kept.upload, kept.upload.name, 'photos');
-        patch(key, { stage: 'saving' });
+        await remember(imageUrl);
         const colour = extras.current.get(key)?.colour;
         if (!colour) throw new Error('The colour analysis is missing — remove this and add it again');
+        sent = current(key)!.fields;
         const result = await createDraftStill({
           upload: { imageUrl, width: item.width, height: item.height, ...colour },
-          fields: current(key)!.fields as StillFields,
+          fields: sent as StillFields,
         });
         if (result.error !== undefined) throw new Error(result.error);
         id = result.id;
@@ -904,7 +940,8 @@ export function AddQueueProvider({ children }: { children: React.ReactNode }) {
           ? await put(kept.cover, encodedFilename(`${base}-cover.webp`, kept.cover.type), 'covers')
           : await put(kept.poster!, encodedFilename(`${base}-poster.webp`, kept.poster!.type), 'posters');
         const spriteUrl = await put(kept.sprite!, encodedFilename(`${base}-sprite.webp`, kept.sprite!.type), 'sprites');
-        patch(key, { stage: 'saving' });
+        await remember(videoUrl);
+        sent = current(key)!.fields;
         const result = await createDraftClip({
           upload: {
             videoUrl,
@@ -915,15 +952,26 @@ export function AddQueueProvider({ children }: { children: React.ReactNode }) {
             height: item.height,
             durationSeconds: (item as ClipItem).durationSeconds,
           },
-          fields: current(key)!.fields as ClipFields,
+          fields: sent as ClipFields,
         });
         if (result.error !== undefined) throw new Error(result.error);
         id = result.id;
+        // Its roll was deleted in another tab since it was picked: the row
+        // holds none, and the select should say so rather than keep the name.
+        const asked = (sent as ClipFields).rollId;
+        if (asked && result.rollId !== asked) {
+          sent = { ...(sent as ClipFields), rollId: result.rollId };
+          patch(key, (latest) => ({
+            fields: { ...(latest.fields as ClipFields), rollId: result.rollId },
+            error: 'Its roll no longer exists — pick another',
+          }) as Partial<ClipItem>);
+        }
       }
 
       await forgetItem(key).catch(() => undefined);
       files.current.delete(key);
-      patch(key, (latest) => ({ id, stage: 'ready', progress: 100, saved: JSON.stringify(latest.fields) }));
+      const saved = JSON.stringify(sent);
+      patch(key, { id, stage: 'ready', progress: 100, saved });
       return id;
     } catch (cause) {
       // Back to ready, not failed: the local copy is intact and Publish can try again.
@@ -953,8 +1001,20 @@ export function AddQueueProvider({ children }: { children: React.ReactNode }) {
       let failed = 0;
       for (const item of chosen) {
         const id = item.id ?? (await send(item.key));
-        if (id) rows.push({ kind: item.kind, id });
-        else failed += 1;
+        if (!id) {
+          failed += 1;
+          continue;
+        }
+        // What was typed while it uploaded reached only the screen; the row
+        // needs it before publish checks the row.
+        const pending = timers.current.get(item.key);
+        if (pending) clearTimeout(pending.timer);
+        await flush(item.key);
+        // Left out when it no longer qualifies — a clip whose roll vanished on
+        // the way up — so the row keeps the reason it was given.
+        const latest = current(item.key);
+        if (latest && problemsOf(latest).length) failed += 1;
+        else rows.push({ kind: item.kind, id });
       }
       if (!rows.length) return { published: 0, refused: failed };
 

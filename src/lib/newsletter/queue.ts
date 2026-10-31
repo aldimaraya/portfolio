@@ -34,14 +34,17 @@ import {
  * already live by the time this runs, and telling the admin "save failed" for
  * something that saved would be the worse lie. A missed announcement is logged.
  *
+ * Takes a batch too, so publishing a queue is one insert rather than one per item.
  * `skipDuplicates` is what makes this safe to call on every publish: an item is
  * only ever announced once (the unique index on kind + refId).
  */
-export async function announce(kind: ContentKind, refId: string): Promise<void> {
+export async function announce(kind: ContentKind, refIds: string | string[]): Promise<void> {
+  const ids = typeof refIds === 'string' ? [refIds] : refIds;
+  if (!ids.length) return;
   try {
-    await db.announcement.createMany({ data: [{ kind, refId }], skipDuplicates: true });
+    await db.announcement.createMany({ data: ids.map((refId) => ({ kind, refId })), skipDuplicates: true });
   } catch (cause) {
-    console.error('Newsletter: could not queue', kind, refId, cause);
+    console.error('Newsletter: could not queue', kind, ids, cause);
   }
 }
 

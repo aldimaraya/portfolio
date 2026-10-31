@@ -11,6 +11,7 @@ import { deleteObjectsByUrl } from '@/lib/storage/r2';
 import { attempt } from '@/lib/actions/errors';
 import { announce } from '@/lib/newsletter/queue';
 import { youtubeId } from '@/lib/markdown/media';
+import { nextSortOrder } from '@/lib/video/roll-order';
 
 const videoFields = z.object({
   id: z.string().optional(),
@@ -71,19 +72,6 @@ const detailsSchema = videoFields
   .extend({ id: z.string().min(1) });
 
 export type VideoDetailsInput = z.input<typeof detailsSchema>;
-
-/**
- * One past the last clip on a roll. Not exported: every export of a 'use server'
- * file is a public endpoint.
- */
-async function nextSortOrder(rollId: string): Promise<number> {
-  const last = await db.video.findFirst({
-    where: { rollId },
-    orderBy: { sortOrder: 'desc' },
-    select: { sortOrder: true },
-  });
-  return (last?.sortOrder ?? -1) + 1;
-}
 
 export async function saveVideo(input: VideoInput): Promise<{ error?: string }> {
   // Wrapped so a failure past validation still arrives as `{ error }` rather
@@ -259,11 +247,14 @@ export async function setVideoPoster(id: string, posterImageUrl: string): Promis
  * What every clip edit invalidates. 'layout' rather than the default for
  * /motion, so the clip pages under it go too: each carries its own position on
  * the roll — the frame code and the prev/next pager — so a change to any clip
- * can invalidate all of them. Not exported: every export here is an endpoint.
+ * can invalidate all of them. The journal too: a clip block renders the clip's
+ * title and poster, and a replaced poster is deleted from R2, so a post left
+ * cached shows a broken image. Not exported: every export here is an endpoint.
  */
 function revalidateMotion() {
   revalidatePath('/admin', 'layout');
   revalidatePath(MOTION_LAYOUT, 'layout');
+  revalidatePath(JOURNAL_LAYOUT, 'layout');
   revalidatePath('/');
 }
 
@@ -409,15 +400,22 @@ export async function deleteRoll(id: string): Promise<{ error?: string }> {
     if (!(await isAuthenticated())) return { error: 'Unauthorized' };
 
     // Checked up front for the message; the Restrict on Video.roll is what
-    // actually guarantees a roll never takes its clips with it.
-    const clips = await db.video.count({ where: { rollId: id } });
+    // actually guarantees a roll never takes its clips with it. Published clips
+    // only: the board hides drafts, so a roll holding nothing else looks empty
+    // and has nothing on it that could be dragged away.
+    const clips = await db.video.count({ where: { rollId: id, draft: false } });
     if (clips > 0) {
       return {
         error: `Move its ${clips} ${clips === 1 ? 'clip' : 'clips'} to another roll first`,
       };
     }
 
-    await db.roll.delete({ where: { id } });
+    // Its drafts lose their roll instead, which is a state a draft may be in:
+    // the queue asks for a roll again before it will publish them.
+    await db.$transaction([
+      db.video.updateMany({ where: { rollId: id, draft: true }, data: { rollId: null } }),
+      db.roll.delete({ where: { id } }),
+    ]);
 
     revalidatePath('/admin/videos');
     revalidatePath(MOTION_LAYOUT, 'layout');

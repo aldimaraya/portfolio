@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   applyBulk,
+  draftYoutubeColumn,
+  draftYoutubeUrl,
   inFlight,
   itemPercent,
   kindOfFile,
@@ -8,6 +10,7 @@ import {
   publishProblems,
   queueProgress,
   sending,
+  stillFieldsSchema,
   tallyQueue,
   youtubeIdOf,
   type ClipFields,
@@ -64,6 +67,40 @@ describe('youtubeIdOf', () => {
     expect(youtubeIdOf('youtu.be/dQw4w9WgXcQ')).toBe('dQw4w9WgXcQ');
     expect(youtubeIdOf('  ')).toBe('');
     expect(youtubeIdOf('https://example.com')).toBeNull();
+  });
+
+  it('takes a bare id as itself, which is how publish reads a stored row', () => {
+    expect(youtubeIdOf('dQw4w9WgXcQ')).toBe('dQw4w9WgXcQ');
+    expect(publishProblems({ kind: 'clip', fields: clip({ youtubeUrl: 'dQw4w9WgXcQ' }) })).toEqual([]);
+  });
+});
+
+describe('draftYoutubeColumn and draftYoutubeUrl', () => {
+  it('stores the id, or a bad link as pasted so publish still refuses it', () => {
+    expect(draftYoutubeColumn('youtu.be/dQw4w9WgXcQ')).toBe('dQw4w9WgXcQ');
+    expect(draftYoutubeColumn('')).toBe('');
+    const playlist = 'https://www.youtube.com/playlist?list=PL123';
+    expect(draftYoutubeColumn(playlist)).toBe(playlist);
+    expect(publishProblems({ kind: 'clip', fields: clip({ youtubeUrl: draftYoutubeColumn(playlist) }) })).toEqual([
+      'a YouTube link that works',
+    ]);
+  });
+
+  it('reads the column back as the field shows it', () => {
+    expect(draftYoutubeUrl('dQw4w9WgXcQ')).toBe('https://youtu.be/dQw4w9WgXcQ');
+    expect(draftYoutubeUrl('')).toBe('');
+    expect(draftYoutubeUrl('https://vimeo.com/1')).toBe('https://vimeo.com/1');
+  });
+});
+
+describe('stillFieldsSchema takenAt', () => {
+  const parse = (takenAt: string) => stillFieldsSchema.safeParse({ ...still(), takenAt }).success;
+
+  it('takes a real date or none, and refuses one that only looks like a date', () => {
+    expect(parse('2024-02-29')).toBe(true);
+    expect(parse('')).toBe(true);
+    expect(parse('2024-13-40')).toBe(false);
+    expect(parse('2023-02-29')).toBe(false);
   });
 });
 
