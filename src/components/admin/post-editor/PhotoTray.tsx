@@ -29,6 +29,8 @@ const STAGE_LABEL: Record<UploadStage, string> = {
 };
 
 interface Props {
+  /** Shown as a drawer below 80rem; from there up it is a column and always open. */
+  open: boolean;
   postId: string;
   photos: TrayPhoto[];
   /** Journal photo ids some block already uses, marked "In post". */
@@ -57,7 +59,7 @@ export function PhotoTray(props: Props) {
   const [tab, setTab] = useState<Tab>('trip');
 
   return (
-    <aside className="editor-tray" aria-label="Photos">
+    <aside className="editor-tray" aria-label="Photos" data-open={props.open || undefined}>
       <div className="editor-tray-head">
         <div role="tablist" aria-label="Photo source" className="editor-segmented">
           {(
@@ -71,7 +73,7 @@ export function PhotoTray(props: Props) {
             </button>
           ))}
         </div>
-        <button type="button" className="editor-icon-button" aria-label="Close photos" onClick={props.onClose}>
+        <button type="button" className="editor-icon-button editor-tray-close" aria-label="Close photos" onClick={props.onClose}>
           ×
         </button>
       </div>

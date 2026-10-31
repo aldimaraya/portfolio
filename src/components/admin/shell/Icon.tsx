@@ -51,6 +51,13 @@ const PATHS = {
   upload: <path d="M12 16V4M7 9l5-5 5 5M4 20h16" />,
   check: <path d="M5 12l5 5 9-10" />,
   close: <path d="M6 6l12 12M18 6L6 18" />,
+  desktop: (
+    <>
+      <rect x="3" y="4" width="18" height="12" rx="1" />
+      <path d="M8 20h8M12 16v4" />
+    </>
+  ),
+  phone: <rect x="7" y="3" width="10" height="18" rx="2" />,
 } as const;
 
 export type IconName = keyof typeof PATHS;

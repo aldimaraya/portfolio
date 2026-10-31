@@ -16,18 +16,20 @@ import {
   makeBlock,
   moveBlock,
   moveBlockTo,
+  moveSection,
   removeBlock,
   removePhotoRefs,
   usedJournalPhotos,
   type Insertable,
 } from '@/lib/post/editor';
 import { missingForPublish } from '@/lib/post/form';
-import type { PostMedia, ResolvedClip, ResolvedImage } from '@/lib/post/media';
-import { indexEntries, sectionEntries } from '@/lib/post/sections';
+import { firstImage, type PostMedia, type ResolvedClip, type ResolvedImage } from '@/lib/post/media';
+import { indexEntries, sectionEntries, unwrittenSections } from '@/lib/post/sections';
 import { insertionPointForDays, layoutMissingDays, type TrayPhoto } from '@/lib/post/trip';
 import { slugify } from '@/lib/slug';
-import { ToolbarSlot } from './BlockToolbar';
+import { Icon } from '@/components/admin/shell/Icon';
 import { EditorBlock } from './EditorBlock';
+import { EditorOutline } from './EditorOutline';
 import { GrowingText } from './fields';
 import { InsertPoint } from './InsertMenu';
 import { PhotoTray } from './PhotoTray';
@@ -59,7 +61,10 @@ interface Toast {
 
 /**
  * The journal editor: the post drawn on the same sheet it is published on, with
- * each block editable in place, and the post's trip photos in a tray beside it.
+ * each block editable in place, its outline on the left and its trip photos in
+ * a tray on the right. Below 80rem the tray becomes a drawer and below 64rem
+ * the outline goes (the sheet's own index stands in), so the sheet never drops
+ * under the width the post is read at on a laptop.
  *
  * It owns the post's state; every decision about what an edit does to the
  * blocks is a pure function in lib/post/editor.ts. Saving is explicit — Save,
@@ -85,7 +90,6 @@ export function PostEditor({ post, blocks: initialBlocks, media: initialMedia, t
   const [tray, setTray] = useState<{ open: boolean; target: string | null }>({ open: false, target: null });
   const [save, setSave] = useState<SaveState>({ kind: 'idle' });
   const [toast, setToast] = useState<Toast | null>(null);
-  const [toolbarSlot, setToolbarSlot] = useState<HTMLDivElement | null>(null);
 
   // What was last saved, to tell whether there is anything to save. A post
   // shown converted from Markdown has never been saved as blocks, so it starts
@@ -107,6 +111,14 @@ export function PostEditor({ post, blocks: initialBlocks, media: initialMedia, t
   const sections = useMemo(() => new Map(sectionEntries(blocks).map((entry) => [entry.id, entry])), [blocks]);
   const index = useMemo(() => indexEntries(blocks), [blocks]);
   const used = useMemo(() => usedJournalPhotos(blocks), [blocks]);
+  const unwritten = useMemo(() => new Set(unwrittenSections(blocks)), [blocks]);
+  const cover = useMemo(() => firstImage(blocks, media), [blocks, media]);
+  // The section the selected block sits in: the last one at or above it.
+  const currentSection = useMemo(() => {
+    const at = blocks.findIndex((block) => block.id === selected);
+    for (let i = at; i >= 0; i -= 1) if (blocks[i].type === 'section') return blocks[i].id;
+    return null;
+  }, [blocks, selected]);
   const missing = missingForPublish({ title, content: { version: 1, blocks } });
 
   const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -214,6 +226,12 @@ export function PostEditor({ post, blocks: initialBlocks, media: initialMedia, t
     });
   }
 
+  function jumpTo(id: string) {
+    setMode('edit');
+    setSelected(id);
+    document.getElementById(`block-${id}`)?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }
+
   function endDrag() {
     setDragging(null);
     setDropAt(null);
@@ -234,6 +252,18 @@ export function PostEditor({ post, blocks: initialBlocks, media: initialMedia, t
 
   const targetBlock = tray.target ? blocks.find((block) => block.id === tray.target) : undefined;
 
+  /** "Click to add to the selected row in Day 1": which block, and where it is. */
+  function targetLabel(block: Block): string {
+    const layout = block.type === 'photos' ? block.layout : 'block';
+    const at = blocks.indexOf(block);
+    let section: string | null = null;
+    for (let i = at; i >= 0 && section === null; i -= 1) {
+      const entry = blocks[i].type === 'section' ? sections.get(blocks[i].id) : undefined;
+      if (entry) section = entry.label || entry.title || null;
+    }
+    return `Click to add to the selected ${layout}${section ? ` in ${section}` : ''}`;
+  }
+
   // ── Rendering ─────────────────────────────────────────────────────────────
 
   const status =
@@ -252,83 +282,99 @@ export function PostEditor({ post, blocks: initialBlocks, media: initialMedia, t
   const liveSlug = draft ? slugify(title || 'Untitled') : slug;
 
   return (
-    <ToolbarSlot.Provider value={toolbarSlot}>
-      <div className="editor-shell">
-        <header className="editor-bar">
-          <Link
-            href="/admin/posts"
-            className="editor-back"
-            onClick={(event) => {
-              if (dirty && !window.confirm('Leave without saving your changes?')) event.preventDefault();
-            }}
-          >
-            ← Posts
-          </Link>
-          <div className="editor-bar-title">
-            <span>{title.trim() || 'Untitled'}</span>
-            <span className="editor-muted" data-error={save.kind === 'error' || undefined}>
-              {draft ? 'Draft' : 'Published'} · {status}
-            </span>
-          </div>
-          <div className="editor-segmented" role="group" aria-label="Mode">
-            {(
-              [
-                ['edit', 'Edit'],
-                ['preview', 'Preview'],
-              ] as const
-            ).map(([id, label]) => (
-              <button key={id} type="button" aria-pressed={mode === id} onClick={() => setMode(id)}>
-                {label}
-              </button>
-            ))}
-          </div>
-          <div className="editor-segmented" role="group" aria-label="Width">
-            {(
-              [
-                ['desktop', 'Desktop'],
-                ['phone', 'Phone'],
-              ] as const
-            ).map(([id, label]) => (
-              <button key={id} type="button" aria-pressed={width === id} onClick={() => setWidth(id)}>
-                {label}
-              </button>
-            ))}
-          </div>
+    <div className="editor-shell">
+      {/* One bar, three jobs: where you are, how it looks, what happens to it. */}
+      <header className="editor-bar">
+        <Link
+          href="/admin/posts"
+          className="editor-back"
+          onClick={(event) => {
+            if (dirty && !window.confirm('Leave without saving your changes?')) event.preventDefault();
+          }}
+        >
+          ← Journal
+        </Link>
+        <div className="editor-bar-title">
+          <span>{title.trim() || 'Untitled'}</span>
+          <span className="editor-muted" data-error={save.kind === 'error' || undefined}>
+            {draft ? 'Draft' : 'Published'} · {status}
+          </span>
+        </div>
+        <div className="editor-segmented editor-bar-desktop" role="group" aria-label="Mode">
+          {(
+            [
+              ['edit', 'Write'],
+              ['preview', 'Preview'],
+            ] as const
+          ).map(([id, label]) => (
+            <button key={id} type="button" aria-pressed={mode === id} onClick={() => setMode(id)}>
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="editor-segmented editor-bar-desktop" role="group" aria-label="Width">
+          {(
+            [
+              ['desktop', 'Desktop width'],
+              ['phone', 'Phone width'],
+            ] as const
+          ).map(([id, label]) => (
+            <button key={id} type="button" aria-label={label} title={label} aria-pressed={width === id} onClick={() => setWidth(id)}>
+              <Icon name={id} size={16} />
+            </button>
+          ))}
+        </div>
+        {/* Only where the tray is a drawer; from 80rem it is always open. */}
+        <button
+          type="button"
+          className="editor-button editor-tray-toggle"
+          aria-pressed={tray.open}
+          onClick={() => {
+            setMode('edit');
+            setTray((current) => ({ open: !current.open, target: null }));
+          }}
+        >
+          Photos · {trayPhotos.length}
+        </button>
+        <button type="button" className="editor-button" disabled={save.kind === 'saving' || !dirty} onClick={() => persist(draft)}>
+          {draft ? 'Save draft' : 'Update'}
+          <kbd className="editor-kbd">⌘S</kbd>
+        </button>
+        {draft ? (
           <button
             type="button"
-            className="editor-button"
-            aria-pressed={tray.open}
-            onClick={() => {
-              setMode('edit');
-              setTray((current) => ({ open: !current.open, target: null }));
-            }}
+            className="editor-primary"
+            disabled={save.kind === 'saving' || missing.length > 0}
+            title={missing.length ? `Publishing needs ${missing.join(' and ')}` : undefined}
+            onClick={() => persist(false)}
           >
-            Photos · {trayPhotos.length}
+            Publish
           </button>
-          <button type="button" className="editor-button" disabled={save.kind === 'saving' || !dirty} onClick={() => persist(draft)}>
-            {draft ? 'Save draft' : 'Update'}
+        ) : (
+          <button type="button" className="editor-button" disabled={save.kind === 'saving'} onClick={() => persist(true)}>
+            Unpublish
           </button>
-          {draft ? (
-            <button
-              type="button"
-              className="editor-primary"
-              disabled={save.kind === 'saving' || missing.length > 0}
-              title={missing.length ? `Publishing needs ${missing.join(' and ')}` : undefined}
-              onClick={() => persist(false)}
-            >
-              Publish
-            </button>
-          ) : (
-            <button type="button" className="editor-button" disabled={save.kind === 'saving'} onClick={() => persist(true)}>
-              Unpublish
-            </button>
-          )}
-          {mode === 'edit' ? (
-            <div className="editor-context" ref={setToolbarSlot}>
-              {selected ? null : <span className="editor-muted">Select a block to format it or change its layout. Hover one to drag or delete it.</span>}
-            </div>
-          ) : null}
-        </header>
+        )}
+      </header>
+
+      <div className="editor-body" data-mode={mode}>
+        {mode === 'edit' ? (
+          <EditorOutline
+            entries={[...sections.values()]}
+            unwritten={unwritten}
+            current={currentSection}
+            onJump={jumpTo}
+            onMove={(id, delta) => {
+              setBlocks((current) => moveSection(current, id, delta));
+              requestAnimationFrame(() => document.getElementById(`block-${id}`)?.scrollIntoView({ block: 'start' }));
+            }}
+            onAddDay={() => insert('day', blocks.length)}
+            onAddSection={() => insert('section', blocks.length)}
+            slug={liveSlug}
+            draft={draft}
+            cover={cover}
+          />
+        ) : null}
 
         <div className="editor-canvas">
           <div className={width === 'phone' ? 'editor-phone' : undefined}>
@@ -355,16 +401,6 @@ export function PostEditor({ post, blocks: initialBlocks, media: initialMedia, t
                   </>
                 }
                 index={index}
-                indexFooter={
-                  <div className="editor-index-actions">
-                    <button type="button" className="editor-button" onClick={() => insert('day', blocks.length)}>
-                      + Day
-                    </button>
-                    <button type="button" className="editor-button" onClick={() => insert('section', blocks.length)}>
-                      + Section
-                    </button>
-                  </div>
-                }
               >
                 {blocks.length === 0 ? (
                   <div className="post-row">
@@ -422,6 +458,9 @@ export function PostEditor({ post, blocks: initialBlocks, media: initialMedia, t
                         onSelect={() => {
                           setSelected(block.id);
                           setInsertAt(null);
+                          // With the tray docked open, a selected photo block is
+                          // what its photos go into, as if opened from the block.
+                          setTray((current) => ({ ...current, target: block.type === 'photos' ? block.id : null }));
                         }}
                         onChange={change}
                         onMove={(delta) => setBlocks((current) => moveBlock(current, block.id, delta))}
@@ -470,32 +509,34 @@ export function PostEditor({ post, blocks: initialBlocks, media: initialMedia, t
           </div>
         </div>
 
-        {tray.open && mode === 'edit' ? (
-          <PhotoTray
-            postId={post.id}
-            photos={trayPhotos}
-            used={used}
-            targetLabel={targetBlock ? 'Adding to the selected photo block' : null}
-            onClearTarget={() => setTray((current) => ({ ...current, target: null }))}
-            onUploaded={(photo: JournalPhotoRow) => setTrayPhotos((current) => [...current, photo])}
-            onFilled={(filled: JournalPhotoRow) =>
-              setTrayPhotos((current) => current.map((photo) => (photo.id === filled.id ? filled : photo)))
-            }
-            onPlaced={(ids, place) =>
-              setTrayPhotos((current) => current.map((photo) => (ids.includes(photo.id) ? { ...photo, place } : photo)))
-            }
-            onTagged={(ids, category) =>
-              setTrayPhotos((current) => current.map((photo) => (ids.includes(photo.id) ? { ...photo, category } : photo)))
-            }
-            onDeleted={(ids) => {
-              setTrayPhotos((current) => current.filter((photo) => !ids.includes(photo.id)));
-              setBlocks((current) => removePhotoRefs(current, 'journal', ids));
-            }}
-            onAdd={addFromTray}
-            onLayoutDays={layoutDays}
-            onClose={() => setTray({ open: false, target: null })}
-          />
-        ) : null}
+        {/* Mounted through Preview too, hidden by CSS: unmounting it would drop
+            uploads still in flight. */}
+        <PhotoTray
+          open={tray.open}
+          postId={post.id}
+          photos={trayPhotos}
+          used={used}
+          targetLabel={targetBlock ? targetLabel(targetBlock) : null}
+          onClearTarget={() => setTray((current) => ({ ...current, target: null }))}
+          onUploaded={(photo: JournalPhotoRow) => setTrayPhotos((current) => [...current, photo])}
+          onFilled={(filled: JournalPhotoRow) =>
+            setTrayPhotos((current) => current.map((photo) => (photo.id === filled.id ? filled : photo)))
+          }
+          onPlaced={(ids, place) =>
+            setTrayPhotos((current) => current.map((photo) => (ids.includes(photo.id) ? { ...photo, place } : photo)))
+          }
+          onTagged={(ids, category) =>
+            setTrayPhotos((current) => current.map((photo) => (ids.includes(photo.id) ? { ...photo, category } : photo)))
+          }
+          onDeleted={(ids) => {
+            setTrayPhotos((current) => current.filter((photo) => !ids.includes(photo.id)));
+            setBlocks((current) => removePhotoRefs(current, 'journal', ids));
+          }}
+          onAdd={addFromTray}
+          onLayoutDays={layoutDays}
+          onClose={() => setTray({ open: false, target: null })}
+        />
+      </div>
 
         {toast ? (
           <div role="status" className="editor-toast">
@@ -507,7 +548,6 @@ export function PostEditor({ post, blocks: initialBlocks, media: initialMedia, t
             ) : null}
           </div>
         ) : null}
-      </div>
-    </ToolbarSlot.Provider>
+    </div>
   );
 }

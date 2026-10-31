@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { SITE_NAME } from '@/lib/site';
 import { Icon } from './Icon';
-import { ADD_MEDIA_HREF, NAV_GROUPS, OVERVIEW, isActive, type NavItem } from './nav';
+import { ADD_MEDIA_HREF, NAV_GROUPS, OVERVIEW, isActive, isEditorPath, type NavItem } from './nav';
 import { useSignOut } from './useSignOut';
 import { useQueueActivity } from '../add/AddQueue';
 
@@ -30,6 +30,8 @@ export function AdminSidebar({ notes, unpublished }: { notes: NavNotes; unpublis
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [router]);
+
+  if (isEditorPath(pathname)) return <SidebarRail pathname={pathname} />;
 
   return (
     <nav
@@ -98,6 +100,50 @@ export function AdminSidebar({ notes, unpublished }: { notes: NavNotes; unpublis
           {busy ? 'Signing out…' : 'Sign out'}
         </button>
       </div>
+    </nav>
+  );
+}
+
+/**
+ * The sidebar folded to its icons, for the journal editor. Same places, no
+ * counts: the editor is for writing, and anything the counts would flag is a
+ * click away on the full sidebar.
+ */
+function SidebarRail({ pathname }: { pathname: string }) {
+  const items = [OVERVIEW, ...NAV_GROUPS.flatMap((group) => group.items)];
+  return (
+    <nav
+      aria-label="Admin"
+      className="sticky top-0 hidden h-dvh w-[60px] shrink-0 flex-col items-center gap-1.5 border-r border-hairline bg-film py-4 md:flex"
+    >
+      <Link href="/admin" className="flex h-8 items-center font-mono text-[11px] text-gold" title={`${SITE_NAME} / admin`}>
+        {SITE_NAME.split(/\s+/).map((word) => word[0]).join('')}
+      </Link>
+      <Link
+        href={ADD_MEDIA_HREF}
+        aria-label="Add media"
+        title="Add media (⌘U)"
+        className="mb-1.5 flex size-11 items-center justify-center rounded-lg bg-gold text-ink transition hover:brightness-110"
+      >
+        <Icon name="plus" />
+      </Link>
+      {items.map((item) => {
+        const active = isActive(item.href, pathname);
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            aria-label={item.label}
+            title={item.label}
+            aria-current={active ? 'page' : undefined}
+            className={`flex size-11 items-center justify-center rounded-lg transition ${
+              active ? 'bg-frame text-gold' : 'text-ash hover:bg-frame/60 hover:text-bone'
+            }`}
+          >
+            <Icon name={item.icon} />
+          </Link>
+        );
+      })}
     </nav>
   );
 }

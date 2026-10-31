@@ -14,3 +14,7 @@ export const BUTTON =
 /** The quiet sibling of BUTTON, for a row of actions where gold would shout. */
 export const GHOST_BUTTON =
   'inline-flex h-9 items-center rounded-md border border-white/15 px-3.5 text-sm text-bone transition hover:border-gold disabled:opacity-50';
+
+/** The one primary action in a page header, sized to sit beside GHOST_BUTTON. */
+export const GOLD_BUTTON =
+  'inline-flex h-9 items-center rounded-md bg-gold px-3.5 text-sm font-semibold text-ink transition hover:brightness-110 disabled:opacity-40';
