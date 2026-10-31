@@ -16,6 +16,7 @@ import {
   weekStartDay,
 } from "@/lib/admin/overview";
 import { OPEN_PHOTO_PARAM } from "@/lib/photo/lightbox-link";
+import { adminClipHref } from "@/lib/video/edit-link";
 import { pendingBatch } from "@/lib/newsletter/queue";
 import { estimatedSendTime } from "@/lib/newsletter/schedule";
 
@@ -272,7 +273,11 @@ export default async function AdminOverview() {
                   {week.mostViewed.map((item) => (
                     <li key={item.kind + item.id}>
                       <Link
-                        href={`/admin/${item.kind === "motion" ? "videos" : "posts"}/${item.id}`}
+                        href={
+                          item.kind === "motion"
+                            ? adminClipHref(item.id)
+                            : `/admin/posts/${item.id}`
+                        }
                         className="flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm transition hover:bg-white/3"
                       >
                         <span className="text-ash" aria-hidden="true">

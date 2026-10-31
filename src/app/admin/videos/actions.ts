@@ -12,7 +12,7 @@ import { attempt } from '@/lib/actions/errors';
 import { announce } from '@/lib/newsletter/queue';
 import { youtubeId } from '@/lib/markdown/media';
 
-const videoSchema = z.object({
+const videoFields = z.object({
   id: z.string().optional(),
   videoUrl: z.url('Upload a video before saving'),
   posterImageUrl: z.url('The poster image failed to generate'),
@@ -51,7 +51,9 @@ const videoSchema = z.object({
   // Required, though the column is nullable — see Video.rollId.
   rollId: z.string().min(1, 'Pick a roll'),
   tags: z.string(),
-})
+});
+
+const videoSchema = videoFields
   // A *new* clip has just had its frames grabbed in the browser, which cannot
   // succeed without dimensions — so a 0 arriving on a create is a real fault
   // worth refusing, where a 0 arriving on an edit is only history.
@@ -61,6 +63,14 @@ const videoSchema = z.object({
   });
 
 export type VideoInput = z.infer<typeof videoSchema>;
+
+// Picked from the fields rather than the refined schema: Zod will not pick from
+// an object carrying a refinement, and the dimension check is a create's anyway.
+const detailsSchema = videoFields
+  .pick({ title: true, description: true, youtubeUrl: true, rollId: true, tags: true })
+  .extend({ id: z.string().min(1) });
+
+export type VideoDetailsInput = z.input<typeof detailsSchema>;
 
 /**
  * One past the last clip on a roll. Not exported: every export of a 'use server'
@@ -170,6 +180,91 @@ export async function saveVideo(input: VideoInput): Promise<{ error?: string }> 
     revalidatePath('/');
     return {};
   });
+}
+
+/**
+ * The Motion inspector's autosave: every field a person types, none of the
+ * stored media. Kept apart from saveVideo for the reason savePhotoDetails is —
+ * a stale copy of the poster and sprite URLs riding along with a retitle would
+ * undo a thumbnail picked a moment earlier from the same inspector.
+ */
+export async function saveVideoDetails(input: VideoDetailsInput): Promise<{ error?: string }> {
+  return attempt('saveVideoDetails', async () => {
+    if (!(await isAuthenticated())) return { error: 'Unauthorized' };
+
+    const parsed = detailsSchema.safeParse(input);
+    if (!parsed.success) return { error: parsed.error.issues[0].message };
+
+    const { id, tags, youtubeUrl: youtubeId, ...fields } = parsed.data;
+    const [roll, stored] = await Promise.all([
+      db.roll.findUnique({ where: { id: fields.rollId }, select: { id: true } }),
+      db.video.findUnique({ where: { id }, select: { rollId: true } }),
+    ]);
+    if (!stored) return { error: 'That clip no longer exists' };
+    if (!roll) return { error: 'That roll no longer exists — pick another' };
+
+    // Same end-of-the-roll rule as saveVideo for a clip filed somewhere new.
+    const moved = stored.rollId !== fields.rollId ? await nextSortOrder(fields.rollId) : null;
+    const connections = await tagConnections(tags);
+    await db.$transaction([
+      db.videoTag.deleteMany({ where: { videoId: id } }),
+      db.video.update({
+        where: { id },
+        data: {
+          ...fields,
+          youtubeId,
+          ...(moved === null ? {} : { sortOrder: moved }),
+          tags: { create: connections },
+        },
+      }),
+    ]);
+    await pruneUnusedTags();
+
+    revalidateMotion();
+    return {};
+  });
+}
+
+/**
+ * Points a clip at a new thumbnail the browser has already uploaded — a frame
+ * cut from its own scrub strip. Whatever it showed before, grabbed frame or
+ * hand-picked cover, is unreachable once the row moves on, so it goes after
+ * the write, as in saveVideo.
+ */
+export async function setVideoPoster(id: string, posterImageUrl: string): Promise<{ error?: string }> {
+  return attempt('setVideoPoster', async () => {
+    if (!(await isAuthenticated())) return { error: 'Unauthorized' };
+
+    const parsed = z.object({ id: z.string().min(1), posterImageUrl: z.url() }).safeParse({ id, posterImageUrl });
+    if (!parsed.success) return { error: 'Invalid thumbnail' };
+
+    const stored = await db.video.findUnique({ where: { id }, select: { posterImageUrl: true } });
+    if (!stored) return { error: 'That clip no longer exists' };
+
+    await db.video.update({ where: { id }, data: { posterImageUrl: parsed.data.posterImageUrl } });
+    if (stored.posterImageUrl && stored.posterImageUrl !== parsed.data.posterImageUrl) {
+      try {
+        await deleteObjectsByUrl([stored.posterImageUrl]);
+      } catch (cause) {
+        console.error('Could not remove the replaced poster for video', id, stored.posterImageUrl, cause);
+      }
+    }
+
+    revalidateMotion();
+    return {};
+  });
+}
+
+/**
+ * What every clip edit invalidates. 'layout' rather than the default for
+ * /motion, so the clip pages under it go too: each carries its own position on
+ * the roll — the frame code and the prev/next pager — so a change to any clip
+ * can invalidate all of them. Not exported: every export here is an endpoint.
+ */
+function revalidateMotion() {
+  revalidatePath('/admin', 'layout');
+  revalidatePath(MOTION_LAYOUT, 'layout');
+  revalidatePath('/');
 }
 
 /**

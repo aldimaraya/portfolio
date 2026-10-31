@@ -142,8 +142,9 @@ test.describe('signed in', () => {
     const clipPath = new URL(page.url()).pathname;
 
     await page.getByRole('link', { name: 'Edit clip' }).click();
-    await page.waitForURL('**/admin/videos/*?return=*', { timeout: 60_000 });
+    await page.waitForURL('**/admin/videos?clip=*', { timeout: 60_000 });
     expect(new URL(page.url()).searchParams.get('return')).toBe(clipPath);
+    await expect(page.getByRole('link', { name: '‹ Back to the clip' })).toHaveAttribute('href', clipPath);
   });
 
   test('signing out closes the session', async ({ page }) => {

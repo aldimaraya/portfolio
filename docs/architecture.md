@@ -448,13 +448,25 @@ with **Add media** at the top, which is where every upload starts.
   The clip page offers it as a `YouTube ↗` link in the gate's slate rather than an
   embedded player, so the page loads no YouTube script or cookie unless the
   visitor follows it.
-- **Rolls** are renamed, reordered and deleted on their own headings in the
-  `/admin/videos` clip list, and added at its foot. A roll with clips on it
-  cannot be deleted — the admin says so, and `onDelete: Restrict` guarantees
-  it. A clip's roll can also be picked on its form; moving it that way puts it
-  at the end of the new roll.
+- **Motion** (`/admin/videos`) is every roll as a list of clips, one per row,
+  with the Stills inspector's drawer beside it. The inspector **autosaves**
+  title, description, roll, YouTube link and tags (`saveVideoDetails`), and the
+  thumbnail is picked from the clip's own scrub frames: one frame is cut out of
+  the stored strip in the browser (read back through `photo-source`, so the
+  canvas is not tainted) and uploaded under `posters/`, so the next Regenerate
+  replaces it like any grabbed frame. Regenerating the strip and picking a cover
+  image stay on the per-clip form at `/admin/videos/[id]`, which fetches the
+  whole clip. The public clip page's Edit link opens the inspector
+  (`?clip=`) with a way back to the clip.
+- **Rolls** are renamed, reordered and deleted on their own headings on that
+  board, and added at its foot (`#new-roll` opens the form). A roll with clips
+  on it cannot be deleted — the admin says so, and `onDelete: Restrict`
+  guarantees it. Picking another roll in the inspector puts the clip at the end
+  of it. Clips on no roll are listed first, in amber, to be filed.
 - **Drag-to-reorder** for videos, one list per roll — and across them, to move
   a clip onto another roll, landing above or below the row by pointer position.
+  ⌥↑/⌥↓ (or the inspector's Up/Down, which is the phone's route) moves the
+  selected clip one place, crossing into the neighbouring roll at either end.
   Persisted as the destination roll's whole ordering in one transaction rather
   than a moved pair, so the result cannot drift from what is on screen.
 - **Links** (`/admin/links`) are the outbound links drawn as icons beside the

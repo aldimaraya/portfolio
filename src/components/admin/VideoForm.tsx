@@ -34,6 +34,7 @@ import { missingRequiredFields, titleFromFilename } from '@/lib/video/form';
 import { listPhrase } from '@/lib/text';
 import { uploadFile } from '@/lib/storage/upload-client';
 import { saveVideo, type VideoInput } from '@/app/admin/videos/actions';
+import { SelectField } from './add/SuggestField';
 
 /** Clips are large; warn past this rather than silently starting a huge upload. */
 const LARGE_VIDEO_BYTES = 200 * 1024 * 1024;
@@ -995,20 +996,17 @@ export function VideoForm({
           />
 
           {rolls.length > 0 ? (
-            <label className="flex flex-col gap-1">
+            <div className="flex flex-col gap-1">
               <span className={LABEL}>Roll</span>
-              <select
-                className={FIELD}
+              <SelectField
+                label="Roll"
                 value={form.rollId}
-                onChange={(event) => set('rollId', event.target.value)}
-              >
-                {rolls.map((roll) => (
-                  <option key={roll.id} value={roll.id}>
-                    {roll.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+                onChange={(rollId) => set('rollId', rollId)}
+                options={rolls.map((roll) => ({ value: roll.id, label: roll.name }))}
+                placeholder="Pick a roll"
+                className={`${FIELD} w-full`}
+              />
+            </div>
           ) : (
             // A link rather than "below": this form is also the edit page, which
             // has no roll manager of its own.
