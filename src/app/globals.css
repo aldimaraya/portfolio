@@ -1969,10 +1969,16 @@ body {
 /* A phone's insert menu: a sheet from the bottom with the same eleven blocks
    as tiles big enough for a thumb (M6), hints dropped for the room. */
 @media (max-width: 47.99rem) {
-  .editor-insert-backdrop { background: rgba(0, 0, 0, 0.5); display: block; inset: 0; position: fixed; z-index: 55; }
+  /* The backdrop lives inside the sheet's own stacking context, so its z-index
+     only ranks it against the menu beside it — and a positioned backdrop paints
+     over a static menu, which swallowed every tap on a tile as "Close". The
+     menu is positioned and ranked above it instead. */
+  .editor-insert-backdrop { background: rgba(0, 0, 0, 0.5); display: block; inset: 0; position: fixed; z-index: 0; }
   .editor-insert-menu,
   .editor-insert-menu--end { bottom: 0; left: 0; position: fixed; right: 0; top: auto; z-index: 56; }
   .editor-menu {
+    position: relative;
+    z-index: 1;
     border-radius: 18px 18px 0 0;
     display: grid;
     gap: 0.5rem;
