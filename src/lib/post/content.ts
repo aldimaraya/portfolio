@@ -251,7 +251,21 @@ export type BlockOf<T extends BlockType> = Extract<Block, { type: T }>;
 export const postContentSchema = z.object({
   version: z.literal(1),
   blocks: z.array(blockSchema),
+  // The photo chosen to stand for the post — its link preview and its card in
+  // the admin list. Absent means the first photo in the body (coverImage in
+  // ./media.ts). Kept in the body JSON rather than a column so it needs no
+  // schema change, and so code from before it, which strips the key, still
+  // reads posts saved after. Only our own photos: a trip photo of this post or
+  // a still, never an external URL.
+  cover: z
+    .discriminatedUnion('kind', [
+      z.object({ kind: z.literal('journal'), id: z.string().min(1) }),
+      z.object({ kind: z.literal('still'), id: z.string().min(1) }),
+    ])
+    .optional(),
 });
+
+export type CoverRef = NonNullable<z.infer<typeof postContentSchema>['cover']>;
 
 export type PostContent = z.infer<typeof postContentSchema>;
 

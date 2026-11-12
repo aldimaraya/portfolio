@@ -5,7 +5,7 @@ import { addJournalPhoto, fillJournalPhoto, findJournalDuplicate, type JournalPh
 import { NO_BORDER } from '@/lib/photo/border';
 import { extractPhotoExif } from '@/lib/photo/exif';
 import { fingerprintPixels } from '@/lib/photo/fingerprint';
-import { decodeImage, prepareUpload } from '@/lib/photo/trim-client';
+import { decodeImage, prepareUpload, renderThumbnail } from '@/lib/photo/trim-client';
 import { uploadFile } from '@/lib/storage/upload-client';
 import { wallClockAsUtc } from '@/lib/post/trip';
 
@@ -137,8 +137,12 @@ export function useTripUploads(
         const exif = await extractPhotoExif(file);
         const bitmap = await decodeImage(file);
         let prepared;
+        let thumb: File | null = null;
         try {
           prepared = await prepareUpload(bitmap, NO_BORDER, file, exif.hasExif);
+          // Best-effort: without one the tray shows the full copy, as it did
+          // before thumbnails existed.
+          thumb = await renderThumbnail(bitmap, file.name).catch(() => null);
         } finally {
           bitmap.close();
         }
@@ -163,11 +167,16 @@ export function useTripUploads(
           setProgress((state) => ({ ...state, current: { name: file.name, stage: 'uploading', percent } })),
         );
 
+        // After the photo, and outside its percentage: a few tens of kilobytes.
+        // A failure here is not worth failing a photo that is already up.
+        const thumbUrl = thumb ? await uploadFile(thumb, thumb.name, 'journal').catch(() => null) : null;
+
         stage = 'saving';
         setProgress((state) => ({ ...state, current: { name: file.name, stage: 'saving', percent: 100 } }));
         const result = await addJournalPhoto({
           postId,
           imageUrl: url,
+          thumbUrl,
           width: prepared.width,
           height: prepared.height,
           takenAt,

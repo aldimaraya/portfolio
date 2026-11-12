@@ -17,6 +17,7 @@ import {
 const photo = (id: string, takenAt: string | null, category: string | null = null): TrayPhoto => ({
   id,
   imageUrl: `https://cdn.test/journal/${id}.jpg`,
+  thumbUrl: null,
   width: 1500,
   height: 1000,
   takenAt: takenAt ? new Date(takenAt) : null,

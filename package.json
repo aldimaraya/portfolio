@@ -18,6 +18,7 @@
     "backfill:durations": "node scripts/backfill-durations.mjs",
     "backfill:rolls": "node scripts/backfill-rolls.mjs",
     "backfill:fingerprints": "node scripts/fingerprint-journal.mjs",
+    "backfill:thumbs": "node scripts/thumb-journal.mjs",
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
     "db:studio": "prisma studio",

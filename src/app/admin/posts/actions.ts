@@ -192,6 +192,7 @@ export async function listPostMedia(): Promise<PostMediaLibrary> {
 export interface JournalPhotoRow {
   id: string;
   imageUrl: string;
+  thumbUrl: string | null;
   width: number;
   height: number;
   takenAt: Date | null;
@@ -204,6 +205,7 @@ export interface JournalPhotoRow {
 const JOURNAL_PHOTO_SELECT = {
   id: true,
   imageUrl: true,
+  thumbUrl: true,
   width: true,
   height: true,
   takenAt: true,
@@ -237,6 +239,7 @@ async function placeFor(coordinates: Coordinates | null): Promise<string | null>
 const addPhotoSchema = z.object({
   postId: z.string().min(1),
   imageUrl: z.url(),
+  thumbUrl: z.url().nullable().default(null),
   width: z.number().int().positive(),
   height: z.number().int().positive(),
   // ISO string, already wall-clock-as-UTC (lib/post/trip.ts), or null.
@@ -259,10 +262,15 @@ export async function addJournalPhoto(
 
     const parsed = addPhotoSchema.safeParse(input);
     if (!parsed.success) return { error: 'That upload could not be recorded' };
-    const { postId, imageUrl, width, height, takenAt, fingerprint, latitude, longitude } = parsed.data;
+    const { postId, imageUrl, thumbUrl, width, height, takenAt, fingerprint, latitude, longitude } = parsed.data;
 
-    const key = objectKeyFromUrl(imageUrl, storageEnv().R2_PUBLIC_BASE_URL);
+    const base = storageEnv().R2_PUBLIC_BASE_URL;
+    const key = objectKeyFromUrl(imageUrl, base);
     if (!key?.startsWith('journal/')) return { error: 'That image is not a journal upload' };
+    // The same rule for the thumbnail, which the tray renders as an <img src>.
+    if (thumbUrl !== null && !objectKeyFromUrl(thumbUrl, base)?.startsWith('journal/')) {
+      return { error: 'That thumbnail is not a journal upload' };
+    }
 
     const post = await db.blogPost.findUnique({ where: { id: postId }, select: { id: true } });
     if (!post) return { error: 'That post no longer exists' };
@@ -272,6 +280,7 @@ export async function addJournalPhoto(
       data: {
         postId,
         imageUrl,
+        thumbUrl,
         width,
         height,
         takenAt: takenAt ? new Date(takenAt) : null,
@@ -440,14 +449,14 @@ export async function deleteJournalPhotos(
 
     const [post, photos] = await Promise.all([
       db.blogPost.findUnique({ where: { id: postId }, select: { slug: true, draft: true } }),
-      db.journalPhoto.findMany({ where: { postId, id: { in: ids } }, select: { imageUrl: true } }),
+      db.journalPhoto.findMany({ where: { postId, id: { in: ids } }, select: { imageUrl: true, thumbUrl: true } }),
     ]);
     if (!post) return { error: 'That post no longer exists' };
 
     await db.journalPhoto.deleteMany({ where: { postId, id: { in: ids } } });
 
     try {
-      await deleteObjectsByUrl(photos.map((photo) => photo.imageUrl));
+      await deleteObjectsByUrl(photos.flatMap((photo) => [photo.imageUrl, ...(photo.thumbUrl ? [photo.thumbUrl] : [])]));
     } catch (cause) {
       console.error('R2 cleanup failed for deleted journal photos', postId, cause);
     }
@@ -463,7 +472,7 @@ export async function deletePost(id: string): Promise<{ error?: string }> {
 
     const post = await db.blogPost.findUnique({
       where: { id },
-      select: { slug: true, photos: { select: { imageUrl: true } } },
+      select: { slug: true, photos: { select: { imageUrl: true, thumbUrl: true } } },
     });
     if (!post) return { error: 'That post no longer exists' };
 
@@ -474,7 +483,7 @@ export async function deletePost(id: string): Promise<{ error?: string }> {
 
     if (post.photos.length) {
       try {
-        await deleteObjectsByUrl(post.photos.map((photo) => photo.imageUrl));
+        await deleteObjectsByUrl(post.photos.flatMap((photo) => [photo.imageUrl, ...(photo.thumbUrl ? [photo.thumbUrl] : [])]));
       } catch (cause) {
         console.error('R2 cleanup failed for deleted post', id, cause);
       }

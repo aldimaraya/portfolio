@@ -23,6 +23,8 @@ export function EditorOutline({
   slug,
   draft,
   cover,
+  coverPicked,
+  onResetCover,
 }: {
   entries: SectionEntry[];
   /** Ids of sections with no writing under them yet, marked with a dot. */
@@ -36,6 +38,9 @@ export function EditorOutline({
   slug: string;
   draft: boolean;
   cover: ResolvedImage | null;
+  /** The cover was chosen in the tray, rather than being the first photo. */
+  coverPicked: boolean;
+  onResetCover: () => void;
 }) {
   return (
     <aside className="editor-outline" aria-label="Outline">
@@ -100,10 +105,19 @@ export function EditorOutline({
         <div className="editor-outline-fact">
           <span>Cover</span>
           {cover ? (
-            // eslint-disable-next-line @next/next/no-img-element -- a 48px thumbnail of a photo the sheet already loads
+            // eslint-disable-next-line @next/next/no-img-element -- a 48px thumbnail, the tray's own copy where there is one
             <img src={cover.url} alt="" className="editor-outline-cover" />
           ) : null}
-          <span className="editor-muted">The first photo in the post, used for its link preview</span>
+          <span className="editor-muted">
+            {coverPicked
+              ? 'Chosen in the tray, used for its link preview'
+              : 'The first photo in the post, used for its link preview. Select one in the tray and choose Make cover to pick another'}
+          </span>
+          {coverPicked ? (
+            <button type="button" className="editor-link-button" onClick={onResetCover}>
+              Use the first photo instead
+            </button>
+          ) : null}
         </div>
         <div className="editor-outline-fact">
           <span>Newsletter</span>

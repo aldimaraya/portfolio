@@ -11,7 +11,7 @@ import { db } from '@/lib/db';
 import { formatPostDate } from '@/lib/post/date';
 import { contentExcerpt } from '@/lib/post/excerpt';
 import { loadPostBody } from '@/lib/post/load';
-import { firstImage } from '@/lib/post/media';
+import { coverImage } from '@/lib/post/media';
 import { indexEntries } from '@/lib/post/sections';
 import { JsonLd } from '@/components/site/JsonLd';
 import { articleSchema } from '@/lib/schema';
@@ -55,9 +55,9 @@ export async function generateMetadata({ params }: Params) {
 
   // The same summary the list uses, kept short enough for a link preview.
   const description = contentExcerpt(post.content, 160);
-  // The post's own first photo, where it has one, rather than the site card:
-  // a trip shared in a chat should unfurl as the trip.
-  const image = firstImage(post.content.blocks, post.media);
+  // The post's own cover, where it has one, rather than the site card: a trip
+  // shared in a chat should unfurl as the trip.
+  const image = coverImage(post.content, post.media);
 
   return {
     title: post.title,

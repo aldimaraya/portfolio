@@ -13,7 +13,7 @@ import {
   type BorderInsets,
   type BorderOptions,
 } from './border';
-import { QUALITY, encodedFilename, targetSize } from './compress';
+import { QUALITY, THUMB_EDGE, THUMB_QUALITY, encodedFilename, targetSize } from './compress';
 import { encodeCanvas } from '../image/encode-client';
 
 /**
@@ -209,4 +209,17 @@ export async function prepareUpload(
 
   // Same picture either way, so the sampled pixels still describe these bytes.
   return keep ? { ...rendered, file: original } : rendered;
+}
+
+/**
+ * A small copy of the whole frame for the editor's tray (see THUMB_EDGE). Drawn
+ * from the bitmap already decoded for the upload, so it costs a draw and an
+ * encode, not another decode. Through a canvas like everything else, so it
+ * carries no EXIF either.
+ */
+export async function renderThumbnail(bitmap: ImageBitmap, filename: string): Promise<File> {
+  const { width, height } = targetSize(bitmap.width, bitmap.height, THUMB_EDGE);
+  const blob = await encodeCanvas(drawToCanvas(bitmap, width, height), THUMB_QUALITY);
+  const base = filename.replace(/\.[^./\\]+$/, '') || 'photo';
+  return new File([blob], encodedFilename(`${base}-thumb`, blob.type), { type: blob.type });
 }

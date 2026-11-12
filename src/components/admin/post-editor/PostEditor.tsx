@@ -6,7 +6,7 @@ import { DeleteButton } from '@/components/admin/DeleteButton';
 import { PostBody } from '@/components/journal/PostBody';
 import { PostSheet } from '@/components/journal/PostSheet';
 import { deletePost, savePost, type JournalPhotoRow } from '@/app/admin/posts/actions';
-import type { Block, PhotoRef } from '@/lib/post/content';
+import type { Block, CoverRef, PhotoRef } from '@/lib/post/content';
 import { formatPostDate } from '@/lib/post/date';
 import {
   addPhotos,
@@ -23,7 +23,7 @@ import {
   type Insertable,
 } from '@/lib/post/editor';
 import { missingForPublish } from '@/lib/post/form';
-import { firstImage, type PostMedia, type ResolvedClip, type ResolvedImage } from '@/lib/post/media';
+import { coverImage, resolvePhoto, type PostMedia, type ResolvedClip, type ResolvedImage } from '@/lib/post/media';
 import { indexEntries, sectionEntries, unwrittenSections } from '@/lib/post/sections';
 import { insertionPointForDays, layoutMissingDays, type TrayPhoto } from '@/lib/post/trip';
 import { slugify } from '@/lib/slug';
@@ -45,6 +45,8 @@ export interface EditorPost {
 interface Props {
   post: EditorPost;
   blocks: Block[];
+  /** The picked cover, if one was; absent means the first photo in the post. */
+  cover?: CoverRef;
   /** Stills and clips the blocks use; journal photos come from `trayPhotos`. */
   media: Pick<PostMedia, 'stills' | 'clips'>;
   trayPhotos: TrayPhoto[];
@@ -71,9 +73,10 @@ interface Toast {
  * or ⌘S — because a published post would otherwise go live keystroke by
  * keystroke; leaving with unsaved changes asks first.
  */
-export function PostEditor({ post, blocks: initialBlocks, media: initialMedia, trayPhotos: initialTray, converted }: Props) {
+export function PostEditor({ post, blocks: initialBlocks, cover: initialCover, media: initialMedia, trayPhotos: initialTray, converted }: Props) {
   const [title, setTitle] = useState(post.title);
   const [blocks, setBlocks] = useState(initialBlocks);
+  const [cover, setCover] = useState(initialCover);
   const [draft, setDraft] = useState(post.draft);
   const [slug, setSlug] = useState(post.slug);
   const [publishedAt, setPublishedAt] = useState(post.publishedAt);
@@ -94,9 +97,10 @@ export function PostEditor({ post, blocks: initialBlocks, media: initialMedia, t
   // What was last saved, to tell whether there is anything to save. A post
   // shown converted from Markdown has never been saved as blocks, so it starts
   // dirty: saving it is what moves it onto the new format.
-  const snapshot = (nextTitle: string, nextBlocks: Block[]) => JSON.stringify([nextTitle, nextBlocks]);
-  const [saved, setSaved] = useState(() => (converted ? '' : snapshot(post.title, initialBlocks)));
-  const dirty = snapshot(title, blocks) !== saved;
+  const snapshot = (nextTitle: string, nextBlocks: Block[], nextCover: CoverRef | undefined) =>
+    JSON.stringify([nextTitle, nextBlocks, nextCover ?? null]);
+  const [saved, setSaved] = useState(() => (converted ? '' : snapshot(post.title, initialBlocks, initialCover)));
+  const dirty = snapshot(title, blocks, cover) !== saved;
 
   const media: PostMedia = useMemo(
     () => ({
@@ -112,7 +116,12 @@ export function PostEditor({ post, blocks: initialBlocks, media: initialMedia, t
   const index = useMemo(() => indexEntries(blocks), [blocks]);
   const used = useMemo(() => usedJournalPhotos(blocks), [blocks]);
   const unwritten = useMemo(() => new Set(unwrittenSections(blocks)), [blocks]);
-  const cover = useMemo(() => firstImage(blocks, media), [blocks, media]);
+  const coverShown = useMemo(() => {
+    const image = coverImage({ blocks, cover }, media);
+    // The tray's small copy where the cover is a trip photo that has one.
+    const thumb = image && trayPhotos.find((photo) => photo.imageUrl === image.url)?.thumbUrl;
+    return image && thumb ? { ...image, url: thumb } : image;
+  }, [blocks, cover, media, trayPhotos]);
   // The section the selected block sits in: the last one at or above it.
   const currentSection = useMemo(() => {
     const at = blocks.findIndex((block) => block.id === selected);
@@ -133,9 +142,14 @@ export function PostEditor({ post, blocks: initialBlocks, media: initialMedia, t
 
   const persist = useCallback(
     async (nextDraft: boolean) => {
-      const sent = snapshot(title, blocks);
+      const sent = snapshot(title, blocks, cover);
       setSave({ kind: 'saving' });
-      const result = await savePost({ id: post.id, title, content: { version: 1, blocks }, draft: nextDraft });
+      const result = await savePost({
+        id: post.id,
+        title,
+        content: { version: 1, blocks, ...(cover ? { cover } : {}) },
+        draft: nextDraft,
+      });
       if (result.error) {
         setSave({ kind: 'error', message: result.error });
         return;
@@ -146,7 +160,7 @@ export function PostEditor({ post, blocks: initialBlocks, media: initialMedia, t
       if (result.slug) setSlug(result.slug);
       setSave({ kind: 'saved', at: new Date() });
     },
-    [blocks, draft, post.id, title],
+    [blocks, cover, draft, post.id, title],
   );
 
   // ⌘S / Ctrl+S saves without changing whether the post is published.
@@ -178,6 +192,19 @@ export function PostEditor({ post, blocks: initialBlocks, media: initialMedia, t
     document.addEventListener('pointerdown', onDown, true);
     return () => document.removeEventListener('pointerdown', onDown, true);
   }, [selected]);
+
+  // The same for the add-a-block menu, which otherwise stayed open until
+  // Escape or its own toggle. Its + is exempt so that pressing it still
+  // toggles, rather than closing here and reopening on the click.
+  useEffect(() => {
+    if (insertAt === null) return;
+    const onDown = (event: PointerEvent) => {
+      if (event.target instanceof Element && event.target.closest('.editor-insert-menu, .editor-insert-plus, .editor-add-block')) return;
+      setInsertAt(null);
+    };
+    document.addEventListener('pointerdown', onDown, true);
+    return () => document.removeEventListener('pointerdown', onDown, true);
+  }, [insertAt]);
 
   useEffect(() => {
     if (!dirty) return;
@@ -387,7 +414,9 @@ export function PostEditor({ post, blocks: initialBlocks, media: initialMedia, t
             onAddSection={() => insert('section', blocks.length)}
             slug={liveSlug}
             draft={draft}
-            cover={cover}
+            cover={coverShown}
+            coverPicked={cover !== undefined && resolvePhoto(cover, media) !== null}
+            onResetCover={() => setCover(undefined)}
           />
         ) : null}
 
@@ -532,6 +561,12 @@ export function PostEditor({ post, blocks: initialBlocks, media: initialMedia, t
           photos={trayPhotos}
           used={used}
           targetLabel={targetBlock ? targetLabel(targetBlock) : null}
+          cover={cover}
+          onCover={(ref, still) => {
+            if (still) setLibrary((current) => ({ ...current, stills: { ...current.stills, [ref.id]: still } }));
+            setCover(ref);
+            flash({ message: 'Cover set. It is the link preview and the card in the journal list once saved.' });
+          }}
           onClearTarget={() => setTray((current) => ({ ...current, target: null }))}
           onUploaded={(photo: JournalPhotoRow) => setTrayPhotos((current) => [...current, photo])}
           onFilled={(filled: JournalPhotoRow) =>
@@ -546,6 +581,7 @@ export function PostEditor({ post, blocks: initialBlocks, media: initialMedia, t
           onDeleted={(ids) => {
             setTrayPhotos((current) => current.filter((photo) => !ids.includes(photo.id)));
             setBlocks((current) => removePhotoRefs(current, 'journal', ids));
+            setCover((current) => (current?.kind === 'journal' && ids.includes(current.id) ? undefined : current));
           }}
           onAdd={addFromTray}
           onLayoutDays={layoutDays}

@@ -1,6 +1,6 @@
 import { db } from '@/lib/db';
 import { legacyMediaUrls, markdownToContent, resolveLegacyMedia } from '@/lib/markdown/legacy';
-import { parseContent, type Block, type PostContent } from './content';
+import { parseContent, type PostContent } from './content';
 import { referencedMedia, type PostMedia } from './media';
 
 /**
@@ -14,7 +14,7 @@ export async function loadPostBody(post: {
   markdownContent: string;
 }): Promise<{ content: PostContent; media: PostMedia }> {
   const content = parseContent(post.content) ?? (await convertLegacy(post.markdownContent));
-  return { content, media: await loadPostMedia(post.id, content.blocks) };
+  return { content, media: await loadPostMedia(post.id, content) };
 }
 
 async function convertLegacy(markdown: string): Promise<PostContent> {
@@ -38,12 +38,12 @@ async function convertLegacy(markdown: string): Promise<PostContent> {
 }
 
 /**
- * The rows a post's blocks reference. Journal photos are matched on the post as
+ * The rows a post's blocks and cover reference. Journal photos are matched on the post as
  * well as the id, so a block can only ever show photos uploaded into its own
  * post — an id copied from another post's body resolves to nothing.
  */
-export async function loadPostMedia(postId: string, blocks: Block[]): Promise<PostMedia> {
-  const ids = referencedMedia(blocks);
+export async function loadPostMedia(postId: string, content: PostContent): Promise<PostMedia> {
+  const ids = referencedMedia(content.blocks, content.cover);
 
   const [journal, stills, clips] = await Promise.all([
     ids.journal.length
