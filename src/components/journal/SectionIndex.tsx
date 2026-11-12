@@ -33,15 +33,16 @@ export function SectionIndex({
 }) {
   const rail = variant === 'rail';
   const active = useActiveAnchor(rail ? entries : []);
+  const listed = entries.filter((entry) => entry.listed);
 
-  if (!entries.length && !footer) return null;
+  if (!listed.length && !footer) return null;
 
   return (
     <nav aria-label="In this post" className={variant === 'rail' ? 'post-index' : 'post-index post-index--inline'}>
-      {entries.length ? <p className="post-index-heading">In this post</p> : null}
-      {entries.length ? (
+      {listed.length ? <p className="post-index-heading">In this post</p> : null}
+      {listed.length ? (
         <ol>
-          {entries.map((entry) => {
+          {listed.map((entry) => {
             const subsections = rail ? entry.subsections : [];
             const here = rail && active === entry.anchor;
             const within = rail && subsections.some((sub) => sub.anchor === active);
@@ -81,7 +82,14 @@ export function SectionIndex({
   );
 }
 
-/** The anchor of the section or subsection being read, in reading order. */
+/**
+ * The anchor of the section or subsection being read, in reading order. An
+ * unlisted section is tracked too, so reading one marks nothing rather than
+ * leaving the part above it lit; it has no row, so its anchor matches none.
+ *
+ * Measured at most once a frame: a scroll event can fire several times between
+ * paints, and each pass reads the layout of every anchor in the post.
+ */
 function useActiveAnchor(entries: IndexEntry[]): string | null {
   const [active, setActive] = useState<string | null>(null);
   const key = entries.flatMap((entry) => [entry.anchor, ...entry.subsections.map((sub) => sub.anchor)]).join(' ');
@@ -89,8 +97,10 @@ function useActiveAnchor(entries: IndexEntry[]): string | null {
   useEffect(() => {
     if (!key) return;
     const anchors = key.split(' ');
+    let frame = 0;
 
-    const update = () => {
+    const measure = () => {
+      frame = 0;
       const line = window.innerHeight * 0.2;
       let current = anchors[0];
       for (const anchor of anchors) {
@@ -99,13 +109,17 @@ function useActiveAnchor(entries: IndexEntry[]): string | null {
       }
       setActive(current);
     };
+    const update = () => {
+      if (!frame) frame = requestAnimationFrame(measure);
+    };
 
-    update();
+    measure();
     // Capture, so it also hears the editor's own scrolling surface, which is not
     // the window.
     window.addEventListener('scroll', update, { passive: true, capture: true });
     window.addEventListener('resize', update);
     return () => {
+      cancelAnimationFrame(frame);
       window.removeEventListener('scroll', update, { capture: true });
       window.removeEventListener('resize', update);
     };

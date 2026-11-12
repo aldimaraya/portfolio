@@ -39,7 +39,7 @@ export function EditorOutline({
   unwritten: Set<string>;
   /** The section holding the selected block, if any. */
   current: string | null;
-  /** The heading over the selected block within its section, if any. */
+  /** The listed heading over the selected block within its section, if any. */
   currentSubsection: string | null;
   onJump: (id: string) => void;
   onMove: (id: string, delta: -1 | 1) => void;
@@ -62,7 +62,10 @@ export function EditorOutline({
               const subs = subsections.get(entry.id) ?? [];
               return (
                 <li key={entry.id} className="editor-outline-item">
-                  <div className="editor-outline-row" data-current={(entry.id === current && !currentSubsection) || undefined}>
+                  <div
+                  className="editor-outline-row"
+                  data-current={(entry.id === current && !subs.some((sub) => sub.id === currentSubsection)) || undefined}
+                >
                     <button type="button" className="editor-outline-jump" onClick={() => onJump(entry.id)}>
                       <span className="editor-outline-number" aria-hidden="true">
                         {entry.day !== null ? String(entry.day).padStart(2, '0') : '§'}

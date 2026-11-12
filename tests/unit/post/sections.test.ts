@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { emptyRichText, richTextFromPlain, type Block } from '@/lib/post/content';
 import {
   defaultLabel,
-  enclosingSubsection,
+  enclosing,
   indexEntries,
   sectionAnchor,
   sectionEntries,
@@ -57,8 +57,21 @@ describe('sectionEntries', () => {
 });
 
 describe('indexEntries', () => {
-  it('leaves out a plain section with neither label nor title', () => {
-    expect(indexEntries([plain('a', ''), day('b')]).map((entry) => entry.id)).toEqual(['b']);
+  it('marks a plain section with neither label nor title unlisted, but keeps it for the rail to track', () => {
+    expect(indexEntries([plain('a', ''), day('b')]).map((entry) => [entry.id, entry.listed])).toEqual([
+      ['a', false],
+      ['b', true],
+    ]);
+  });
+
+  it('falls back to headings when no section is listed yet', () => {
+    const blocks: Block[] = [plain('a', ''), heading('h1', 'The market')];
+    expect(indexEntries(blocks).map((entry) => entry.id)).toEqual(['h1']);
+  });
+
+  it('reuses a heading map it is handed', () => {
+    const blocks: Block[] = [day('a'), heading('h1', 'Dim sum')];
+    expect(indexEntries(blocks, new Map([['a', []]]))[0].subsections).toEqual([]);
   });
 
   it('falls back to headings in a post with no sections', () => {
@@ -67,7 +80,7 @@ describe('indexEntries', () => {
       { id: 'h2', type: 'heading', text: '  ' },
     ];
     expect(indexEntries(blocks)).toEqual([
-      { id: 'h1', anchor: 'section-h1', label: '', day: null, title: 'The market', date: '', place: '', subsections: [] },
+      { id: 'h1', anchor: 'section-h1', label: '', day: null, title: 'The market', date: '', place: '', subsections: [], listed: true },
     ]);
   });
 
@@ -88,7 +101,10 @@ describe('indexEntries', () => {
 
   it('drops the subsections of a section it leaves out, rather than hanging them on the one above', () => {
     const blocks: Block[] = [day('a', { title: 'Cuisine' }), plain('b', ''), heading('h1', 'Orphaned')];
-    expect(indexEntries(blocks).map((entry) => [entry.id, entry.subsections.length])).toEqual([['a', 0]]);
+    expect(indexEntries(blocks).map((entry) => [entry.id, entry.listed, entry.subsections.length])).toEqual([
+      ['a', true, 0],
+      ['b', false, 0],
+    ]);
   });
 });
 
@@ -104,19 +120,36 @@ describe('subsectionsBySection', () => {
   });
 });
 
-describe('enclosingSubsection', () => {
-  const blocks: Block[] = [day('a'), divider('lead'), heading('h1', 'Dim sum'), divider('x'), day('b'), divider('y')];
+describe('enclosing', () => {
+  const blocks: Block[] = [
+    heading('h0', 'Intro'),
+    divider('top'),
+    day('a'),
+    divider('lead'),
+    heading('h1', 'Dim sum'),
+    divider('x'),
+    heading('h2', '  '),
+    divider('z'),
+    day('b'),
+    divider('y'),
+  ];
 
-  it('finds the heading over the selection within its section', () => {
-    expect(enclosingSubsection(blocks, 'x')).toBe('h1');
-    expect(enclosingSubsection(blocks, 'h1')).toBe('h1');
+  it('finds the section and the heading over the selection within it', () => {
+    expect(enclosing(blocks, 'x')).toEqual({ section: 'a', subsection: 'h1' });
+    expect(enclosing(blocks, 'h1')).toEqual({ section: 'a', subsection: 'h1' });
   });
 
-  it('stops at the section, so a lead-in or the next section has none', () => {
-    expect(enclosingSubsection(blocks, 'lead')).toBeNull();
-    expect(enclosingSubsection(blocks, 'y')).toBeNull();
-    expect(enclosingSubsection(blocks, 'b')).toBeNull();
-    expect(enclosingSubsection(blocks, null)).toBeNull();
+  it('skips an empty heading, which has no row, for the listed one above it', () => {
+    expect(enclosing(blocks, 'h2')).toEqual({ section: 'a', subsection: 'h1' });
+    expect(enclosing(blocks, 'z')).toEqual({ section: 'a', subsection: 'h1' });
+  });
+
+  it('has no subsection in a lead-in, on a section, or above the first section', () => {
+    expect(enclosing(blocks, 'lead')).toEqual({ section: 'a', subsection: null });
+    expect(enclosing(blocks, 'y')).toEqual({ section: 'b', subsection: null });
+    expect(enclosing(blocks, 'b')).toEqual({ section: 'b', subsection: null });
+    expect(enclosing(blocks, 'top')).toEqual({ section: null, subsection: null });
+    expect(enclosing(blocks, null)).toEqual({ section: null, subsection: null });
   });
 });
 
