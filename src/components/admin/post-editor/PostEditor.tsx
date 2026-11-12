@@ -24,7 +24,7 @@ import {
 } from '@/lib/post/editor';
 import { missingForPublish } from '@/lib/post/form';
 import { coverImage, resolvePhoto, type PostMedia, type ResolvedClip, type ResolvedImage } from '@/lib/post/media';
-import { indexEntries, sectionEntries, unwrittenSections } from '@/lib/post/sections';
+import { enclosingSubsection, indexEntries, sectionEntries, subsectionsBySection, unwrittenSections } from '@/lib/post/sections';
 import { insertionPointForDays, layoutMissingDays, type TrayPhoto } from '@/lib/post/trip';
 import { slugify } from '@/lib/slug';
 import { Icon } from '@/components/admin/shell/Icon';
@@ -114,6 +114,7 @@ export function PostEditor({ post, blocks: initialBlocks, cover: initialCover, m
 
   const sections = useMemo(() => new Map(sectionEntries(blocks).map((entry) => [entry.id, entry])), [blocks]);
   const index = useMemo(() => indexEntries(blocks), [blocks]);
+  const subsections = useMemo(() => subsectionsBySection(blocks), [blocks]);
   const used = useMemo(() => usedJournalPhotos(blocks), [blocks]);
   const unwritten = useMemo(() => new Set(unwrittenSections(blocks)), [blocks]);
   const coverShown = useMemo(() => {
@@ -128,6 +129,11 @@ export function PostEditor({ post, blocks: initialBlocks, cover: initialCover, m
     for (let i = at; i >= 0; i -= 1) if (blocks[i].type === 'section') return blocks[i].id;
     return null;
   }, [blocks, selected]);
+  // Only meaningful under a section: a heading above the first one has no row.
+  const currentSubsection = useMemo(
+    () => (currentSection ? enclosingSubsection(blocks, selected) : null),
+    [blocks, selected, currentSection],
+  );
   const missing = missingForPublish({ title, content: { version: 1, blocks } });
 
   const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -404,7 +410,9 @@ export function PostEditor({ post, blocks: initialBlocks, cover: initialCover, m
           <EditorOutline
             entries={[...sections.values()]}
             unwritten={unwritten}
+            subsections={subsections}
             current={currentSection}
+            currentSubsection={currentSubsection}
             onJump={jumpTo}
             onMove={(id, delta) => {
               setBlocks((current) => moveSection(current, id, delta));

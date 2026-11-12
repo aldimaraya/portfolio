@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { emptyRichText, richTextFromPlain, type Block } from '@/lib/post/content';
-import { defaultLabel, indexEntries, sectionAnchor, sectionEntries, unwrittenSections } from '@/lib/post/sections';
+import {
+  defaultLabel,
+  enclosingSubsection,
+  indexEntries,
+  sectionAnchor,
+  sectionEntries,
+  subsectionsBySection,
+  unwrittenSections,
+} from '@/lib/post/sections';
 
 const day = (id: string, extra: Partial<Extract<Block, { type: 'section' }>> = {}): Block => ({
   id,
@@ -14,6 +22,7 @@ const day = (id: string, extra: Partial<Extract<Block, { type: 'section' }>> = {
 });
 const plain = (id: string, label: string, title = ''): Block => ({ ...day(id), numbered: false, label, title }) as Block;
 const divider = (id: string): Block => ({ id, type: 'divider' });
+const heading = (id: string, text: string): Block => ({ id, type: 'heading', text });
 
 describe('sectionEntries', () => {
   it('numbers days by position and skips plain sections in the count', () => {
@@ -58,13 +67,56 @@ describe('indexEntries', () => {
       { id: 'h2', type: 'heading', text: '  ' },
     ];
     expect(indexEntries(blocks)).toEqual([
-      { id: 'h1', anchor: 'section-h1', label: '', day: null, title: 'The market', date: '', place: '' },
+      { id: 'h1', anchor: 'section-h1', label: '', day: null, title: 'The market', date: '', place: '', subsections: [] },
     ]);
   });
 
-  it('ignores headings once there are sections', () => {
-    const blocks: Block[] = [day('a'), { id: 'h1', type: 'heading', text: 'The market' }];
-    expect(indexEntries(blocks).map((entry) => entry.id)).toEqual(['a']);
+  it('lists headings under their section once there are sections, not as rows of their own', () => {
+    const blocks: Block[] = [
+      day('a', { title: 'Cuisine' }),
+      heading('h1', 'Dim sum'),
+      divider('x'),
+      heading('h2', 'Roast goose'),
+      plain('b', 'Sights'),
+      heading('h3', 'The Peak'),
+    ];
+    expect(indexEntries(blocks).map((entry) => [entry.id, entry.subsections.map((sub) => sub.title)])).toEqual([
+      ['a', ['Dim sum', 'Roast goose']],
+      ['b', ['The Peak']],
+    ]);
+  });
+
+  it('drops the subsections of a section it leaves out, rather than hanging them on the one above', () => {
+    const blocks: Block[] = [day('a', { title: 'Cuisine' }), plain('b', ''), heading('h1', 'Orphaned')];
+    expect(indexEntries(blocks).map((entry) => [entry.id, entry.subsections.length])).toEqual([['a', 0]]);
+  });
+});
+
+describe('subsectionsBySection', () => {
+  it('leaves out headings before the first section, and empty ones', () => {
+    const map = subsectionsBySection([heading('h0', 'Intro'), day('a'), heading('h1', '  '), heading('h2', ' Dim sum ')]);
+    expect([...map.keys()]).toEqual(['a']);
+    expect(map.get('a')).toEqual([{ id: 'h2', anchor: 'section-h2', title: 'Dim sum' }]);
+  });
+
+  it('gives a section with no headings an empty list', () => {
+    expect(subsectionsBySection([day('a'), day('b'), heading('h1', 'x')]).get('a')).toEqual([]);
+  });
+});
+
+describe('enclosingSubsection', () => {
+  const blocks: Block[] = [day('a'), divider('lead'), heading('h1', 'Dim sum'), divider('x'), day('b'), divider('y')];
+
+  it('finds the heading over the selection within its section', () => {
+    expect(enclosingSubsection(blocks, 'x')).toBe('h1');
+    expect(enclosingSubsection(blocks, 'h1')).toBe('h1');
+  });
+
+  it('stops at the section, so a lead-in or the next section has none', () => {
+    expect(enclosingSubsection(blocks, 'lead')).toBeNull();
+    expect(enclosingSubsection(blocks, 'y')).toBeNull();
+    expect(enclosingSubsection(blocks, 'b')).toBeNull();
+    expect(enclosingSubsection(blocks, null)).toBeNull();
   });
 });
 

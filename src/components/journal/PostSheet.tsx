@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { SectionEntry } from '@/lib/post/sections';
+import type { IndexEntry } from '@/lib/post/sections';
 import { SectionIndex } from './SectionIndex';
 
 /**
@@ -25,7 +25,7 @@ export function PostSheet({
   /** Beside the title: the publication date, or "Draft" in the editor. */
   margin: ReactNode;
   title: ReactNode;
-  index: SectionEntry[];
+  index: IndexEntry[];
   indexFooter?: ReactNode;
   children: ReactNode;
   /** Below the body, across the sheet — the newsletter signup on a post. */

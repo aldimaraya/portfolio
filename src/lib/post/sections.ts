@@ -57,20 +57,88 @@ export function defaultLabel(entry: Pick<SectionEntry, 'day'>): string {
 }
 
 /**
- * What the "In this post" index lists: the sections, or — in a post that has
- * none, which is every post written before sections existed — its headings. A
- * section with neither a label nor a title is still being written and has
- * nothing to link by, so it is left out.
+ * A heading under a section: a subsection, listed beneath its section in the
+ * index and the editor's outline. Headings already carry a section-style anchor
+ * (PostBlock's blockAnchor), so linking to one needs nothing new on the page.
  */
-export function indexEntries(blocks: Block[]): SectionEntry[] {
-  const sections = sectionEntries(blocks).filter((entry) => entry.label || entry.title);
+export interface SubsectionEntry {
+  id: string;
+  anchor: string;
+  title: string;
+}
+
+export interface IndexEntry extends SectionEntry {
+  subsections: SubsectionEntry[];
+}
+
+/**
+ * Each section's headings, keyed by section id, up to the next section. A
+ * heading before the first section belongs to none and is left out — it has no
+ * row to sit under, and promoting it to a row of its own would make it look
+ * like a section. An empty heading is still being written and has no name to
+ * list.
+ */
+export function subsectionsBySection(blocks: Block[]): Map<string, SubsectionEntry[]> {
+  const bySection = new Map<string, SubsectionEntry[]>();
+  let current: SubsectionEntry[] | null = null;
+
+  for (const block of blocks) {
+    if (block.type === 'section') {
+      current = [];
+      bySection.set(block.id, current);
+    } else if (block.type === 'heading' && current && block.text.trim()) {
+      current.push({ id: block.id, anchor: sectionAnchor(block.id), title: block.text.trim() });
+    }
+  }
+
+  return bySection;
+}
+
+/**
+ * What the "In this post" index lists: the sections with their subsections, or
+ * — in a post that has no sections, which is every post written before sections
+ * existed — its headings, flat. A section with neither a label nor a title is
+ * still being written and has nothing to link by, so it is left out, and its
+ * subsections with it: listed alone they would read as belonging to the section
+ * above.
+ */
+export function indexEntries(blocks: Block[]): IndexEntry[] {
+  const subsections = subsectionsBySection(blocks);
+  const sections = sectionEntries(blocks)
+    .filter((entry) => entry.label || entry.title)
+    .map((entry) => ({ ...entry, subsections: subsections.get(entry.id) ?? [] }));
   if (sections.length) return sections;
 
   return blocks.flatMap((block) =>
     block.type === 'heading' && block.text.trim()
-      ? [{ id: block.id, anchor: sectionAnchor(block.id), label: '', day: null, title: block.text.trim(), date: '', place: '' }]
+      ? [
+          {
+            id: block.id,
+            anchor: sectionAnchor(block.id),
+            label: '',
+            day: null,
+            title: block.text.trim(),
+            date: '',
+            place: '',
+            subsections: [],
+          },
+        ]
       : [],
   );
+}
+
+/**
+ * The heading that the selected block sits under, within its section: walking
+ * back from the selection, the first heading met before a section. Null when
+ * the selection is in a section's lead-in, above any of its headings.
+ */
+export function enclosingSubsection(blocks: Block[], selected: string | null): string | null {
+  const at = blocks.findIndex((block) => block.id === selected);
+  for (let i = at; i >= 0; i -= 1) {
+    if (blocks[i].type === 'section') return null;
+    if (blocks[i].type === 'heading') return blocks[i].id;
+  }
+  return null;
 }
 
 /**
