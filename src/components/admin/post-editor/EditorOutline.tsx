@@ -1,7 +1,7 @@
 'use client';
 
 import type { ResolvedImage } from '@/lib/post/media';
-import type { SectionEntry } from '@/lib/post/sections';
+import type { SectionEntry, SubsectionEntry } from '@/lib/post/sections';
 
 /**
  * The editor's left column: the post's days and sections, always in view, and
@@ -11,11 +11,17 @@ import type { SectionEntry } from '@/lib/post/sections';
  * A row jumps to its section; ↑/↓ move the whole section, everything under it
  * included (moveSection), which is the move a trip post actually needs — Day 3
  * belongs before Day 2 — and which dragging one block at a time cannot do.
+ *
+ * A section's headings are listed under it as subsections, to jump to only:
+ * they move with their section, and moving one within it is a block drag on the
+ * sheet like any other.
  */
 export function EditorOutline({
   entries,
+  subsections,
   unwritten,
   current,
+  currentSubsection,
   onJump,
   onMove,
   onAddDay,
@@ -27,10 +33,14 @@ export function EditorOutline({
   onResetCover,
 }: {
   entries: SectionEntry[];
+  /** Each section's headings, keyed by section id. */
+  subsections: Map<string, SubsectionEntry[]>;
   /** Ids of sections with no writing under them yet, marked with a dot. */
   unwritten: Set<string>;
   /** The section holding the selected block, if any. */
   current: string | null;
+  /** The listed heading over the selected block within its section, if any. */
+  currentSubsection: string | null;
   onJump: (id: string) => void;
   onMove: (id: string, delta: -1 | 1) => void;
   onAddDay: () => void;
@@ -48,39 +58,58 @@ export function EditorOutline({
         <h2 className="editor-outline-heading">Outline</h2>
         {entries.length ? (
           <ol className="editor-outline-list">
-            {entries.map((entry, at) => (
-              <li key={entry.id} className="editor-outline-row" data-current={entry.id === current || undefined}>
-                <button type="button" className="editor-outline-jump" onClick={() => onJump(entry.id)}>
-                  <span className="editor-outline-number" aria-hidden="true">
-                    {entry.day !== null ? String(entry.day).padStart(2, '0') : '§'}
-                  </span>
-                  <span className="editor-outline-name">{entry.title || entry.label || 'Untitled'}</span>
-                  {unwritten.has(entry.id) ? (
-                    <span className="editor-outline-dot" title="No text yet">
-                      <span className="sr-only">, no text yet</span>
+            {entries.map((entry, at) => {
+              const subs = subsections.get(entry.id) ?? [];
+              return (
+                <li key={entry.id} className="editor-outline-item">
+                  <div
+                  className="editor-outline-row"
+                  data-current={(entry.id === current && !subs.some((sub) => sub.id === currentSubsection)) || undefined}
+                >
+                    <button type="button" className="editor-outline-jump" onClick={() => onJump(entry.id)}>
+                      <span className="editor-outline-number" aria-hidden="true">
+                        {entry.day !== null ? String(entry.day).padStart(2, '0') : '§'}
+                      </span>
+                      <span className="editor-outline-name">{entry.title || entry.label || 'Untitled'}</span>
+                      {unwritten.has(entry.id) ? (
+                        <span className="editor-outline-dot" title="No text yet">
+                          <span className="sr-only">, no text yet</span>
+                        </span>
+                      ) : null}
+                    </button>
+                    <span className="editor-outline-moves">
+                      <button
+                        type="button"
+                        aria-label={`Move ${entry.label || entry.title || 'section'} up`}
+                        disabled={at === 0}
+                        onClick={() => onMove(entry.id, -1)}
+                      >
+                        ↑
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`Move ${entry.label || entry.title || 'section'} down`}
+                        disabled={at === entries.length - 1}
+                        onClick={() => onMove(entry.id, 1)}
+                      >
+                        ↓
+                      </button>
                     </span>
+                  </div>
+                  {subs.length ? (
+                    <ol className="editor-outline-subsections">
+                      {subs.map((sub) => (
+                        <li key={sub.id} className="editor-outline-row" data-current={sub.id === currentSubsection || undefined}>
+                          <button type="button" className="editor-outline-jump" onClick={() => onJump(sub.id)}>
+                            <span className="editor-outline-name">{sub.title}</span>
+                          </button>
+                        </li>
+                      ))}
+                    </ol>
                   ) : null}
-                </button>
-                <span className="editor-outline-moves">
-                  <button
-                    type="button"
-                    aria-label={`Move ${entry.label || entry.title || 'section'} up`}
-                    disabled={at === 0}
-                    onClick={() => onMove(entry.id, -1)}
-                  >
-                    ↑
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={`Move ${entry.label || entry.title || 'section'} down`}
-                    disabled={at === entries.length - 1}
-                    onClick={() => onMove(entry.id, 1)}
-                  >
-                    ↓
-                  </button>
-                </span>
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ol>
         ) : (
           <p className="editor-muted editor-outline-empty">No days or sections yet.</p>

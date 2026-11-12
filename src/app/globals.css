@@ -1151,6 +1151,17 @@ body {
 .post-index a[aria-current] { border-left-color: var(--color-gold); }
 .post-index a[aria-current] .post-index-label { color: var(--color-gold); }
 .post-index a[aria-current] .post-index-title { color: var(--color-bone); }
+/* Inside one of its subsections, a section keeps its rule and label lit — the
+   rule is "which part of the post" — but its title steps back for the
+   subsection's. */
+.post-index a[data-within] { border-left-color: var(--color-gold); }
+.post-index a[data-within] .post-index-label { color: var(--color-gold); }
+/* Subsections hang off the same rule as their section, indented by their text
+   alone, so the rail still reads as one line with stops on it. */
+.post-index-subsections a { padding: 0.25rem 0 0.25rem 1.75rem; }
+.post-index-subsections li:last-child a { padding-bottom: 0.5rem; }
+.post-index-subsections .post-index-title { font-size: 0.85rem; }
+.post-index a:is([aria-current], [data-within]) + .post-index-subsections a { border-left-color: var(--color-gold); }
 /* Under the title on a narrower sheet: a short contents list, no highlight. */
 .post-index--inline {
   border: 1px solid var(--color-hairline);
@@ -1571,6 +1582,10 @@ body {
 .editor-outline-moves button { color: var(--color-ash); font-size: 0.8rem; height: 2.125rem; width: 1.5rem; }
 .editor-outline-moves button:hover:not(:disabled) { color: var(--color-gold); }
 .editor-outline-moves button:disabled { opacity: 0.3; }
+/* A section's headings, indented under its name and set smaller, with no
+   number column and no moves: they travel with their section. */
+.editor-outline-subsections { display: flex; flex-direction: column; gap: 2px; margin-top: 2px; }
+.editor-outline-subsections .editor-outline-jump { font-size: 0.8125rem; min-height: 1.875rem; padding-left: 1.75rem; }
 .editor-outline-empty { padding: 0 0.5rem; }
 .editor-outline-add { display: flex; gap: 0.375rem; padding: 0.5rem 0.5rem 0; }
 .editor-outline-add .editor-button { font-size: 0.75rem; height: 1.875rem; padding: 0 0.625rem; }

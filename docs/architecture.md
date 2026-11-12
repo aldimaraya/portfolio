@@ -323,8 +323,11 @@ links held to http(s), mailto and on-site targets.
   its position, so moving one renumbers the rest; renaming it ("Arrival") keeps
   its place in the count, so the days after it do not renumber. A *plain*
   section ("Packing") is not counted. Both feed the index
-  ([`lib/post/sections.ts`](../src/lib/post/sections.ts)); a post with no sections
-  indexes its headings instead.
+  ([`lib/post/sections.ts`](../src/lib/post/sections.ts)), and a **heading** under
+  a section is its subsection: listed beneath it in the rail and in the editor's
+  outline, but not in the inline index a narrow sheet puts under the title. A
+  heading before the first section belongs to none and is not listed. A post
+  with no sections indexes its headings instead, flat.
 - **Photos blocks** hold references, not URLs — a trip photo, a still off the
   wall, or (for converted posts only) an outside URL — and lay them out
   *stacked*, as a justified *row*, a *grid* or a *carousel* (a native
