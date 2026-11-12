@@ -164,6 +164,21 @@ export function PostEditor({ post, blocks: initialBlocks, media: initialMedia, t
     return () => window.removeEventListener('keydown', onKey);
   }, [draft, persist]);
 
+  // A press anywhere outside a block lets go of the selected one. Blocks only
+  // ever select themselves, so without this the toolbar stayed up until another
+  // block took it. The tray is exempt: a selected photo block is where its
+  // photos go, and picking them must not drop that target.
+  useEffect(() => {
+    if (selected === null) return;
+    const onDown = (event: PointerEvent) => {
+      if (event.target instanceof Element && event.target.closest('.editor-cell, .editor-tray')) return;
+      setSelected(null);
+      setTray((current) => (current.target === selected ? { ...current, target: null } : current));
+    };
+    document.addEventListener('pointerdown', onDown, true);
+    return () => document.removeEventListener('pointerdown', onDown, true);
+  }, [selected]);
+
   useEffect(() => {
     if (!dirty) return;
     const warn = (event: BeforeUnloadEvent) => event.preventDefault();
