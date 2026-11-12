@@ -14,7 +14,7 @@ export default async function EditPostPage({ params }: { params: Promise<{ id: s
       // Every photo uploaded into the post, used by a block or not: the tray
       // shows them all.
       photos: {
-        select: { id: true, imageUrl: true, width: true, height: true, takenAt: true, category: true, fingerprint: true, place: true },
+        select: { id: true, imageUrl: true, thumbUrl: true, width: true, height: true, takenAt: true, category: true, fingerprint: true, place: true },
         orderBy: [{ takenAt: 'asc' }, { createdAt: 'asc' }],
       },
     },
@@ -27,6 +27,7 @@ export default async function EditPostPage({ params }: { params: Promise<{ id: s
     <PostEditor
       post={{ id: post.id, slug: post.slug, title: post.title, draft: post.draft, publishedAt: post.publishedAt }}
       blocks={content.blocks}
+      cover={content.cover}
       media={{ stills: media.stills, clips: media.clips }}
       trayPhotos={post.photos}
       converted={parseContent(post.content) === null}

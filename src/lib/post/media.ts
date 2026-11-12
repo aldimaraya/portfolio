@@ -1,4 +1,4 @@
-import type { Block, PhotoRef } from './content';
+import type { Block, CoverRef, PhotoRef } from './content';
 
 /**
  * What a post's blocks point at, resolved. Blocks store ids, not URLs, so a
@@ -40,11 +40,14 @@ export interface MediaIds {
   clips: string[];
 }
 
-/** Every id the blocks reference, by table, deduplicated. */
-export function referencedMedia(blocks: Block[]): MediaIds {
+/** Every id the blocks and the chosen cover reference, by table, deduplicated. */
+export function referencedMedia(blocks: Block[], cover?: CoverRef): MediaIds {
   const journal = new Set<string>();
   const stills = new Set<string>();
   const clips = new Set<string>();
+
+  if (cover?.kind === 'journal') journal.add(cover.id);
+  else if (cover?.kind === 'still') stills.add(cover.id);
 
   for (const block of blocks) {
     if (block.type === 'photos') {
@@ -80,4 +83,14 @@ export function firstImage(blocks: Block[], media: PostMedia): ResolvedImage | n
     }
   }
   return null;
+}
+
+/**
+ * The picture that stands for a post: the cover picked in the editor, else the
+ * first photo in it. A picked cover whose row is gone — deleted from the tray,
+ * or a still taken off the wall — falls back rather than leaving the post bare.
+ */
+export function coverImage(content: { blocks: Block[]; cover?: CoverRef }, media: PostMedia): ResolvedImage | null {
+  const picked = content.cover ? resolvePhoto(content.cover, media) : null;
+  return picked ?? firstImage(content.blocks, media);
 }

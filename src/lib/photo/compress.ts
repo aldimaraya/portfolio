@@ -22,6 +22,16 @@ export const MAX_EDGE = 2560;
  */
 export const QUALITY = 0.85;
 
+/**
+ * The tray's thumbnail: longest edge and quality. A tray cell is under 200 CSS
+ * pixels across, so 480 covers it at 2× with room to spare, and comes out at a
+ * few tens of kilobytes against the full copy's several hundred — the
+ * difference between a trip's tray filling in and crawling on hotel Wi-Fi.
+ * Keep in step with scripts/thumb-journal.mjs, which backfills older rows.
+ */
+export const THUMB_EDGE = 480;
+export const THUMB_QUALITY = 0.72;
+
 export interface TargetSize {
   width: number;
   height: number;

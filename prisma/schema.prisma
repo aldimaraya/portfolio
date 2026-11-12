@@ -225,6 +225,13 @@ model JournalPhoto {
   width    Int
   height   Int
 
+  // A small copy (lib/photo/compress.ts, THUMB_EDGE) made in the browser at
+  // upload, for the editor's tray: a trip is hundreds of photos, and the tray
+  // drew every one at full size, which crawled on a slow connection. Null on
+  // rows from before it existed until scripts/thumb-journal.mjs fills them; the
+  // tray falls back to imageUrl.
+  thumbUrl String?
+
   // From EXIF DateTimeOriginal at upload, for grouping a trip into days. Read
   // before the re-encode strips it, like Photo.takenAt, and equally
   // unrecoverable afterwards. Stored as the wall-clock time the camera recorded,

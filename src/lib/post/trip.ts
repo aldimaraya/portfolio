@@ -28,6 +28,8 @@ export function categoryLabel(id: string | null): string {
 export interface TrayPhoto {
   id: string;
   imageUrl: string;
+  /** The tray's small copy; null on rows from before thumbnails, which use imageUrl. */
+  thumbUrl: string | null;
   width: number;
   height: number;
   /** Wall-clock capture time in UTC fields — see wallClockAsUtc. */

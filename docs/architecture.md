@@ -383,7 +383,9 @@ links held to http(s), mailto and on-site targets.
   ([`lib/slug.ts`](../src/lib/slug.ts)), frozen on publish.
 - Excerpts from the post's prose for the list, link previews and the newsletter
   ([`lib/post/excerpt.ts`](../src/lib/post/excerpt.ts)); a post's link preview
-  uses its first photo.
+  and its admin card use its cover — any trip photo or still picked with *Make
+  cover* in the tray, stored as `cover` in the body JSON, else its first photo
+  (`coverImage` in [`lib/post/media.ts`](../src/lib/post/media.ts)).
 
 ### Admin
 
@@ -639,6 +641,7 @@ Columns whose *shape* carries a decision:
 | `JournalPhoto` | A post's own uploads, apart from `Photo` so a trip never reaches the stills wall. `onDelete: Cascade` from the post; the R2 objects are `deletePost`'s to remove. `category` is a string, not an enum, so the list can change without a schema change. |
 | `JournalPhoto.takenAt` | The camera's wall-clock time in UTC fields, so a trip's days are the same on every machine. Like `Photo.takenAt`, unrecoverable once the upload has stripped EXIF. |
 | `JournalPhoto.latitude` / `longitude` / `place` | GPS rounded to three decimals, and the name it was given (or one typed over it). The coordinates stay server-side — `JOURNAL_PHOTO_SELECT` and every public select leave them out. Unrecoverable for photos uploaded before they were kept, except by re-picking the original. |
+| `JournalPhoto.thumbUrl` | A 480px WebP made in the browser at upload, for the editor's tray, which otherwise draws every trip photo at full size. Null on rows from before it existed until `npm run backfill:thumbs` fills them; the tray falls back to `imageUrl`. Deleted with its photo. |
 | `JournalPhoto.fingerprint` | Difference hash of the stored image, for the tray's duplicate check. Null on rows from before it existed until `npm run backfill:fingerprints` fills them; a null never matches. |
 | `Announcement.refId` | Points at a `Photo`, `Video` or `BlogPost` depending on `kind`, so it cannot be a foreign key; deleted content is dropped when the batch resolves. |
 | `Announcement.dispatchId` | `onDelete: Restrict`. Deleting a dispatch must not put what it sent back into the queue. |

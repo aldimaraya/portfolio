@@ -6,7 +6,7 @@ import { NewPostButton } from '@/components/admin/NewPostButton';
 import { GOLD_BUTTON } from '@/components/admin/fields';
 import { formatPostDate } from '@/lib/post/date';
 import { parseContent } from '@/lib/post/content';
-import { firstImage, referencedMedia, type PostMedia, type ResolvedImage } from '@/lib/post/media';
+import { coverImage, referencedMedia, type PostMedia, type ResolvedImage } from '@/lib/post/media';
 import { markdownToContent } from '@/lib/markdown/legacy';
 import { parsePostFilter, summarizeDraft, type PostFilter } from '@/lib/admin/journal';
 import { countOf } from '@/lib/admin/overview';
@@ -36,7 +36,7 @@ export default async function AdminPostsPage({ searchParams }: { searchParams: P
   ]);
 
   // A post never saved as blocks is converted here without the database
-  // lookups loadPostBody does: its images stay `external`, which firstImage
+  // lookups loadPostBody does: its images stay `external`, which coverImage
   // skips, so a legacy post simply shows no thumbnail.
   const posts = rows.map((post) => ({
     ...post,
@@ -44,7 +44,7 @@ export default async function AdminPostsPage({ searchParams }: { searchParams: P
   }));
   const published = posts.filter((post) => !post.draft);
 
-  const stillIds = [...new Set(posts.flatMap((post) => referencedMedia(post.content.blocks).stills))];
+  const stillIds = [...new Set(posts.flatMap((post) => referencedMedia(post.content.blocks, post.content.cover).stills))];
   const [stills, views] = await Promise.all([
     stillIds.length
       ? db.photo.findMany({
@@ -75,7 +75,7 @@ export default async function AdminPostsPage({ searchParams }: { searchParams: P
   const trayOf = (postId: string) => trays.get(postId) ?? [];
 
   /**
-   * The post's first picture as a reader would see it, else — for a draft
+   * The post's cover as a link preview would show it, else — for a draft
    * still being laid out — the first trip photo in the tray. Journal photos are
    * matched to their own post, as loadPostMedia does.
    */
@@ -88,7 +88,7 @@ export default async function AdminPostsPage({ searchParams }: { searchParams: P
       stills: stillMap,
       clips: {},
     };
-    const placed = firstImage(post.content.blocks, media);
+    const placed = coverImage(post.content, media);
     if (placed || !post.draft || !tray.length) return placed;
     return { url: tray[0].imageUrl, width: tray[0].width, height: tray[0].height, alt: '' };
   }

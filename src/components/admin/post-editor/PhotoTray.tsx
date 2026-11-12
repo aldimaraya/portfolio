@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from 'react';
 import { deleteJournalPhotos, placeJournalPhotos, tagJournalPhotos, type JournalPhotoRow } from '@/app/admin/posts/actions';
-import type { PhotoRef } from '@/lib/post/content';
+import type { CoverRef, PhotoRef } from '@/lib/post/content';
 import type { ResolvedImage } from '@/lib/post/media';
 import {
   autoLayout,
@@ -38,6 +38,10 @@ interface Props {
   /** The photos block being filled, when the tray was opened from one. */
   targetLabel: string | null;
   onClearTarget: () => void;
+  /** The picked cover, marked on its thumbnail; absent means the first photo. */
+  cover: CoverRef | undefined;
+  /** Makes one photo the cover; a still comes with what is needed to draw it. */
+  onCover: (ref: CoverRef, still?: ResolvedImage) => void;
   onUploaded: (photo: JournalPhotoRow) => void;
   /** A stored photo that a skipped duplicate's original gave a date or place. */
   onFilled: (photo: JournalPhotoRow) => void;
@@ -87,7 +91,11 @@ export function PhotoTray(props: Props) {
         </div>
       ) : null}
 
-      {tab === 'trip' ? <TripTab {...props} /> : <WallTab onAdd={props.onAdd} adding={props.targetLabel !== null} />}
+      {tab === 'trip' ? (
+        <TripTab {...props} />
+      ) : (
+        <WallTab onAdd={props.onAdd} adding={props.targetLabel !== null} cover={props.cover} onCover={props.onCover} />
+      )}
     </aside>
   );
 }
@@ -104,6 +112,8 @@ function TripTab({
   onAdd,
   onLayoutDays,
   targetLabel,
+  cover,
+  onCover,
 }: Props) {
   const [grouping, setGrouping] = useState<Grouping>('day');
   const [filter, setFilter] = useState<Filter>('all');
@@ -354,6 +364,7 @@ function TripTab({
             <div className="editor-thumbs">
               {group.photos.map((photo) => {
                 const order = picked.indexOf(photo.id);
+                const isCover = cover?.kind === 'journal' && cover.id === photo.id;
                 return (
                   <button
                     key={photo.id}
@@ -361,18 +372,19 @@ function TripTab({
                     className="editor-thumb"
                     aria-pressed={order >= 0}
                     title={photo.place ?? undefined}
-                    aria-label={`${categoryLabel(photo.category)} photo${photo.place ? ` in ${photo.place}` : ''}${order >= 0 ? ', selected' : ''}${used.has(photo.id) ? ', in the post' : ''}`}
+                    aria-label={`${categoryLabel(photo.category)} photo${photo.place ? ` in ${photo.place}` : ''}${order >= 0 ? ', selected' : ''}${used.has(photo.id) ? ', in the post' : ''}${isCover ? ', the cover' : ''}`}
                     onClick={() => toggle(photo.id)}
                   >
                     {/* Plain <img>: an admin-only grid is not worth spending the
-                        image optimiser's quota on. */}
+                        image optimiser's quota on. The stored thumbnail instead,
+                        where the row has one — see JournalPhoto.thumbUrl. */}
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={photo.imageUrl} alt="" loading="lazy" decoding="async" />
+                    <img src={photo.thumbUrl ?? photo.imageUrl} alt="" loading="lazy" decoding="async" />
                     <span className="editor-thumb-tag" data-untagged={!isPostCategory(photo.category) || undefined}>
                       {categoryLabel(photo.category)}
                     </span>
                     {order >= 0 ? <span className="editor-thumb-order">{order + 1}</span> : null}
-                    {used.has(photo.id) ? <span className="editor-thumb-used">In post</span> : null}
+                    {isCover ? <span className="editor-thumb-cover">Cover</span> : used.has(photo.id) ? <span className="editor-thumb-used">In post</span> : null}
                   </button>
                 );
               })}
@@ -443,6 +455,19 @@ function TripTab({
               Clear
             </button>
           </form>
+          {picked.length === 1 ? (
+            <button
+              type="button"
+              className="editor-button"
+              disabled={cover?.kind === 'journal' && cover.id === picked[0]}
+              onClick={() => {
+                onCover({ kind: 'journal', id: picked[0] });
+                setPicked([]);
+              }}
+            >
+              {cover?.kind === 'journal' && cover.id === picked[0] ? 'This is the cover' : 'Make cover'}
+            </button>
+          ) : null}
           <button type="button" className="editor-primary" onClick={add}>
             {targetLabel
               ? `Add ${picked.length} to the block`
@@ -472,9 +497,13 @@ function TripTab({
 function WallTab({
   onAdd,
   adding,
+  cover,
+  onCover,
 }: {
   onAdd: (refs: PhotoRef[], stills?: Record<string, ResolvedImage>) => void;
   adding: boolean;
+  cover: CoverRef | undefined;
+  onCover: (ref: CoverRef, still?: ResolvedImage) => void;
 }) {
   const library = useLibrary(true);
   const [picked, setPicked] = useState<string[]>([]);
@@ -482,13 +511,16 @@ function WallTab({
   if (!library) return <p className="editor-muted editor-tray-section">Loading the wall…</p>;
   if (!library.photos.length) return <p className="editor-muted editor-tray-section">The wall is empty.</p>;
 
+  const resolve = (id: string): ResolvedImage | null => {
+    const photo = library?.photos.find((other) => other.id === id);
+    return photo ? { url: photo.imageUrl, width: photo.width, height: photo.height, alt: photo.title || photo.location } : null;
+  };
+
   function add() {
-    if (!library) return;
-    const byId = new Map(library.photos.map((photo) => [photo.id, photo]));
     const stills: Record<string, ResolvedImage> = {};
     for (const id of picked) {
-      const photo = byId.get(id);
-      if (photo) stills[id] = { url: photo.imageUrl, width: photo.width, height: photo.height, alt: photo.title || photo.location };
+      const image = resolve(id);
+      if (image) stills[id] = image;
     }
     onAdd(
       picked.map((id) => ({ kind: 'still', id })),
@@ -506,6 +538,7 @@ function WallTab({
         <div className="editor-thumbs">
           {library.photos.map((photo) => {
             const order = picked.indexOf(photo.id);
+            const isCover = cover?.kind === 'still' && cover.id === photo.id;
             return (
               <button
                 key={photo.id}
@@ -513,7 +546,7 @@ function WallTab({
                 className="editor-thumb"
                 aria-pressed={order >= 0}
                 title={photo.title || photo.location}
-                aria-label={photo.title || photo.location}
+                aria-label={`${photo.title || photo.location}${isCover ? ', the cover' : ''}`}
                 onClick={() =>
                   setPicked((current) => (current.includes(photo.id) ? current.filter((id) => id !== photo.id) : [...current, photo.id]))
                 }
@@ -521,6 +554,7 @@ function WallTab({
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={photo.imageUrl} alt="" loading="lazy" decoding="async" />
                 {order >= 0 ? <span className="editor-thumb-order">{order + 1}</span> : null}
+                {isCover ? <span className="editor-thumb-cover">Cover</span> : null}
               </button>
             );
           })}
@@ -528,6 +562,21 @@ function WallTab({
       </div>
       {picked.length ? (
         <div className="editor-tray-foot">
+          {picked.length === 1 ? (
+            <button
+              type="button"
+              className="editor-button"
+              disabled={cover?.kind === 'still' && cover.id === picked[0]}
+              onClick={() => {
+                const image = resolve(picked[0]);
+                if (!image) return;
+                onCover({ kind: 'still', id: picked[0] }, image);
+                setPicked([]);
+              }}
+            >
+              {cover?.kind === 'still' && cover.id === picked[0] ? 'This is the cover' : 'Make cover'}
+            </button>
+          ) : null}
           <button type="button" className="editor-primary" onClick={add}>
             Add {picked.length} to the {adding ? 'block' : 'post'}
           </button>

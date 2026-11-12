@@ -98,6 +98,13 @@ describe('parseContent', () => {
     expect(parseContent(photos({ scale: 140 }))).toBeNull();
   });
 
+  it('takes a picked cover of our own photos, and refuses an external one', () => {
+    expect(parseContent({ version: 1, blocks: [] })).not.toHaveProperty('cover');
+    expect(parseContent({ version: 1, blocks: [], cover: { kind: 'journal', id: 'p1' } })?.cover).toEqual({ kind: 'journal', id: 'p1' });
+    expect(parseContent({ version: 1, blocks: [], cover: { kind: 'still', id: 's1' } })?.cover).toEqual({ kind: 'still', id: 's1' });
+    expect(parseContent({ version: 1, blocks: [], cover: { kind: 'external', url: 'https://x.test/a.jpg' } })).toBeNull();
+  });
+
   it('refuses a photo layout that does not exist', () => {
     expect(
       parseContent({ version: 1, blocks: [{ id: 'a', type: 'photos', items: [], layout: 'masonry', size: 'column' }] }),
