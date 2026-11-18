@@ -1006,6 +1006,7 @@ body {
   --sheet-pad-x: 4rem;
   --margin-col: 7rem;
   --margin-gap: 2.75rem;
+  --text-col: 42rem;
   --rail-col: 15.5rem;
   /* Where the rail and fragment links stop below the top edge. The editor
      raises it to clear its own toolbar. */
@@ -1041,7 +1042,7 @@ body {
 .post-row {
   column-gap: var(--margin-gap);
   display: grid;
-  grid-template-columns: var(--margin-col) minmax(0, 42rem);
+  grid-template-columns: var(--margin-col) minmax(0, var(--text-col));
   margin-bottom: var(--line);
   scroll-margin-top: var(--rail-top);
 }
@@ -1116,6 +1117,9 @@ body {
   z-index: 1;
 }
 .post-index-inline { display: none; }
+/* A row like any block's, so it hangs in the text column clear of the margin
+   rule; the list brings its own space below, so the row adds none. */
+.post-index-inline.post-row { margin-bottom: 0; }
 
 .post-index-heading {
   color: var(--color-ash);
@@ -1357,13 +1361,7 @@ body {
 @container post (max-width: 72rem) {
   .post-layout { grid-template-columns: minmax(0, 1fr); }
   .post-rail { display: none; }
-  /* In the text column, as a block is: hung from the body's left edge it spans
-     the margin too, and the margin rule (.post-sheet::before) runs through it. */
-  .post-index-inline {
-    display: block;
-    margin-left: calc(var(--margin-col) + var(--margin-gap));
-    max-width: 42rem;
-  }
+  .post-index-inline { display: grid; }
   .post-row--full { margin-right: calc(-1 * var(--sheet-pad-x)); }
 }
 
@@ -1375,7 +1373,6 @@ body {
     padding: 2rem var(--sheet-pad-x) 2.5rem;
   }
   .post-sheet::before { display: none; }
-  .post-index-inline { margin-left: 0; }
   .post-row,
   .post-row--wide,
   .post-sheet .journal-grid { grid-template-columns: minmax(0, 1fr); row-gap: 0.5rem; }

@@ -41,8 +41,10 @@ export function PostSheet({
               <div className="post-margin">{margin}</div>
               <div className="post-cell">{title}</div>
             </header>
-            <div className="post-index-inline">
-              <SectionIndex entries={index} variant="inline" />
+            <div className="post-index-inline post-row">
+              <div className="post-cell">
+                <SectionIndex entries={index} variant="inline" />
+              </div>
             </div>
             {children}
           </div>
