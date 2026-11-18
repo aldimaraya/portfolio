@@ -1357,7 +1357,13 @@ body {
 @container post (max-width: 72rem) {
   .post-layout { grid-template-columns: minmax(0, 1fr); }
   .post-rail { display: none; }
-  .post-index-inline { display: block; }
+  /* In the text column, as a block is: hung from the body's left edge it spans
+     the margin too, and the margin rule (.post-sheet::before) runs through it. */
+  .post-index-inline {
+    display: block;
+    margin-left: calc(var(--margin-col) + var(--margin-gap));
+    max-width: 42rem;
+  }
   .post-row--full { margin-right: calc(-1 * var(--sheet-pad-x)); }
 }
 
@@ -1369,6 +1375,7 @@ body {
     padding: 2rem var(--sheet-pad-x) 2.5rem;
   }
   .post-sheet::before { display: none; }
+  .post-index-inline { margin-left: 0; }
   .post-row,
   .post-row--wide,
   .post-sheet .journal-grid { grid-template-columns: minmax(0, 1fr); row-gap: 0.5rem; }
