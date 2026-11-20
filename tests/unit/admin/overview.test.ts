@@ -1,13 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { batchSummary, countOf, countsSummary, dailySeries, kindCount, weekStartDay } from '@/lib/admin/overview';
-
-describe('countOf', () => {
-  it('uses the singular only for exactly one', () => {
-    expect(countOf(1, ['clip', 'clips'])).toBe('1 clip');
-    expect(countOf(0, ['clip', 'clips'])).toBe('0 clips');
-    expect(countOf(6, ['still has', 'stills have'])).toBe('6 stills have');
-  });
-});
+import { batchSummary, countsSummary, dailySeries, kindCount, weekStartDay } from '@/lib/admin/overview';
 
 describe('kindCount', () => {
   it('counts things, not surfaces', () => {

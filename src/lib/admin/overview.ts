@@ -1,6 +1,7 @@
 import { db } from '@/lib/db';
 import type { ContentKind } from '@/lib/newsletter/kinds';
 import { daySeries, windowStart } from './engagement';
+import { countOf } from './format';
 
 /**
  * The Overview's numbers beyond the chrome's counts (lib/admin/counts.ts): what
@@ -17,9 +18,7 @@ const NOUNS: Record<ContentKind, [string, string]> = {
   journal: ['post', 'posts'],
 };
 
-export function countOf(count: number, [one, many]: [string, string]): string {
-  return `${count} ${count === 1 ? one : many}`;
-}
+export { countOf };
 
 export function kindCount(kind: ContentKind, count: number): string {
   return countOf(count, NOUNS[kind]);
