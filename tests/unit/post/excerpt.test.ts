@@ -20,9 +20,9 @@ describe('contentExcerpt', () => {
     const content: PostContent = {
       version: 1,
       blocks: [
-        { id: 'a', type: 'section', numbered: true, label: '', title: 'Arrival', date: '', place: '' },
+        { id: 'a', type: 'section', numbered: true, label: '', title: 'Arrival' },
         { id: 'b', type: 'photos', items: [{ kind: 'journal', id: 'p' }], layout: 'row', size: 'column', caption: 'x' },
-        { id: 'c', type: 'section', numbered: true, label: '', title: 'Bukchon', date: '', place: '' },
+        { id: 'c', type: 'section', numbered: true, label: '', title: 'Bukchon' },
       ],
     };
     expect(contentExcerpt(content)).toBe('Arrival · Bukchon');

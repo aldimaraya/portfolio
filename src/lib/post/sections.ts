@@ -1,9 +1,13 @@
 import { isRichTextEmpty, type Block, type BlockOf } from './content';
 
 /**
- * Sections are how a post is divided: a day of a trip, or something named like
- * "Packing". Their labels sit in the sheet's margin and their list is the post's
- * "In this post" index, so the two are derived here once from the block order.
+ * Sections are how a post is divided. Each has two names doing different jobs:
+ * a short one in the margin ("Food"), which is also how the "In this post"
+ * index lists it, and a heading that makes the section's point ("Hong Kong
+ * cuisine is seriously good."). Both are derived here once from the block order.
+ *
+ * Sections used to be numbered days of a trip; posts are not written in order
+ * any more, so nothing here counts them.
  */
 
 export type SectionBlock = BlockOf<'section'>;
@@ -12,48 +16,22 @@ export interface SectionEntry {
   id: string;
   /** The fragment a link to the section uses, without the `#`. */
   anchor: string;
-  /** What the margin and the index show: the override, or "Day N", or nothing. */
+  /** The short name the margin and the index show; empty until it is given one. */
   label: string;
-  /** The day number a numbered section holds, renamed or not. */
-  day: number | null;
   title: string;
-  date: string;
-  place: string;
 }
 
 export function sectionAnchor(id: string): string {
   return `section-${id}`;
 }
 
-/**
- * Every section in reading order, labelled. Days are numbered by position, so
- * moving one renumbers the rest — but a renamed day still holds its number, so
- * calling Day 1 "Arrival" does not turn Day 2 into Day 1.
- */
+/** Every section in reading order. */
 export function sectionEntries(blocks: Block[]): SectionEntry[] {
-  let day = 0;
-  const entries: SectionEntry[] = [];
-
-  for (const block of blocks) {
-    if (block.type !== 'section') continue;
-    const number = block.numbered ? (day += 1) : null;
-    entries.push({
-      id: block.id,
-      anchor: sectionAnchor(block.id),
-      label: block.label.trim() || (number !== null ? `Day ${number}` : ''),
-      day: number,
-      title: block.title.trim(),
-      date: block.date.trim(),
-      place: block.place.trim(),
-    });
-  }
-
-  return entries;
-}
-
-/** The label a numbered section falls back to when its override is cleared. */
-export function defaultLabel(entry: Pick<SectionEntry, 'day'>): string {
-  return entry.day !== null ? `Day ${entry.day}` : '';
+  return blocks.flatMap((block) =>
+    block.type === 'section'
+      ? [{ id: block.id, anchor: sectionAnchor(block.id), label: block.label.trim(), title: block.title.trim() }]
+      : [],
+  );
 }
 
 /**
@@ -126,7 +104,7 @@ export function indexEntries(blocks: Block[], subsections = subsectionsBySection
   return blocks.flatMap((block) => {
     const heading = headingEntry(block);
     return heading
-      ? [{ ...heading, label: '', day: null, date: '', place: '', subsections: [], listed: true }]
+      ? [{ ...heading, label: '', subsections: [], listed: true }]
       : [];
   });
 }

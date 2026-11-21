@@ -86,8 +86,13 @@ describe('parseContent', () => {
   });
 
   it('fills defaults for optional strings', () => {
-    const parsed = parseContent({ version: 1, blocks: [{ id: 'a', type: 'section', numbered: true }] });
-    expect(parsed?.blocks[0]).toEqual({ id: 'a', type: 'section', numbered: true, label: '', title: '', date: '', place: '' });
+    const parsed = parseContent({ version: 1, blocks: [{ id: 'a', type: 'section' }] });
+    expect(parsed?.blocks[0]).toEqual({ id: 'a', type: 'section', numbered: false, label: '', title: '' });
+  });
+
+  it('still reads a section saved with the old day fields, dropping them', () => {
+    const old = { id: 'a', type: 'section', numbered: true, label: 'Arrival', title: '', date: 'Sat 14 Mar', place: 'Seoul', tripDate: '2026-03-14' };
+    expect(parseContent({ version: 1, blocks: [old] })?.blocks[0]).toEqual({ id: 'a', type: 'section', numbered: true, label: 'Arrival', title: '' });
   });
 
   it('takes a photos block with or without a scale, and refuses one out of range', () => {

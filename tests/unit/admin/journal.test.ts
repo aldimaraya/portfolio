@@ -2,14 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { parsePostFilter, summarizeDraft } from '@/lib/admin/journal';
 import { richTextFromPlain, emptyRichText, type Block } from '@/lib/post/content';
 
-const day = (id: string, extra: Partial<Block & { type: 'section' }> = {}): Block => ({
+const section = (id: string, extra: Partial<Block & { type: 'section' }> = {}): Block => ({
   id,
   type: 'section',
-  numbered: true,
+  numbered: false,
   label: '',
   title: '',
-  date: '',
-  place: '',
   ...extra,
 });
 const text = (id: string, body: string): Block => ({
@@ -37,18 +35,18 @@ describe('parsePostFilter', () => {
 });
 
 describe('summarizeDraft', () => {
-  it('counts days, sections and placed trip photos', () => {
+  it('counts sections and placed trip photos', () => {
     const blocks = [
-      day('a'),
+      section('a', { label: 'Food' }),
       text('t', 'Arrival'),
       photos('p', ['1', '2']),
-      day('b'),
+      section('b', { label: 'Sights' }),
       text('t2', 'More'),
-      { ...day('s'), numbered: false, label: 'Packing' } as Block,
+      section('s', { label: 'Packing' }),
       text('t3', 'Bags'),
     ];
     const summary = summarizeDraft(post(blocks), ['1', '2', '3']);
-    expect(summary.meta).toBe('2 days · 1 section · 3 trip photos, 2 placed');
+    expect(summary.meta).toBe('3 sections · 3 trip photos, 2 placed');
     expect(summary.warnings).toEqual(['1 photo unplaced']);
   });
 
@@ -60,7 +58,12 @@ describe('summarizeDraft', () => {
   });
 
   it('puts publish blockers before the soft warnings', () => {
-    const summary = summarizeDraft(post([day('a')], ''), ['1', '2']);
-    expect(summary.warnings).toEqual(['Needs a title', 'Needs something to read', 'Day 1 has no text yet', '2 photos unplaced']);
+    const summary = summarizeDraft(post([section('a', { label: 'Food' })], ''), ['1', '2']);
+    expect(summary.warnings).toEqual(['Needs a title', 'Needs something to read', 'Food has no text yet', '2 photos unplaced']);
+  });
+
+  it('flags a headed section with no short name, since the index lists it by that', () => {
+    const blocks = [section('a', { title: 'The climate here sucks.' }), text('t', 'Hot'), section('b'), text('t2', 'Still being written')];
+    expect(summarizeDraft(post(blocks), []).warnings).toEqual(['“The climate here sucks.” has no short name']);
   });
 });

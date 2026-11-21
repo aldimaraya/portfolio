@@ -7,7 +7,7 @@ import { PHOTO_LAYOUTS, PHOTO_SIZES, type Block, type BlockOf, type PhotoLayout,
 import { movePhoto } from '@/lib/post/editor';
 import { MAX_SCALE } from '@/lib/post/fit';
 import { resolvePhoto, type PostMedia, type ResolvedClip } from '@/lib/post/media';
-import { defaultLabel, type SectionEntry } from '@/lib/post/sections';
+import type { SectionEntry } from '@/lib/post/sections';
 import { promptForTag } from '@/lib/post/trip';
 import { BlockToolbar, Segmented, ToolButton } from './BlockToolbar';
 import { GrowingText, useLibrary } from './fields';
@@ -166,62 +166,31 @@ function Row({
 }
 
 function SectionEditor(props: EditorBlockProps & { block: BlockOf<'section'> }) {
-  const { block, entry, selected, onChange } = props;
-  const fallback = entry ? defaultLabel(entry) : '';
+  const { block, onChange } = props;
   const set = (patch: Partial<BlockOf<'section'>>) => onChange({ ...block, ...patch });
-  // A day always offers its date and place; a plain section only once it has
-  // one, or while it is selected — "Packing" has no date to add.
-  const showMeta = block.numbered || selected;
 
   return (
     <Row
       {...props}
-      label={block.numbered ? 'Day' : 'Section'}
-      tools={
-        <>
-          <Segmented
-            label="Kind"
-            value={block.numbered ? 'day' : 'plain'}
-            options={[
-              ['day', 'Numbered day'],
-              ['plain', 'Plain section'],
-            ]}
-            onChange={(kind) => set({ numbered: kind === 'day' })}
-          />
-          {block.numbered && block.label && fallback ? (
-            <ToolButton label={`Back to ${fallback}`} onClick={() => set({ label: '' })}>
-              Back to {fallback}
-            </ToolButton>
-          ) : null}
-        </>
-      }
+      label="Section"
       margin={
-        <>
-          <GrowingText
-            singleLine
-            label="Section label"
-            value={block.label}
-            // A day's number shows as the placeholder, in the label's own colour:
-            // it reads as the label, and typing over it renames the day without
-            // taking it out of the count.
-            placeholder={fallback || 'Name it'}
-            className={fallback ? 'post-margin-label editor-margin-input editor-margin-default' : 'post-margin-label editor-margin-input'}
-            onChange={(label) => set({ label })}
-          />
-          {showMeta || block.date ? (
-            <GrowingText singleLine label="Date" value={block.date} placeholder="Add date" className="post-margin-meta editor-margin-input" onChange={(date) => set({ date })} />
-          ) : null}
-          {showMeta || block.place ? (
-            <GrowingText singleLine label="Place" value={block.place} placeholder="Add place" className="post-margin-meta editor-margin-input" onChange={(place) => set({ place })} />
-          ) : null}
-        </>
+        <GrowingText
+          singleLine
+          label="Short name"
+          value={block.label}
+          // The margin's name is the index's too, so it is asked for by what it
+          // is — a word or two, not a second copy of the heading.
+          placeholder="Short name"
+          className="post-margin-label editor-margin-input"
+          onChange={(label) => set({ label })}
+        />
       }
     >
       <GrowingText
         singleLine
-        label="Section title"
+        label="Section heading"
         value={block.title}
-        placeholder={block.numbered ? 'What happened that day?' : 'Section title'}
+        placeholder="The point this section makes"
         className="post-section-title"
         onChange={(title) => set({ title })}
       />

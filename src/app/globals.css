@@ -1079,7 +1079,6 @@ body {
   text-transform: uppercase;
 }
 .post-margin-label { font-size: 0.8rem; letter-spacing: 0.14em; }
-.post-margin-meta { color: rgba(212, 175, 55, 0.72); }
 .post-margin-tag { color: var(--color-ash); }
 
 .post-title {
@@ -1575,7 +1574,7 @@ body {
   text-align: left;
 }
 .editor-outline-row[data-current] .editor-outline-jump { color: var(--color-bone); }
-.editor-outline-number { color: var(--color-ash); flex-shrink: 0; font-family: var(--font-mono); font-size: 0.6875rem; }
+.editor-outline-number { color: var(--color-ash); flex-shrink: 0; font-family: var(--font-mono); font-size: 0.6875rem; max-width: 6.5rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .editor-outline-row[data-current] .editor-outline-number { color: var(--color-gold); }
 .editor-outline-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .editor-outline-dot { background: #e0a050; border-radius: 999px; flex-shrink: 0; height: 6px; margin-left: auto; width: 6px; }
@@ -1698,7 +1697,6 @@ body {
 .editor-field::placeholder { color: var(--color-ash); opacity: 0.7; }
 .editor-margin-input { letter-spacing: inherit; text-align: inherit; text-transform: inherit; }
 /* A day's own number, shown as the label's placeholder in the label's colour. */
-.editor-margin-default::placeholder { color: var(--color-gold); opacity: 1; }
 .editor-tip-title { flex: 1; letter-spacing: inherit; text-transform: inherit; }
 .editor-list-group { letter-spacing: inherit; text-transform: inherit; }
 .editor-caption {
