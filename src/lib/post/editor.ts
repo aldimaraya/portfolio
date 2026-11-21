@@ -7,9 +7,8 @@ import { autoLayout } from './trip';
  * post becomes lives here, where it can be tested without a DOM.
  */
 
-/** What the insert menu offers, in menu order. `day` and `section` are both section blocks. */
+/** What the insert menu offers, in menu order. */
 export const INSERTABLE = [
-  'day',
   'section',
   'text',
   'heading',
@@ -27,10 +26,8 @@ export type Insertable = (typeof INSERTABLE)[number];
 export function makeBlock(kind: Insertable): Block {
   const id = newBlockId();
   switch (kind) {
-    case 'day':
-      return { id, type: 'section', numbered: true, label: '', title: '', date: '', place: '' };
     case 'section':
-      return { id, type: 'section', numbered: false, label: '', title: '', date: '', place: '' };
+      return { id, type: 'section', numbered: false, label: '', title: '' };
     case 'text':
       return { id, type: 'text', body: emptyRichText() };
     case 'heading':

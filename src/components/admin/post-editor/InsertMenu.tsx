@@ -4,8 +4,7 @@ import { useEffect, useRef } from 'react';
 import type { Insertable } from '@/lib/post/editor';
 
 const ITEMS: { kind: Insertable; glyph: string; label: string; hint: string }[] = [
-  { kind: 'day', glyph: '01', label: 'New day', hint: 'Numbered for you; date and place go in the margin' },
-  { kind: 'section', glyph: '§', label: 'New section', hint: 'Name it anything: Before you go, Packing, Costs' },
+  { kind: 'section', glyph: '§', label: 'New section', hint: 'A short name in the margin, a heading that makes the point' },
   { kind: 'text', glyph: '¶', label: 'Text', hint: 'Paragraphs, lists and links' },
   { kind: 'heading', glyph: 'H', label: 'Heading', hint: 'A smaller heading inside a section' },
   { kind: 'photos', glyph: '▦', label: 'Photos', hint: 'Stacked, a row, a grid or a carousel' },

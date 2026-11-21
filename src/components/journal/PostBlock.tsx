@@ -23,16 +23,9 @@ export function rowAnchor(block: Block): string | undefined {
   return block.type === 'section' || block.type === 'heading' ? sectionAnchor(block.id) : undefined;
 }
 
-/** A section's margin: its label, then its date and place. */
+/** A section's margin: its short name. */
 export function SectionMargin({ entry }: { entry: SectionEntry | undefined }) {
-  if (!entry) return null;
-  return (
-    <>
-      {entry.label ? <span className="post-margin-label">{entry.label}</span> : null}
-      {entry.date ? <span className="post-margin-meta">{entry.date}</span> : null}
-      {entry.place ? <span className="post-margin-meta">{entry.place}</span> : null}
-    </>
-  );
+  return entry?.label ? <span className="post-margin-label">{entry.label}</span> : null;
 }
 
 /** The published rendering of one block's content — everything but its margin. */

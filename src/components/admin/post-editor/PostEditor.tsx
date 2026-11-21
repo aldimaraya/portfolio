@@ -25,7 +25,7 @@ import {
 import { missingForPublish } from '@/lib/post/form';
 import { coverImage, resolvePhoto, type PostMedia, type ResolvedClip, type ResolvedImage } from '@/lib/post/media';
 import { enclosing, indexEntries, sectionEntries, subsectionsBySection, unwrittenSections } from '@/lib/post/sections';
-import { insertionPointForDays, layoutMissingDays, type TrayPhoto } from '@/lib/post/trip';
+import type { TrayPhoto } from '@/lib/post/trip';
 import { slugify } from '@/lib/slug';
 import { Icon } from '@/components/admin/shell/Icon';
 import { EditorBlock } from './EditorBlock';
@@ -254,20 +254,6 @@ export function PostEditor({ post, blocks: initialBlocks, cover: initialCover, m
     requestAnimationFrame(() => document.getElementById(`block-${result.blockId}`)?.scrollIntoView({ block: 'center' }));
   }
 
-  function layoutDays() {
-    const laid = layoutMissingDays(trayPhotos, blocks);
-    if (!laid.days) {
-      flash({ message: 'Every day in the trip photos already has a section in the post.' });
-      return;
-    }
-    setBlocks((current) => insertBlocks(current, insertionPointForDays(current), laid.blocks));
-    setTray({ open: false, target: null });
-    setSelected(null);
-    flash({
-      message: `Laid out ${laid.days} ${laid.days === 1 ? 'day' : 'days'} from ${laid.photos} photos, split by category. Fill in the words.`,
-    });
-  }
-
   function jumpTo(id: string) {
     setMode('edit');
     setSelected(id);
@@ -294,7 +280,7 @@ export function PostEditor({ post, blocks: initialBlocks, cover: initialCover, m
 
   const targetBlock = tray.target ? blocks.find((block) => block.id === tray.target) : undefined;
 
-  /** "Click to add to the selected row in Day 1": which block, and where it is. */
+  /** "Click to add to the selected row in Food": which block, and where it is. */
   function targetLabel(block: Block): string {
     const layout = block.type === 'photos' ? block.layout : 'block';
     const at = blocks.indexOf(block);
@@ -412,7 +398,6 @@ export function PostEditor({ post, blocks: initialBlocks, cover: initialCover, m
               setBlocks((current) => moveSection(current, id, delta));
               requestAnimationFrame(() => document.getElementById(`block-${id}`)?.scrollIntoView({ block: 'start' }));
             }}
-            onAddDay={() => insert('day', blocks.length)}
             onAddSection={() => insert('section', blocks.length)}
             slug={liveSlug}
             draft={draft}
@@ -452,10 +437,10 @@ export function PostEditor({ post, blocks: initialBlocks, cover: initialCover, m
                   <div className="post-row">
                     <div className="post-margin" />
                     <div className="post-cell editor-empty editor-empty--post">
-                      <p>Start with a day, or drop the trip&rsquo;s photos into the tray and let it lay the days out for you.</p>
+                      <p>Start with a section, or drop the trip&rsquo;s photos into the tray first.</p>
                       <div className="editor-tray-actions">
-                        <button type="button" className="editor-button" onClick={() => insert('day', 0)}>
-                          Start Day 1
+                        <button type="button" className="editor-button" onClick={() => insert('section', 0)}>
+                          Start a section
                         </button>
                         <button type="button" className="editor-button editor-button--gold" onClick={() => setTray({ open: true, target: null })}>
                           Open trip photos
@@ -586,7 +571,6 @@ export function PostEditor({ post, blocks: initialBlocks, cover: initialCover, m
             setCover((current) => (current?.kind === 'journal' && ids.includes(current.id) ? undefined : current));
           }}
           onAdd={addFromTray}
-          onLayoutDays={layoutDays}
           onClose={() => setTray({ open: false, target: null })}
         />
       </div>

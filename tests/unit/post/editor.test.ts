@@ -33,9 +33,8 @@ describe('makeBlock', () => {
     }
   });
 
-  it('makes a day as a numbered section and a section as a plain one', () => {
-    expect(makeBlock('day')).toMatchObject({ type: 'section', numbered: true });
-    expect(makeBlock('section')).toMatchObject({ type: 'section', numbered: false });
+  it('writes numbered: false on a section, which code deployed before days were dropped requires', () => {
+    expect(makeBlock('section')).toEqual({ id: expect.any(String), type: 'section', numbered: false, label: '', title: '' });
   });
 });
 
@@ -87,7 +86,7 @@ describe('block list edits', () => {
 });
 
 describe('moveSection', () => {
-  const section = (id: string): Block => ({ ...makeBlock('day'), id });
+  const section = (id: string): Block => ({ ...makeBlock('section'), id });
   // An intro, then three sections of uneven length.
   const blocks = [divider('intro'), section('A'), divider('a1'), divider('a2'), section('B'), section('C'), divider('c1')];
   const ids = (next: Block[]) => next.map((b) => b.id);

@@ -1,10 +1,9 @@
-import { emptyRichText, newBlockId, type Block, type PhotoLayout } from './content';
+import type { PhotoLayout } from './content';
 
 /**
- * The trip-photo tray: a post's own uploads, grouped by the day they were taken
- * and tagged by what they show, and turned into a skeleton of the post on
- * request. Pure, so the grouping a writer sees and the blocks it produces are
- * tested rather than eyeballed.
+ * The trip-photo tray: a post's own uploads, grouped by the day they were taken,
+ * by place, or by what they show. Pure, so the grouping a writer sees is tested
+ * rather than eyeballed.
  */
 
 export const POST_CATEGORIES = [
@@ -81,8 +80,6 @@ export function formatDayKey(key: string): string {
 export interface TrayDay {
   /** YYYY-MM-DD, or null for the photos with no capture date. */
   key: string | null;
-  /** 1-based position among the dated days; null for the undated group. */
-  number: number | null;
   photos: TrayPhoto[];
 }
 
@@ -93,11 +90,7 @@ function byTakenAt(a: TrayPhoto, b: TrayPhoto): number {
   return at === bt ? a.id.localeCompare(b.id) : at - bt;
 }
 
-/**
- * The tray's photos grouped into days of the trip, in order, numbered from the
- * first day anything was taken. Gaps are not numbered: a trip photographed on
- * the 14th and the 16th is two days, not three.
- */
+/** The tray's photos grouped by the calendar day they were taken, earliest first. */
 export function groupByDay(photos: TrayPhoto[]): TrayDay[] {
   const days = new Map<string, TrayPhoto[]>();
   const undated: TrayPhoto[] = [];
@@ -115,8 +108,8 @@ export function groupByDay(photos: TrayPhoto[]): TrayDay[] {
 
   const grouped: TrayDay[] = [...days.keys()]
     .sort()
-    .map((key, index) => ({ key, number: index + 1, photos: days.get(key)! }));
-  if (undated.length) grouped.push({ key: null, number: null, photos: undated });
+    .map((key) => ({ key, photos: days.get(key)! }));
+  if (undated.length) grouped.push({ key: null, photos: undated });
   return grouped;
 }
 
@@ -178,86 +171,6 @@ export function autoLayout(count: number): PhotoLayout {
   if (count <= 1) return 'stacked';
   if (count <= 3) return 'row';
   return 'grid';
-}
-
-/** The trip days a post already has sections for. */
-export function laidOutDays(blocks: Block[]): Set<string> {
-  const days = new Set<string>();
-  for (const block of blocks) {
-    if (block.type === 'section' && block.tripDate) days.add(block.tripDate);
-  }
-  return days;
-}
-
-export interface DayLayout {
-  blocks: Block[];
-  days: number;
-  photos: number;
-}
-
-/**
- * The skeleton for every tray day the post has no section for yet: a numbered
- * section per day, then for each category present that day a text block to fill
- * in and the photos it is about. The writer gets the structure and the photos
- * in place and only has to add the words.
- */
-export function layoutMissingDays(photos: TrayPhoto[], blocks: Block[]): DayLayout {
-  const done = laidOutDays(blocks);
-  const out: Block[] = [];
-  let days = 0;
-  let count = 0;
-
-  for (const day of groupByDay(photos)) {
-    if (!day.key || done.has(day.key)) continue;
-    days += 1;
-    count += day.photos.length;
-
-    out.push({
-      id: newBlockId(),
-      type: 'section',
-      numbered: true,
-      label: '',
-      title: '',
-      date: formatDayKey(day.key),
-      place: '',
-      tripDate: day.key,
-    });
-
-    for (const group of groupByCategory(day.photos)) {
-      const category = POST_CATEGORIES.find((entry) => entry.id === group.id);
-      out.push({
-        id: newBlockId(),
-        type: 'text',
-        body: emptyRichText(),
-        tag: category?.label ?? 'Untagged',
-      });
-      out.push({
-        id: newBlockId(),
-        type: 'photos',
-        items: group.photos.map((photo) => ({ kind: 'journal', id: photo.id })),
-        layout: autoLayout(group.photos.length),
-        size: 'column',
-        caption: '',
-      });
-    }
-  }
-
-  return { blocks: out, days, photos: count };
-}
-
-/**
- * Where laid-out days go: after the last day already in the post and whatever
- * belongs to it, so a closing section like "Packing" stays at the end. With no
- * days yet, at the end.
- */
-export function insertionPointForDays(blocks: Block[]): number {
-  let lastDay = -1;
-  blocks.forEach((block, index) => {
-    if (block.type === 'section' && block.numbered) lastDay = index;
-  });
-  if (lastDay < 0) return blocks.length;
-  const next = blocks.findIndex((block, index) => index > lastDay && block.type === 'section');
-  return next < 0 ? blocks.length : next;
 }
 
 /** The placeholder a tray-made text block shows, by its category tag. */

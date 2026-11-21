@@ -37,13 +37,12 @@ describe('RichText', () => {
 });
 
 describe('PostBody', () => {
-  it('puts a section label and date in the margin, and anchors the row', () => {
-    const out = html([{ id: 's1', type: 'section', numbered: true, label: '', title: 'Arrival', date: 'Thu 14 Mar', place: 'Seoul' }]);
+  it('puts a section short name in the margin, and anchors the row', () => {
+    const out = html([{ id: 's1', type: 'section', numbered: false, label: 'Food', title: 'The food is good.' }]);
     expect(out).toContain('id="section-s1"');
     expect(out).toContain('post-row--section');
-    expect(out).toContain('<span class="post-margin-label">Day 1</span>');
-    expect(out).toContain('Thu 14 Mar');
-    expect(out).toContain('<h2 class="post-section-title">Arrival</h2>');
+    expect(out).toContain('<span class="post-margin-label">Food</span>');
+    expect(out).toContain('<h2 class="post-section-title">The food is good.</h2>');
   });
 
   it('marks wide and full photo rows', () => {

@@ -53,12 +53,7 @@ export function SectionIndex({
                   aria-current={here ? 'location' : undefined}
                   data-within={within || undefined}
                 >
-                  {entry.label ? (
-                    <span className="post-index-label">
-                      {entry.label}
-                      {entry.day !== null && entry.place ? ` · ${entry.place}` : ''}
-                    </span>
-                  ) : null}
+                  {entry.label ? <span className="post-index-label">{entry.label}</span> : null}
                   {entry.title ? <span className="post-index-title">{entry.title}</span> : null}
                 </a>
                 {subsections.length ? (
