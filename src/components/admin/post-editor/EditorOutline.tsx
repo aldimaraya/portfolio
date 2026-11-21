@@ -4,13 +4,16 @@ import type { ResolvedImage } from '@/lib/post/media';
 import type { SectionEntry, SubsectionEntry } from '@/lib/post/sections';
 
 /**
- * The editor's left column: the post's days and sections, always in view, and
+ * The editor's left column: the post's sections, always in view, and
  * the facts about the post that are not on the sheet — its address, its cover
  * and what publishing it does to the newsletter.
  *
  * A row jumps to its section; ↑/↓ move the whole section, everything under it
- * included (moveSection), which is the move a trip post actually needs — Day 3
- * belongs before Day 2 — and which dragging one block at a time cannot do.
+ * included (moveSection), which dragging one block at a time cannot do.
+ *
+ * A row leads with the section's short name, since that is how the index will
+ * list it; a section still without one shows a dash there, so the gap is seen
+ * before a reader finds it as an unnamed row.
  *
  * A section's headings are listed under it as subsections, to jump to only:
  * they move with their section, and moving one within it is a block drag on the
@@ -24,7 +27,6 @@ export function EditorOutline({
   currentSubsection,
   onJump,
   onMove,
-  onAddDay,
   onAddSection,
   slug,
   draft,
@@ -43,7 +45,6 @@ export function EditorOutline({
   currentSubsection: string | null;
   onJump: (id: string) => void;
   onMove: (id: string, delta: -1 | 1) => void;
-  onAddDay: () => void;
   onAddSection: () => void;
   slug: string;
   draft: boolean;
@@ -67,10 +68,15 @@ export function EditorOutline({
                   data-current={(entry.id === current && !subs.some((sub) => sub.id === currentSubsection)) || undefined}
                 >
                     <button type="button" className="editor-outline-jump" onClick={() => onJump(entry.id)}>
-                      <span className="editor-outline-number" aria-hidden="true">
-                        {entry.day !== null ? String(entry.day).padStart(2, '0') : '§'}
-                      </span>
-                      <span className="editor-outline-name">{entry.title || entry.label || 'Untitled'}</span>
+                      {entry.label ? (
+                        <span className="editor-outline-number">{entry.label}</span>
+                      ) : (
+                        <span className="editor-outline-number" title="No short name">
+                          <span aria-hidden="true">—</span>
+                          <span className="sr-only">no short name,</span>
+                        </span>
+                      )}
+                      <span className="editor-outline-name">{entry.title || 'Untitled'}</span>
                       {unwritten.has(entry.id) ? (
                         <span className="editor-outline-dot" title="No text yet">
                           <span className="sr-only">, no text yet</span>
@@ -112,12 +118,9 @@ export function EditorOutline({
             })}
           </ol>
         ) : (
-          <p className="editor-muted editor-outline-empty">No days or sections yet.</p>
+          <p className="editor-muted editor-outline-empty">No sections yet.</p>
         )}
         <div className="editor-outline-add">
-          <button type="button" className="editor-button" onClick={onAddDay}>
-            + Day
-          </button>
           <button type="button" className="editor-button" onClick={onAddSection}>
             + Section
           </button>

@@ -22,7 +22,7 @@ describe('missingForPublish', () => {
       version: 1,
       blocks: [
         { id: 'a', type: 'text', body: richTextFromPlain('   ') },
-        { id: 'b', type: 'section', numbered: true, label: '', title: ' ', date: '', place: '' },
+        { id: 'b', type: 'section', numbered: true, label: '', title: ' ' },
         { id: 'c', type: 'photos', items: [], layout: 'row', size: 'column', caption: '' },
         { id: 'd', type: 'divider' },
       ],

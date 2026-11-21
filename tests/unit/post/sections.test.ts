@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { emptyRichText, richTextFromPlain, type Block } from '@/lib/post/content';
 import {
-  defaultLabel,
   enclosing,
   indexEntries,
   sectionAnchor,
@@ -10,55 +9,39 @@ import {
   unwrittenSections,
 } from '@/lib/post/sections';
 
-const day = (id: string, extra: Partial<Extract<Block, { type: 'section' }>> = {}): Block => ({
+const section = (id: string, extra: Partial<Extract<Block, { type: 'section' }>> = {}): Block => ({
   id,
   type: 'section',
-  numbered: true,
+  numbered: false,
   label: '',
   title: '',
-  date: '',
-  place: '',
   ...extra,
 });
-const plain = (id: string, label: string, title = ''): Block => ({ ...day(id), numbered: false, label, title }) as Block;
+const plain = (id: string, label: string, title = ''): Block => section(id, { label, title });
 const divider = (id: string): Block => ({ id, type: 'divider' });
 const heading = (id: string, text: string): Block => ({ id, type: 'heading', text });
 
 describe('sectionEntries', () => {
-  it('numbers days by position and skips plain sections in the count', () => {
-    const entries = sectionEntries([plain('a', 'Before you go'), day('b'), divider('x'), day('c'), plain('d', 'Packing')]);
-    expect(entries.map((entry) => [entry.label, entry.day])).toEqual([
-      ['Before you go', null],
-      ['Day 1', 1],
-      ['Day 2', 2],
-      ['Packing', null],
+  it('lists every section in order by its short name and heading, trimmed', () => {
+    const entries = sectionEntries([plain('a', ' Food ', 'Hong Kong cuisine is good.'), divider('x'), plain('b', '', ' Crowds ')]);
+    expect(entries.map((entry) => [entry.label, entry.title])).toEqual([
+      ['Food', 'Hong Kong cuisine is good.'],
+      ['', 'Crowds'],
     ]);
   });
 
-  it('keeps a renamed day in the count, so the days after it keep their numbers', () => {
-    const entries = sectionEntries([day('a', { label: 'Arrival' }), day('b')]);
-    expect(entries.map((entry) => [entry.label, entry.day])).toEqual([
-      ['Arrival', 1],
-      ['Day 2', 2],
-    ]);
-    expect(defaultLabel(entries[0])).toBe('Day 1');
-  });
-
-  it('renumbers when a day moves', () => {
-    const before = sectionEntries([day('a', { title: 'Seoul' }), day('b', { title: 'Busan' })]);
-    const after = sectionEntries([day('b', { title: 'Busan' }), day('a', { title: 'Seoul' })]);
-    expect(before.map((entry) => `${entry.label} ${entry.title}`)).toEqual(['Day 1 Seoul', 'Day 2 Busan']);
-    expect(after.map((entry) => `${entry.label} ${entry.title}`)).toEqual(['Day 1 Busan', 'Day 2 Seoul']);
+  it('gives a legacy numbered day no "Day N": days are gone', () => {
+    expect(sectionEntries([section('a', { numbered: true })])[0].label).toBe('');
   });
 
   it('gives each section a stable anchor from its id', () => {
-    expect(sectionEntries([day('k3j9')])[0].anchor).toBe(sectionAnchor('k3j9'));
+    expect(sectionEntries([section('k3j9')])[0].anchor).toBe(sectionAnchor('k3j9'));
   });
 });
 
 describe('indexEntries', () => {
   it('marks a plain section with neither label nor title unlisted, but keeps it for the rail to track', () => {
-    expect(indexEntries([plain('a', ''), day('b')]).map((entry) => [entry.id, entry.listed])).toEqual([
+    expect(indexEntries([plain('a', ''), plain('b', 'Food')]).map((entry) => [entry.id, entry.listed])).toEqual([
       ['a', false],
       ['b', true],
     ]);
@@ -70,7 +53,7 @@ describe('indexEntries', () => {
   });
 
   it('reuses a heading map it is handed', () => {
-    const blocks: Block[] = [day('a'), heading('h1', 'Dim sum')];
+    const blocks: Block[] = [section('a'), heading('h1', 'Dim sum')];
     expect(indexEntries(blocks, new Map([['a', []]]))[0].subsections).toEqual([]);
   });
 
@@ -80,13 +63,13 @@ describe('indexEntries', () => {
       { id: 'h2', type: 'heading', text: '  ' },
     ];
     expect(indexEntries(blocks)).toEqual([
-      { id: 'h1', anchor: 'section-h1', label: '', day: null, title: 'The market', date: '', place: '', subsections: [], listed: true },
+      { id: 'h1', anchor: 'section-h1', label: '', title: 'The market', subsections: [], listed: true },
     ]);
   });
 
   it('lists headings under their section once there are sections, not as rows of their own', () => {
     const blocks: Block[] = [
-      day('a', { title: 'Cuisine' }),
+      section('a', { title: 'Cuisine' }),
       heading('h1', 'Dim sum'),
       divider('x'),
       heading('h2', 'Roast goose'),
@@ -100,7 +83,7 @@ describe('indexEntries', () => {
   });
 
   it('drops the subsections of a section it leaves out, rather than hanging them on the one above', () => {
-    const blocks: Block[] = [day('a', { title: 'Cuisine' }), plain('b', ''), heading('h1', 'Orphaned')];
+    const blocks: Block[] = [section('a', { title: 'Cuisine' }), plain('b', ''), heading('h1', 'Orphaned')];
     expect(indexEntries(blocks).map((entry) => [entry.id, entry.listed, entry.subsections.length])).toEqual([
       ['a', true, 0],
       ['b', false, 0],
@@ -110,13 +93,13 @@ describe('indexEntries', () => {
 
 describe('subsectionsBySection', () => {
   it('leaves out headings before the first section, and empty ones', () => {
-    const map = subsectionsBySection([heading('h0', 'Intro'), day('a'), heading('h1', '  '), heading('h2', ' Dim sum ')]);
+    const map = subsectionsBySection([heading('h0', 'Intro'), section('a'), heading('h1', '  '), heading('h2', ' Dim sum ')]);
     expect([...map.keys()]).toEqual(['a']);
     expect(map.get('a')).toEqual([{ id: 'h2', anchor: 'section-h2', title: 'Dim sum' }]);
   });
 
   it('gives a section with no headings an empty list', () => {
-    expect(subsectionsBySection([day('a'), day('b'), heading('h1', 'x')]).get('a')).toEqual([]);
+    expect(subsectionsBySection([section('a'), section('b'), heading('h1', 'x')]).get('a')).toEqual([]);
   });
 });
 
@@ -124,13 +107,13 @@ describe('enclosing', () => {
   const blocks: Block[] = [
     heading('h0', 'Intro'),
     divider('top'),
-    day('a'),
+    section('a'),
     divider('lead'),
     heading('h1', 'Dim sum'),
     divider('x'),
     heading('h2', '  '),
     divider('z'),
-    day('b'),
+    section('b'),
     divider('y'),
   ];
 
@@ -157,15 +140,15 @@ describe('unwrittenSections', () => {
   const text = (id: string, body: string): Block => ({ id, type: 'text', body: body ? richTextFromPlain(body) : emptyRichText() });
 
   it('names the sections with no words before the next one', () => {
-    const blocks = [day('a'), text('t1', 'Arrival'), day('b'), divider('x'), plain('c', 'Last night')];
+    const blocks = [section('a'), text('t1', 'Arrival'), section('b'), divider('x'), plain('c', 'Last night')];
     expect(unwrittenSections(blocks)).toEqual(['b', 'c']);
   });
 
   it('does not count an empty text block or the section title as writing', () => {
-    expect(unwrittenSections([day('a', { title: 'Haeundae' }), text('t', '')])).toEqual(['a']);
+    expect(unwrittenSections([section('a', { title: 'Haeundae' }), text('t', '')])).toEqual(['a']);
   });
 
   it('ignores blocks before the first section', () => {
-    expect(unwrittenSections([text('intro', ''), day('a'), text('t', 'Words')])).toEqual([]);
+    expect(unwrittenSections([text('intro', ''), section('a'), text('t', 'Words')])).toEqual([]);
   });
 });

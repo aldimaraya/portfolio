@@ -27,7 +27,7 @@ One Next.js App Router application, four surfaces:
 | --- | --- | --- |
 | Stills | `/stills` | A photo wall whose order is derived entirely from colour |
 | Motion | `/motion`, `/motion/[id]` | Clips grouped into rolls of film, each clip with its own page |
-| Journal | `/journal`, `/journal/[slug]` | Posts — trips, day by day, and the things around them — built from blocks |
+| Journal | `/journal`, `/journal/[slug]` | Posts — trips and the things around them — built from blocks |
 | Newsletter | `/newsletter`, `/newsletter/{confirm,manage}` | Email when something new goes up — see [Newsletter](#newsletter) |
 | Admin | `/admin/**`, `/login` | One password-protected area managing all of it |
 
@@ -308,7 +308,7 @@ links held to http(s), mailto and on-site targets.
 
 - **The sheet** ([`PostSheet`](../src/components/journal/PostSheet.tsx)) spans the
   full container like stills and motion, without the lines growing with it: a
-  margin for dates and section labels, a text column at a reading measure, and a
+  margin for the date and section names, a text column at a reading measure, and a
   rail holding the **"In this post"** index, which stays in view and marks the
   section being read. Photos set *wide* take the margin too; *full* runs to both
   edges of the sheet, over the rail. Within that width a photos block can be
@@ -319,11 +319,16 @@ links held to http(s), mailto and on-site targets.
   `.post-frame`, not a media query, so the editor's phone preview — a narrow
   sheet in a wide window — collapses exactly as a phone does: the index moves
   under the title, then the margin moves above each block.
-- **Sections** divide a post. A *numbered* section is a day, labelled "Day N" by
-  its position, so moving one renumbers the rest; renaming it ("Arrival") keeps
-  its place in the count, so the days after it do not renumber. A *plain*
-  section ("Packing") is not counted. Both feed the index
-  ([`lib/post/sections.ts`](../src/lib/post/sections.ts)), and a **heading** under
+- **Sections** divide a post, and each has two names with different jobs: a
+  **short name** in the margin ("Food"), which is also how the index lists it,
+  and a **heading** that makes the section's point ("Hong Kong cuisine is
+  seriously good."). The editor's outline leads with the short name and the
+  admin list warns about a headed section without one. Sections are not
+  ordered or counted — posts used to be written as numbered days with a date
+  and place in the margin, and that was dropped (2026-11) once they stopped
+  being chronological; `numbered` is still written as `false` because code
+  deployed before the change requires it. Sections feed the index
+  ([`lib/post/sections.ts`](../src/lib/post/sections.ts)), and a **heading** block under
   a section is its subsection: listed beneath it in the rail and in the editor's
   outline, but not in the inline index a narrow sheet puts under the title. A
   heading before the first section belongs to none and is not listed. A post
@@ -341,9 +346,7 @@ links held to http(s), mailto and on-site targets.
   the bucket). The tray groups them by **day** — the camera's wall-clock date,
   stored in UTC fields so the day is the same everywhere
   ([`lib/post/trip.ts`](../src/lib/post/trip.ts)) — and by a fixed set of
-  **categories** (food, sights, getting around, stay, people). *Lay out days*
-  turns every day with no section yet into a numbered section with a text block
-  and the photos for each category, leaving only the words to write. An upload
+  **categories** (food, sights, getting around, stay, people). An upload
   that looks like a photo already in the post is **skipped before it is sent**,
   with *Upload anyway* to override: each row carries a 64-bit perceptual hash
   ([`lib/photo/fingerprint.ts`](../src/lib/photo/fingerprint.ts)) of the picture

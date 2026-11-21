@@ -50,7 +50,6 @@ interface Props {
   onDeleted: (ids: string[]) => void;
   /** Puts photos into the post; stills come with what is needed to draw them. */
   onAdd: (refs: PhotoRef[], stills?: Record<string, ResolvedImage>) => void;
-  onLayoutDays: () => void;
   onClose: () => void;
 }
 
@@ -110,7 +109,6 @@ function TripTab({
   onPlaced,
   onDeleted,
   onAdd,
-  onLayoutDays,
   targetLabel,
   cover,
   onCover,
@@ -153,16 +151,13 @@ function TripTab({
         photos: group.photos,
       }));
     }
-    // Numbered against every photo, not just the filtered ones, so "Day 3"
-    // means the same day whatever the filter.
-    const numbers = new Map(groupByDay(photos).map((day) => [day.key, day.number]));
     return groupByDay(visible).map((day) => ({
       key: day.key ?? 'undated',
-      title: day.key ? `Day ${numbers.get(day.key)}` : 'No date',
-      sub: day.key ? `${formatDayKey(day.key)} · ${day.photos.length}` : `${day.photos.length} without a capture date`,
+      title: day.key ? formatDayKey(day.key) : 'No date',
+      sub: day.key ? `${day.photos.length} ${day.photos.length === 1 ? 'photo' : 'photos'}` : `${day.photos.length} without a capture date`,
       photos: day.photos,
     }));
-  }, [grouping, photos, visible]);
+  }, [grouping, visible]);
 
   const counts = useMemo(() => {
     const byCategory = new Map<string, number>();
@@ -245,9 +240,6 @@ function TripTab({
         <div className="editor-tray-actions">
           <button type="button" className="editor-button" onClick={() => input.current?.click()}>
             Upload photos
-          </button>
-          <button type="button" className="editor-button editor-button--gold" disabled={!photos.length} onClick={onLayoutDays}>
-            Lay out days not in the post yet
           </button>
         </div>
         <input

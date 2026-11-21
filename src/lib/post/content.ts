@@ -166,24 +166,30 @@ const line = z.string().default('');
 const sectionBlock = z.object({
   id,
   type: z.literal('section'),
-  // A numbered section is a day: labelled "Day N" by its position among the
-  // other numbered sections unless `label` overrides it. A plain section is not
-  // counted and is labelled only by `label`.
-  numbered: z.boolean(),
+  // Sections were once either numbered days ("Day N") or plain; days are gone,
+  // and every section is plain. Still written, because code deployed before the
+  // change requires it and previews share production's posts — a section saved
+  // without it would fail to parse there. Forced to false on read, so a stray
+  // old `true` cannot survive a save and turn back into "Day N" on code that
+  // still counts days. Its old companions (date, place, tripDate) are dropped on
+  // parse: "lay out days" filled in the date, but no post in the database had
+  // one, or a place, when they went.
+  numbered: z
+    .boolean()
+    .default(false)
+    .transform((): boolean => false),
+  // The short name in the margin and the index ("Food"), beside the heading
+  // that makes the section's point ("Hong Kong cuisine is seriously good.").
   label: line,
   title: line,
-  date: line,
-  place: line,
-  // The calendar day (YYYY-MM-DD) of the tray photos this section was laid out
-  // from, so "lay out days not in the post yet" knows which are done. Not shown.
-  tripDate: z.string().optional(),
 });
 
 const textBlock = z.object({
   id,
   type: z.literal('text'),
   body: richTextSchema,
-  // A category name shown in the margin beside text the tray laid out, e.g. "Food".
+  // A category name shown in the margin beside text, e.g. "Food". Only the tray's
+  // old "lay out days" set it; kept so the posts it made still show it.
   tag: z.string().optional(),
 });
 
