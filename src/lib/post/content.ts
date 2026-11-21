@@ -167,11 +167,17 @@ const sectionBlock = z.object({
   id,
   type: z.literal('section'),
   // Sections were once either numbered days ("Day N") or plain; days are gone,
-  // and every section is plain. Still written as false, because code deployed
-  // before the change requires it, and previews share production's posts — a
-  // section saved without it would fail to parse there. Its old companions
-  // (date, place, tripDate) are dropped on parse: none was ever filled in.
-  numbered: z.boolean().default(false),
+  // and every section is plain. Still written, because code deployed before the
+  // change requires it and previews share production's posts — a section saved
+  // without it would fail to parse there. Forced to false on read, so a stray
+  // old `true` cannot survive a save and turn back into "Day N" on code that
+  // still counts days. Its old companions (date, place, tripDate) are dropped on
+  // parse: "lay out days" filled in the date, but no post in the database had
+  // one, or a place, when they went.
+  numbered: z
+    .boolean()
+    .default(false)
+    .transform((): boolean => false),
   // The short name in the margin and the index ("Food"), beside the heading
   // that makes the section's point ("Hong Kong cuisine is seriously good.").
   label: line,

@@ -90,9 +90,9 @@ describe('parseContent', () => {
     expect(parsed?.blocks[0]).toEqual({ id: 'a', type: 'section', numbered: false, label: '', title: '' });
   });
 
-  it('still reads a section saved with the old day fields, dropping them', () => {
+  it('still reads a section saved as an old day, as a plain section', () => {
     const old = { id: 'a', type: 'section', numbered: true, label: 'Arrival', title: '', date: 'Sat 14 Mar', place: 'Seoul', tripDate: '2026-03-14' };
-    expect(parseContent({ version: 1, blocks: [old] })?.blocks[0]).toEqual({ id: 'a', type: 'section', numbered: true, label: 'Arrival', title: '' });
+    expect(parseContent({ version: 1, blocks: [old] })?.blocks[0]).toEqual({ id: 'a', type: 'section', numbered: false, label: 'Arrival', title: '' });
   });
 
   it('takes a photos block with or without a scale, and refuses one out of range', () => {

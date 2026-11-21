@@ -7,7 +7,6 @@ import { PHOTO_LAYOUTS, PHOTO_SIZES, type Block, type BlockOf, type PhotoLayout,
 import { movePhoto } from '@/lib/post/editor';
 import { MAX_SCALE } from '@/lib/post/fit';
 import { resolvePhoto, type PostMedia, type ResolvedClip } from '@/lib/post/media';
-import type { SectionEntry } from '@/lib/post/sections';
 import { promptForTag } from '@/lib/post/trip';
 import { BlockToolbar, Segmented, ToolButton } from './BlockToolbar';
 import { GrowingText, useLibrary } from './fields';
@@ -16,8 +15,6 @@ import { RichTextContent, RichTextTools, useRichTextEditor } from './RichTextFie
 
 export interface EditorBlockProps {
   block: Block;
-  /** The section's derived label and day number; sections only. */
-  entry?: SectionEntry;
   media: PostMedia;
   selected: boolean;
   onSelect: () => void;

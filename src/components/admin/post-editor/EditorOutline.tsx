@@ -68,10 +68,14 @@ export function EditorOutline({
                   data-current={(entry.id === current && !subs.some((sub) => sub.id === currentSubsection)) || undefined}
                 >
                     <button type="button" className="editor-outline-jump" onClick={() => onJump(entry.id)}>
-                      <span className="editor-outline-number" title={entry.label ? undefined : 'No short name'}>
-                        {entry.label || '—'}
-                        {entry.label ? null : <span className="sr-only">no short name,</span>}
-                      </span>
+                      {entry.label ? (
+                        <span className="editor-outline-number">{entry.label}</span>
+                      ) : (
+                        <span className="editor-outline-number" title="No short name">
+                          <span aria-hidden="true">—</span>
+                          <span className="sr-only">no short name,</span>
+                        </span>
+                      )}
                       <span className="editor-outline-name">{entry.title || 'Untitled'}</span>
                       {unwritten.has(entry.id) ? (
                         <span className="editor-outline-dot" title="No text yet">

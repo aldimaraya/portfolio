@@ -437,7 +437,7 @@ export function PostEditor({ post, blocks: initialBlocks, cover: initialCover, m
                   <div className="post-row">
                     <div className="post-margin" />
                     <div className="post-cell editor-empty editor-empty--post">
-                      <p>Start with a section, or drop the trip&rsquo;s photos into the tray first.</p>
+                      <p>Start with a section. Trip photos go in the tray, to place wherever the writing needs them.</p>
                       <div className="editor-tray-actions">
                         <button type="button" className="editor-button" onClick={() => insert('section', 0)}>
                           Start a section
@@ -483,7 +483,6 @@ export function PostEditor({ post, blocks: initialBlocks, cover: initialCover, m
                       <div id={`block-${block.id}`} className="editor-block-anchor" />
                       <EditorBlock
                         block={block}
-                        entry={sections.get(block.id)}
                         media={media}
                         selected={selected === block.id}
                         onSelect={() => {
